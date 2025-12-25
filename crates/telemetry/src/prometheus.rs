@@ -80,9 +80,8 @@ mod tests {
 
     #[test]
     fn test_exporter_creation() {
-        let exporter = EnergyPrometheusExporter::new();
+        let _exporter = EnergyPrometheusExporter::new();
         // Just verify it creates without panicking
-        drop(exporter);
     }
 
     #[test]

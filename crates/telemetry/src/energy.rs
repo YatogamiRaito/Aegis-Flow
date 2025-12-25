@@ -48,9 +48,10 @@ impl Default for EnergyBreakdown {
 }
 
 /// Source of energy measurement
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum EnergySource {
     /// Software-based estimation
+    #[default]
     Software,
     /// eBPF-based measurement
     Ebpf,
@@ -58,12 +59,6 @@ pub enum EnergySource {
     Rapl,
     /// Combined sources
     Hybrid,
-}
-
-impl Default for EnergySource {
-    fn default() -> Self {
-        Self::Software
-    }
 }
 
 /// Energy metrics for a single measurement
