@@ -100,6 +100,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "aegis-telemetry"
+version = "0.6.0"
+dependencies = [
+ "aegis-common",
+ "anyhow",
+ "chrono",
+ "metrics",
+ "metrics-exporter-prometheus",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.17",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "aes"
 version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"

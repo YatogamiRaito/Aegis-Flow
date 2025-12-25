@@ -28,3 +28,7 @@ This file tracks all major tracks for the project. Each track has its own detail
 ## [x] Track: Performance Benchmark Suite
 *Link: [./conductor/tracks/benchmarks_20251226/](./conductor/tracks/benchmarks_20251226/)*
 
+---
+
+## [~] Track: eBPF Energy Telemetry
+*Link: [./conductor/tracks/ebpf_telemetry_20251226/](./conductor/tracks/ebpf_telemetry_20251226/)*

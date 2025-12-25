@@ -1,0 +1,38 @@
+[package]
+name = "aegis-telemetry"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Energy telemetry and eBPF-based metrics for Aegis-Flow"
+
+[dependencies]
+aegis-common = { path = "../common" }
+
+# Async Runtime
+tokio = { workspace = true, features = ["sync", "time"] }
+
+# Metrics
+metrics.workspace = true
+metrics-exporter-prometheus.workspace = true
+
+# Observability
+tracing.workspace = true
+
+# Error handling
+thiserror.workspace = true
+anyhow.workspace = true
+
+# Serialization
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full", "test-util"] }
+
+[features]
+default = []
+ebpf = []  # Enable eBPF support (requires Linux kernel 5.8+)
