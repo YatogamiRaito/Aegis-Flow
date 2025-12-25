@@ -107,9 +107,8 @@ impl DualStackServer {
 
         // Spawn HTTP/2 server
         let http2_handle = tokio::spawn(async move {
-            info!("🌐 Starting HTTP/2 server on {}", 
-                http2_config.listen_addr);
-            
+            info!("🌐 Starting HTTP/2 server on {}", http2_config.listen_addr);
+
             let proxy = HttpProxy::new(http2_config);
             if let Err(e) = proxy.run().await {
                 error!("❌ HTTP/2 server error: {}", e);
@@ -118,9 +117,11 @@ impl DualStackServer {
 
         // Spawn HTTP/3 server
         let http3_handle = tokio::spawn(async move {
-            info!("🚀 Starting HTTP/3 server on UDP {}", 
-                quic_config.bind_address);
-            
+            info!(
+                "🚀 Starting HTTP/3 server on UDP {}",
+                quic_config.bind_address
+            );
+
             let quic_server = QuicServer::new(quic_config, proxy_config2);
             if let Err(e) = quic_server.run().await {
                 error!("❌ HTTP/3 server error: {}", e);
@@ -193,14 +194,14 @@ mod tests {
         let config = DualStackConfig::default();
         let proxy_config = ProxyConfig::default();
         let server = DualStackServer::new(config, proxy_config);
-        
+
         assert!(server.is_h3_enabled());
     }
 
     #[test]
     fn test_dual_stack_addresses() {
         let server = DualStackServer::with_defaults(ProxyConfig::default());
-        
+
         assert_eq!(server.quic_bind_address(), "0.0.0.0:443");
         assert!(server.http2_listen_address().contains("8080"));
     }
@@ -209,7 +210,7 @@ mod tests {
     async fn test_stats_retrieval() {
         let server = DualStackServer::with_defaults(ProxyConfig::default());
         let stats = server.stats().await;
-        
+
         assert_eq!(stats.http2_requests, 0);
         assert_eq!(stats.http3_requests, 0);
     }

@@ -67,9 +67,7 @@ impl Http3Response {
     pub fn ok(body: impl Into<Bytes>) -> Self {
         Self {
             status: 200,
-            headers: vec![
-                ("content-type".to_string(), "application/json".to_string()),
-            ],
+            headers: vec![("content-type".to_string(), "application/json".to_string())],
             body: body.into(),
         }
     }
@@ -152,9 +150,7 @@ impl Http3Handler {
             ("GET", "/healthz") | ("GET", "/health") => {
                 Http3Response::ok(r#"{"status":"healthy"}"#)
             }
-            ("GET", "/ready") | ("GET", "/readiness") => {
-                Http3Response::ok(r#"{"status":"ready"}"#)
-            }
+            ("GET", "/ready") | ("GET", "/readiness") => Http3Response::ok(r#"{"status":"ready"}"#),
             ("GET", "/metrics") => {
                 // Return Prometheus metrics
                 if let Some(handle) = crate::metrics::get_metrics_handle() {
@@ -167,7 +163,10 @@ impl Http3Handler {
             _ => {
                 // Forward to upstream - for now return not found
                 // TODO: Implement upstream forwarding
-                debug!("Unhandled HTTP/3 request: {} {}", request.method, request.path);
+                debug!(
+                    "Unhandled HTTP/3 request: {} {}",
+                    request.method, request.path
+                );
                 Http3Response::not_found()
             }
         }
@@ -204,13 +203,15 @@ mod tests {
             .with_header("authorization", "Bearer token");
 
         assert_eq!(req.headers.len(), 2);
-        assert_eq!(req.headers[0], ("content-type".to_string(), "application/json".to_string()));
+        assert_eq!(
+            req.headers[0],
+            ("content-type".to_string(), "application/json".to_string())
+        );
     }
 
     #[test]
     fn test_http3_request_with_body() {
-        let req = Http3Request::new("POST", "/api")
-            .with_body(Bytes::from("test body"));
+        let req = Http3Request::new("POST", "/api").with_body(Bytes::from("test body"));
 
         assert!(req.body.is_some());
         assert_eq!(req.body.unwrap(), Bytes::from("test body"));
@@ -246,20 +247,14 @@ mod tests {
 
     #[test]
     fn test_http3_handler_creation() {
-        let handler = Http3Handler::new(
-            Http3Config::default(),
-            "127.0.0.1:8080".to_string(),
-        );
+        let handler = Http3Handler::new(Http3Config::default(), "127.0.0.1:8080".to_string());
         assert_eq!(handler.upstream_addr(), "127.0.0.1:8080");
         assert!(handler.is_logging_enabled());
     }
 
     #[tokio::test]
     async fn test_health_endpoint() {
-        let handler = Http3Handler::new(
-            Http3Config::default(),
-            "127.0.0.1:8080".to_string(),
-        );
+        let handler = Http3Handler::new(Http3Config::default(), "127.0.0.1:8080".to_string());
 
         let req = Http3Request::new("GET", "/healthz");
         let resp = handler.handle_request(req).await;
@@ -270,10 +265,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ready_endpoint() {
-        let handler = Http3Handler::new(
-            Http3Config::default(),
-            "127.0.0.1:8080".to_string(),
-        );
+        let handler = Http3Handler::new(Http3Config::default(), "127.0.0.1:8080".to_string());
 
         let req = Http3Request::new("GET", "/ready");
         let resp = handler.handle_request(req).await;
@@ -283,10 +275,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_unknown_endpoint_returns_404() {
-        let handler = Http3Handler::new(
-            Http3Config::default(),
-            "127.0.0.1:8080".to_string(),
-        );
+        let handler = Http3Handler::new(Http3Config::default(), "127.0.0.1:8080".to_string());
 
         let req = Http3Request::new("GET", "/unknown");
         let resp = handler.handle_request(req).await;

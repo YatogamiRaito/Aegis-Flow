@@ -120,9 +120,26 @@ impl QuicServer {
             .start()
             .map_err(|e| anyhow::anyhow!("Failed to start QUIC server: {}", e))?;
 
-        info!("✅ QUIC server listening on UDP {}", self.config.bind_address);
-        info!("🔐 0-RTT resumption: {}", if self.config.enable_0rtt { "enabled" } else { "disabled" });
-        info!("🛡️ Post-Quantum Cryptography: {}", if self.config.pqc_enabled { "enabled (Kyber+X25519)" } else { "disabled" });
+        info!(
+            "✅ QUIC server listening on UDP {}",
+            self.config.bind_address
+        );
+        info!(
+            "🔐 0-RTT resumption: {}",
+            if self.config.enable_0rtt {
+                "enabled"
+            } else {
+                "disabled"
+            }
+        );
+        info!(
+            "🛡️ Post-Quantum Cryptography: {}",
+            if self.config.pqc_enabled {
+                "enabled (Kyber+X25519)"
+            } else {
+                "disabled"
+            }
+        );
 
         // Accept connections
         self.accept_connections(server).await
@@ -146,7 +163,9 @@ impl QuicServer {
 
             // Spawn connection handler
             tokio::spawn(async move {
-                if let Err(e) = Self::handle_connection(connection, upstream, Arc::clone(&stats)).await {
+                if let Err(e) =
+                    Self::handle_connection(connection, upstream, Arc::clone(&stats)).await
+                {
                     error!("❌ Connection error: {}", e);
                 }
 
@@ -189,8 +208,8 @@ impl QuicServer {
 
     /// Handle a single bidirectional stream with HTTP/3 handler
     async fn handle_stream(stream: BidirectionalStream, upstream: String) -> Result<()> {
-        use bytes::Bytes;
         use crate::http3_handler::{Http3Config, Http3Handler, Http3Request};
+        use bytes::Bytes;
 
         let (mut recv, mut send) = stream.split();
 
@@ -240,7 +259,6 @@ impl QuicServer {
         Ok(())
     }
 }
-
 
 #[cfg(test)]
 mod tests {
