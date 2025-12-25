@@ -49,6 +49,11 @@ impl EncryptionKey {
     pub fn algorithm(&self) -> CipherAlgorithm {
         self.algorithm
     }
+
+    /// Get raw key bytes
+    pub fn as_bytes(&self) -> &[u8; 32] {
+        &self.key
+    }
 }
 
 impl std::fmt::Debug for EncryptionKey {
@@ -149,6 +154,11 @@ impl Cipher {
     /// Get current nonce counter (for debugging)
     pub fn nonce_counter(&self) -> u64 {
         self.nonce_counter.load(Ordering::SeqCst)
+    }
+
+    /// Get the encryption key
+    pub fn key(&self) -> &EncryptionKey {
+        &self.key
     }
 }
 

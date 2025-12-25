@@ -86,6 +86,11 @@ impl SecureChannel {
     pub fn algorithm(&self) -> PqcAlgorithm {
         self.algorithm
     }
+
+    /// Get the encryption key
+    pub fn encryption_key(&self) -> &crate::cipher::EncryptionKey {
+        self.cipher.key()
+    }
 }
 
 impl std::fmt::Debug for SecureChannel {

@@ -1,6 +1,7 @@
 //! PQC-enabled proxy server implementation
 
 use crate::config::ProxyConfig;
+use aegis_crypto::stream::EncryptedStream;
 use aegis_crypto::tls::{PqcHandshake, PqcTlsConfig};
 use anyhow::Result;
 use std::sync::Arc;
@@ -109,19 +110,22 @@ impl PqcProxyServer {
                             secure_channel.channel_id()
                         );
 
-                        // Secure echo server (for MVP - data is not encrypted in transit yet)
+
+                        // Secure echo server (Encrypted Data Plane)
+                        let key = secure_channel.encryption_key().as_bytes();
+                        let mut encrypted_socket = EncryptedStream::new(socket, key);
                         let mut buf = [0u8; 4096];
 
                         loop {
-                            match socket.read(&mut buf).await {
+                            match encrypted_socket.read(&mut buf).await {
                                 Ok(0) => {
                                     info!("📤 Connection closed: {}", peer_addr);
                                     break;
                                 }
                                 Ok(n) => {
                                     debug!("📨 Received {} bytes from {}", n, peer_addr);
-                                    // Echo back (in production, encrypt with secure_channel.encryption_key())
-                                    if let Err(e) = socket.write_all(&buf[..n]).await {
+                                    // Echo back
+                                    if let Err(e) = encrypted_socket.write_all(&buf[..n]).await {
                                         error!("❌ Write error: {}", e);
                                         break;
                                     }
@@ -221,9 +225,9 @@ mod tests {
         let server_pk = aegis_crypto::HybridPublicKey::from_bytes(&pk_bytes).unwrap();
 
         // Complete handshake
-        let (ciphertext, _client_channel) = client_handshake.client_complete(&server_pk).unwrap();
+        let (ciphertext, client_channel) = client_handshake.client_complete(&server_pk).unwrap();
 
-        // Send ciphertext
+        // Send ciphertext to server (Handshake Finalization)
         let ct_bytes = ciphertext.to_bytes();
         client
             .write_all(&(ct_bytes.len() as u32).to_be_bytes())
@@ -231,14 +235,20 @@ mod tests {
             .unwrap();
         client.write_all(&ct_bytes).await.unwrap();
 
-        // Test echo
+        // 🔒 Upgrade to Encrypted Data Plane
+        let key = client_channel.encryption_key().as_bytes();
+        let mut encrypted_client = aegis_crypto::stream::EncryptedStream::new(client, key);
+
+        // Test echo (Encrypted)
         let test_data = b"Hello PQC World!";
-        client.write_all(test_data).await.unwrap();
+        encrypted_client.write_all(test_data).await.unwrap();
+        // Flush is important for buffered streams!
+        encrypted_client.flush().await.unwrap();
 
         let mut response = vec![0u8; test_data.len()];
-        let result = timeout(Duration::from_secs(1), client.read_exact(&mut response)).await;
+        let result = timeout(Duration::from_secs(1), encrypted_client.read_exact(&mut response)).await;
 
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Read timed out");
         assert_eq!(&response, test_data);
     }
 }

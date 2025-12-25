@@ -32,6 +32,7 @@
 pub mod cipher;
 pub mod hybrid_kex;
 pub mod mtls;
+pub mod stream;
 pub mod tls;
 pub mod traits;
 
