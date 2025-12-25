@@ -30,5 +30,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-## [~] Track: eBPF Energy Telemetry
+## [x] Track: eBPF Energy Telemetry
 *Link: [./conductor/tracks/ebpf_telemetry_20251226/](./conductor/tracks/ebpf_telemetry_20251226/)*

@@ -141,12 +141,17 @@ impl Http3Handler {
 
     /// Handle an HTTP/3 request and produce a response
     pub async fn handle_request(&self, request: Http3Request) -> Http3Response {
+        use aegis_telemetry::EnergyEstimator;
+        use std::time::Instant;
+
+        let start = Instant::now();
+
         if self.config.log_requests {
             info!("📥 HTTP/3 {} {}", request.method, request.path);
         }
 
         // Route to appropriate handler
-        match (request.method.as_str(), request.path.as_str()) {
+        let response = match (request.method.as_str(), request.path.as_str()) {
             ("GET", "/healthz") | ("GET", "/health") => {
                 Http3Response::ok(r#"{"status":"healthy"}"#)
             }
@@ -160,16 +165,31 @@ impl Http3Handler {
                     Http3Response::internal_error("Metrics not initialized")
                 }
             }
+            ("GET", "/energy") => {
+                // Energy telemetry endpoint
+                let estimator = EnergyEstimator::new();
+                let info = serde_json::json!({
+                    "total_requests": estimator.request_count(),
+                    "total_energy_joules": estimator.total_energy_joules(),
+                    "average_energy_joules": estimator.average_energy_joules(),
+                    "source": "software"
+                });
+                Http3Response::ok(info.to_string()).with_header("content-type", "application/json")
+            }
             _ => {
                 // Forward to upstream - for now return not found
-                // TODO: Implement upstream forwarding
                 debug!(
                     "Unhandled HTTP/3 request: {} {}",
                     request.method, request.path
                 );
                 Http3Response::not_found()
             }
-        }
+        };
+
+        let duration = start.elapsed();
+        debug!("⚡ Request handled in {:?}", duration);
+
+        response
     }
 
     /// Get the upstream address

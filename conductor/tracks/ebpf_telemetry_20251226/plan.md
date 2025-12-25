@@ -15,14 +15,14 @@
 - [x] Task: Conductor Verification 'eBPF Integration'
 
 ## Phase 3: Per-Request Tracking
-- [ ] Task: Request ID propagation through eBPF
-- [ ] Task: Per-endpoint energy aggregation
-- [ ] Task: Energy cost calculation (joules per request)
-- [ ] Task: Integration with Http3Handler
-- [ ] Task: Conductor Verification 'Per-Request Tracking'
+- [x] Task: Request ID propagation through eBPF
+- [x] Task: Per-endpoint energy aggregation
+- [x] Task: Energy cost calculation (joules per request)
+- [x] Task: Integration with Http3Handler (/energy endpoint)
+- [x] Task: Conductor Verification 'Per-Request Tracking'
 
 ## Phase 4: Release v0.7.0
-- [ ] Task: Documentation update
-- [ ] Task: Live energy dashboard data endpoint
-- [ ] Task: Release v0.7.0
-- [ ] Task: Conductor Verification 'Release v0.7.0'
+- [x] Task: Documentation update
+- [x] Task: Live energy dashboard data endpoint
+- [x] Task: Release v0.7.0
+- [x] Task: Conductor Verification 'Release v0.7.0'

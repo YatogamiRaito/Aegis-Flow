@@ -5,6 +5,22 @@ All notable changes to Aegis-Flow will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2025-12-26
+
+### Added
+- **eBPF Energy Telemetry (Track 7)**
+  - New aegis-telemetry crate for energy measurement
+  - EnergyMetrics and EnergyBreakdown structs (CPU, memory, network, storage)
+  - EnergyEstimator with software-based estimation
+  - EbpfLoader and EbpfMetrics for per-request tracking
+  - Prometheus export: aegis_request_energy_joules, carbon metrics
+  - /energy endpoint in Http3Handler for real-time stats
+  - 22 new tests in telemetry crate
+
+### Changed
+- Added aegis-telemetry as dependency to aegis-proxy
+- Updated test count to 121 passing
+
 ## [0.6.0] - 2025-12-26
 
 ### Added

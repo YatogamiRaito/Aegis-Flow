@@ -10,6 +10,7 @@ description = "High-performance PQC-enabled proxy server for Aegis-Flow"
 aegis-common = { path = "../common" }
 aegis-crypto = { path = "../crypto" }
 aegis-energy = { path = "../energy" }
+aegis-telemetry = { path = "../telemetry" }
 
 # Async Runtime
 tokio.workspace = true
