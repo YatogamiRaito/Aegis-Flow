@@ -33,6 +33,12 @@ allow = [
 ]
 confidence-threshold = 0.8
 
+# Exceptions for crates without proper license metadata
+[[licenses.clarify]]
+name = "polars-arrow-format"
+expression = "MIT"
+license-files = []
+
 [bans]
 multiple-versions = "warn"
 wildcards = "allow"  # Allow workspace path dependencies
@@ -45,7 +51,12 @@ deny = [
     { name = "native-tls" },
 ]
 
-skip = []
+# Skip duplicate version warnings for these crates (used by polars/arrow ecosystem)
+skip = [
+    { name = "bitflags", version = "1.3" },
+    { name = "hashbrown", version = "0.14" },
+    { name = "indexmap", version = "1" },
+]
 skip-tree = []
 
 [sources]

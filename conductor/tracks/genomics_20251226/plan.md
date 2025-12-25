@@ -8,11 +8,11 @@
 - [x] Task: Conductor Verification 'Arrow Foundation'
 
 ## Phase 2: Format Parsers
-- [ ] Task: Add noodles dependency for BAM/VCF
-- [ ] Task: Implement BAM header parser
-- [ ] Task: Implement VCF record parser
-- [ ] Task: Convert to Arrow RecordBatch
-- [ ] Task: Conductor Verification 'Format Parsers'
+- [x] Task: Add noodles dependency for BAM/VCF
+- [x] Task: Implement BAM header parser
+- [x] Task: Implement VCF record parser
+- [x] Task: Convert to Arrow RecordBatch
+- [x] Task: Conductor Verification 'Format Parsers'
 
 ## Phase 3: Polars Analytics
 - [ ] Task: DataFrame from Arrow RecordBatch

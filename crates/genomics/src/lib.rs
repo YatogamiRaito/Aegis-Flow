@@ -16,12 +16,16 @@
 //! ```
 
 pub mod alignment;
+pub mod bam_parser;
 pub mod schema;
 pub mod variant;
+pub mod vcf_parser;
 
 pub use alignment::{AlignmentBatchBuilder, AlignmentRecord};
+pub use bam_parser::BamHeader;
 pub use schema::{GenomicSchema, SchemaType};
 pub use variant::{VariantBatchBuilder, VariantRecord};
+pub use vcf_parser::VcfParser;
 
 /// Error types for genomics operations
 #[derive(Debug, thiserror::Error)]
