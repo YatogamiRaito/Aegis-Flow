@@ -1,0 +1,58 @@
+# Aegis-Flow Gramine Manifest
+# For running in SGX/TDX enclaves
+
+# Gramine library OS configuration
+libos.entrypoint = "/app/aegis-proxy"
+loader.entrypoint = "file:{{ gramine.libos }}"
+loader.log_level = "{{ log_level }}"
+
+# Enable SGX (set to true for production)
+sgx.debug = true
+sgx.nonpie_binary = true
+
+# Enclave memory (adjust based on workload)
+sgx.enclave_size = "512M"
+sgx.thread_num = 8
+
+# Allow network in enclave
+sgx.allowed_files = [
+    "file:/etc/hosts",
+    "file:/etc/resolv.conf",
+    "file:/etc/ssl/certs/",
+    "file:/etc/nsswitch.conf",
+]
+
+# Environment variables
+loader.env.LD_LIBRARY_PATH = "/lib:/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu"
+loader.env.RUST_BACKTRACE = "1"
+loader.env.RUST_LOG = "info"
+
+# File system mounts
+fs.mounts = [
+    { path = "/lib", uri = "file:{{ gramine.runtimedir }}" },
+    { path = "/lib/x86_64-linux-gnu", uri = "file:/lib/x86_64-linux-gnu" },
+    { path = "/usr/lib/x86_64-linux-gnu", uri = "file:/usr/lib/x86_64-linux-gnu" },
+    { path = "/etc", uri = "file:/etc" },
+    { path = "/app", uri = "file:/app" },
+]
+
+# Trusted files (signed at build time)
+sgx.trusted_files = [
+    "file:{{ gramine.libos }}",
+    "file:{{ gramine.runtimedir }}/",
+    "file:/app/aegis-proxy",
+]
+
+# Remote attestation configuration
+sgx.remote_attestation = "dcap"
+sgx.ra_client_spid = ""
+sgx.ra_client_linkable = false
+
+# CPU features
+sgx.cpu_features.avx = "required"
+sgx.cpu_features.avx512 = "unspecified"
+sgx.cpu_features.amx = "unspecified"
+
+# System calls allowed inside enclave
+sys.enable_sigterm_injection = true
+sys.stack.size = "256K"

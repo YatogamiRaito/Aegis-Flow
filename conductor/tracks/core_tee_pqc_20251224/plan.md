@@ -33,15 +33,15 @@
 - [x] Task: Conductor - User Manual Verification 'Basic Proxy Implementation' (Protocol in workflow.md)
 
 ## Phase 4: TEE Simulation with Gramine
-- [ ] Task: Containerize Proxy
+- [x] Task: Containerize Proxy
     - Create a standard Dockerfile for the proxy binary.
-- [ ] Task: Configure Gramine Manifest
+- [x] Task: Configure Gramine Manifest
     - Create `proxy.manifest.template` for Gramine.
     - Define trusted files and entry points.
 - [ ] Task: Run in Simulation Mode
     - Update Makefile/Scripts to build and run the SGX enclave in simulation mode.
     - Verify the proxy starts and accepts traffic inside the enclave.
-- [ ] Task: Conductor - User Manual Verification 'TEE Simulation with Gramine' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'TEE Simulation with Gramine' (Protocol in workflow.md)
 
 ## Phase 5: Final Validation & Release
 - [ ] Task: Performance Benchmark
