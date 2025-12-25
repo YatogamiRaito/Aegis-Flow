@@ -50,6 +50,8 @@ jobs:
         run: cargo install cargo-audit --locked
       - name: Run cargo-deny
         run: cargo deny check
+      - name: Clean advisory-db cache
+        run: rm -rf ~/.cargo/advisory-db
       - name: Run cargo-audit
         run: cargo audit
 
