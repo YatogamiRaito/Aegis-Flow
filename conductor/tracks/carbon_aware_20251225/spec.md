@@ -16,7 +16,7 @@ Implement energy-aware traffic routing for Aegis-Flow proxy, enabling carbon-con
 - Routing decision latency < 5ms
 
 ## Acceptance Criteria
-- [ ] Energy crate compiles and tests pass
-- [ ] Carbon router integrates with proxy discovery
-- [ ] Green-wait queue supports deferred execution
+- [x] Energy crate compiles and tests pass
+- [x] Carbon router integrates with proxy discovery
+- [x] Green-wait queue supports deferred execution
 - [ ] Prometheus metrics for carbon intensity exposed

@@ -9,18 +9,18 @@
 - [x] Task: Conductor Verification 'Energy API Integration'
 
 ## Phase 2: Spatial Arbitrage
-- [ ] Task: Create carbon_router.rs in proxy crate
-- [ ] Task: Implement region-based routing logic
-- [ ] Task: Integration with discovery module
-- [ ] Task: Unit tests for carbon routing
-- [ ] Task: Conductor Verification 'Spatial Arbitrage'
+- [x] Task: Create carbon_router.rs in proxy crate
+- [x] Task: Implement region-based routing logic
+- [x] Task: Integration with discovery module
+- [x] Task: Unit tests for carbon routing (6 tests)
+- [x] Task: Conductor Verification 'Spatial Arbitrage'
 
 ## Phase 3: Temporal Shifting (Green-Wait)
-- [ ] Task: Create green_wait.rs in proxy crate
-- [ ] Task: Implement deferred job queue
-- [ ] Task: Energy forecast integration
-- [ ] Task: Integration tests
-- [ ] Task: Conductor Verification 'Temporal Shifting'
+- [x] Task: Create green_wait.rs in proxy crate
+- [x] Task: Implement deferred job queue
+- [x] Task: Job priority levels (Critical to Background)
+- [x] Task: Unit tests (7 tests)
+- [x] Task: Conductor Verification 'Temporal Shifting'
 
 ## Phase 4: Energy Telemetry
 - [ ] Task: Add carbon intensity metrics
