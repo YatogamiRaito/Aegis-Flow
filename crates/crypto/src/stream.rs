@@ -210,7 +210,7 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for EncryptedStream<S> {
         if buf.is_empty() {
             return Poll::Ready(Ok(0));
         }
-        
+
         // println!("EncryptedStream: Encrypting {} bytes", buf.len());
 
         let nonce = Aes256Gcm::generate_nonce(&mut OsRng);

@@ -111,7 +111,6 @@ impl PqcProxyServer {
                             secure_channel.channel_id()
                         );
 
-
                         // Secure echo server (Encrypted Data Plane)
                         let key = secure_channel.encryption_key().as_bytes();
                         let encrypted_socket = EncryptedStream::new(socket, key);
@@ -119,16 +118,18 @@ impl PqcProxyServer {
                         let upstream = config.upstream_addr.clone();
 
                         let service = hyper::service::service_fn(move |req| {
-                             let upstream = upstream.clone();
-                             async move { crate::http_proxy::handle_request(req, &upstream).await }
+                            let upstream = upstream.clone();
+                            async move { crate::http_proxy::handle_request(req, &upstream).await }
                         });
 
-                        if let Err(e) = hyper::server::conn::http2::Builder::new(crate::http_proxy::TokioExecutor)
-                             .max_frame_size(65535)
-                             .serve_connection(io, service)
-                             .await
+                        if let Err(e) = hyper::server::conn::http2::Builder::new(
+                            crate::http_proxy::TokioExecutor,
+                        )
+                        .max_frame_size(65535)
+                        .serve_connection(io, service)
+                        .await
                         {
-                             error!("❌ HTTP/2 connection error: {}", e);
+                            error!("❌ HTTP/2 connection error: {}", e);
                         }
                     });
                 }
@@ -264,7 +265,7 @@ mod tests {
         let res = sender.send_request(req).await.unwrap();
 
         assert_eq!(res.status(), hyper::StatusCode::OK);
-        
+
         // Read response body
         use http_body_util::BodyExt;
         let body = res.collect().await.unwrap().to_bytes();
