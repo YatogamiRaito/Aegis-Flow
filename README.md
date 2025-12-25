@@ -114,8 +114,23 @@ aegis-flow/
 ### 🔄 Track 2: Secure Data Plane with Encryption (v0.2.0)
 - [x] AES-256-GCM encryption layer
 - [x] HTTP/2 reverse proxy
-- [ ] mTLS with PQC
+- [x] mTLS with PQC
 - [x] Configuration system
+
+### 🔄 Track 3: Cloud Native Integration (v0.3.0)
+- [x] Prometheus Metrics & Grafana Dashboard
+- [x] Kubernetes Helm Chart
+- [x] Service Discovery (DNS/Static) & Load Balancing
+- [x] Distributed Tracing (OpenTelemetry)
+
+## 📊 Observability
+
+Aegis-Flow provides a full observability stack:
+
+- **Metrics**: Prometheus endpoint at `:9090/metrics`
+- **Tracing**: OpenTelemetry (W3C Trace Context)
+- **Logging**: Structured JSON logging via `tracing`
+- **Dashboards**: Grafana dashboard included in `deploy/grafana`
 
 ## 📜 License
 
