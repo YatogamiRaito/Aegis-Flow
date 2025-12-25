@@ -78,6 +78,7 @@ pub struct ServiceRegistry {
     /// Round-robin counter per service
     rr_counters: Arc<RwLock<HashMap<String, usize>>>,
     /// Health check interval
+    #[allow(dead_code)]
     health_check_interval: Duration,
 }
 
@@ -152,6 +153,7 @@ impl ServiceRegistry {
     }
 
     /// Mark an endpoint as failed
+    #[allow(clippy::collapsible_if)]
     pub async fn mark_failed(&self, service: &str, addr: SocketAddr) {
         let mut services = self.services.write().await;
         if let Some(endpoints) = services.get_mut(service) {
@@ -163,6 +165,7 @@ impl ServiceRegistry {
     }
 
     /// Mark an endpoint as healthy
+    #[allow(clippy::collapsible_if)]
     pub async fn mark_healthy(&self, service: &str, addr: SocketAddr) {
         let mut services = self.services.write().await;
         if let Some(endpoints) = services.get_mut(service) {
