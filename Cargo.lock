@@ -85,6 +85,7 @@ dependencies = [
  "hyper-util",
  "metrics",
  "metrics-exporter-prometheus",
+ "num_cpus",
  "rand 0.8.5",
  "rustls",
  "s2n-quic",

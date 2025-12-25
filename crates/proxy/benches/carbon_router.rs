@@ -73,7 +73,7 @@ fn bench_routing_decision(c: &mut Criterion) {
 
 /// Benchmark spatial arbitrage calculation
 fn bench_spatial_arbitrage(c: &mut Criterion) {
-    let regions = vec![
+    let regions = [
         ("us-east-1", 350.0),
         ("us-west-2", 150.0),
         ("eu-north-1", 50.0),

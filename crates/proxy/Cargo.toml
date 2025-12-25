@@ -51,6 +51,7 @@ rand.workspace = true
 criterion.workspace = true
 async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
+num_cpus = "1.16"
 
 [[bin]]
 name = "aegis-proxy"
@@ -70,4 +71,8 @@ harness = false
 
 [[bench]]
 name = "carbon_router"
+harness = false
+
+[[bench]]
+name = "load_test"
 harness = false
