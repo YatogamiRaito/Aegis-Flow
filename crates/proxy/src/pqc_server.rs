@@ -240,8 +240,24 @@ mod tests {
 
         // 🔒 Upgrade to Encrypted Data Plane
         let key = client_channel.encryption_key().as_bytes();
-        let encrypted_client = aegis_crypto::stream::EncryptedStream::new(client, key);
+        let mut encrypted_client = aegis_crypto::stream::EncryptedStream::new(client, key);
         // let io = get_tokio_io(encrypted_client);
+
+        // Test RAW multi-frame echo (bypass Hyper to verify stream integrity)
+        let frame1 = b"Frame 1: reliable transport";
+        encrypted_client.write_all(frame1).await.unwrap();
+        encrypted_client.flush().await.unwrap();
+
+        let frame2 = b"Frame 2: multiple chunks check";
+        encrypted_client.write_all(frame2).await.unwrap();
+        encrypted_client.flush().await.unwrap();
+
+        let mut buf = vec![0u8; frame1.len() + frame2.len()];
+        encrypted_client.read_exact(&mut buf).await.unwrap();
+        
+        println!("Received echo: {:?}", String::from_utf8_lossy(&buf));
+        assert_eq!(&buf[..frame1.len()], frame1);
+        assert_eq!(&buf[frame1.len()..], frame2);
         /*
         // Send HTTP Request
         // Configure explicit frame size to match EncryptedStream capabilities
