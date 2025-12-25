@@ -53,11 +53,7 @@ pub struct SecureChannel {
 
 impl SecureChannel {
     /// Create a new secure channel with encryption key
-    pub(crate) fn new(
-        encryption_key: [u8; 32],
-        channel_id: u64,
-        algorithm: PqcAlgorithm,
-    ) -> Self {
+    pub(crate) fn new(encryption_key: [u8; 32], channel_id: u64, algorithm: PqcAlgorithm) -> Self {
         let key = crate::cipher::EncryptionKey::from_raw(
             encryption_key,
             crate::cipher::CipherAlgorithm::Aes256Gcm,

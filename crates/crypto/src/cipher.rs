@@ -4,8 +4,8 @@
 
 use aegis_common::{AegisError, Result};
 use aes_gcm::{
-    aead::{Aead, KeyInit},
     Aes256Gcm, Nonce,
+    aead::{Aead, KeyInit},
 };
 use chacha20poly1305::ChaCha20Poly1305;
 use hkdf::Hkdf;
@@ -103,10 +103,7 @@ impl Cipher {
                 let cipher = ChaCha20Poly1305::new_from_slice(&self.key.key)
                     .map_err(|e| AegisError::Crypto(format!("ChaCha key error: {}", e)))?;
                 cipher
-                    .encrypt(
-                        chacha20poly1305::Nonce::from_slice(&nonce),
-                        plaintext,
-                    )
+                    .encrypt(chacha20poly1305::Nonce::from_slice(&nonce), plaintext)
                     .map_err(|e| AegisError::Crypto(format!("ChaCha encryption failed: {}", e)))?
             }
         };
@@ -203,12 +200,9 @@ mod tests {
     #[test]
     fn test_key_derivation() {
         let shared_secret = [0xAB; 64];
-        let key = EncryptionKey::derive(
-            &shared_secret,
-            b"aegis-flow-v1",
-            CipherAlgorithm::Aes256Gcm,
-        )
-        .unwrap();
+        let key =
+            EncryptionKey::derive(&shared_secret, b"aegis-flow-v1", CipherAlgorithm::Aes256Gcm)
+                .unwrap();
 
         let cipher = Cipher::new(key);
         let plaintext = b"HKDF derived key works!";

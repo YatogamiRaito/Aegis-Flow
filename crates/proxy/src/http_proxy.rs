@@ -6,7 +6,7 @@ use anyhow::Result;
 use bytes::Bytes;
 use http_body_util::Full;
 use hyper::{
-    body::Incoming, server::conn::http2, service::service_fn, Method, Request, Response, StatusCode,
+    Method, Request, Response, StatusCode, body::Incoming, server::conn::http2, service::service_fn,
 };
 use hyper_util::rt::TokioIo;
 use std::net::SocketAddr;
@@ -53,10 +53,7 @@ impl HttpProxy {
     pub async fn run(&self) -> Result<()> {
         let listener = TcpListener::bind(self.config.listen_addr).await?;
 
-        info!(
-            "🌐 HTTP/2 Proxy listening on {}",
-            self.config.listen_addr
-        );
+        info!("🌐 HTTP/2 Proxy listening on {}", self.config.listen_addr);
         info!("🔄 Forwarding to {}", self.config.upstream_addr);
 
         loop {
