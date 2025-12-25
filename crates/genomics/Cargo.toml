@@ -16,7 +16,7 @@ arrow-array = "53"
 arrow-buffer = "53"
 
 # Polars DataFrame
-polars = { version = "0.46", features = ["lazy", "dtype-struct"] }
+polars = { version = "0.46", features = ["lazy", "dtype-struct", "strings"] }
 
 # Genomic formats (BAM/VCF)
 noodles = { version = "0.89", features = ["bam", "vcf", "fasta"] }

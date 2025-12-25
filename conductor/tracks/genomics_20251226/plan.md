@@ -15,11 +15,11 @@
 - [x] Task: Conductor Verification 'Format Parsers'
 
 ## Phase 3: Polars Analytics
-- [ ] Task: DataFrame from Arrow RecordBatch
-- [ ] Task: Variant filtering operations
-- [ ] Task: Aggregation (counts, stats)
-- [ ] Task: Lazy evaluation for large files
-- [ ] Task: Conductor Verification 'Polars Analytics'
+- [x] Task: DataFrame from Arrow RecordBatch
+- [x] Task: Variant filtering operations
+- [x] Task: Aggregation (counts, stats)
+- [x] Task: Lazy evaluation for large files
+- [x] Task: Conductor Verification 'Polars Analytics'
 
 ## Phase 4: Release v0.8.0
 - [ ] Task: Documentation update

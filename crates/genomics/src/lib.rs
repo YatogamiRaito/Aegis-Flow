@@ -16,12 +16,14 @@
 //! ```
 
 pub mod alignment;
+pub mod analytics;
 pub mod bam_parser;
 pub mod schema;
 pub mod variant;
 pub mod vcf_parser;
 
 pub use alignment::{AlignmentBatchBuilder, AlignmentRecord};
+pub use analytics::VariantAnalytics;
 pub use bam_parser::BamHeader;
 pub use schema::{GenomicSchema, SchemaType};
 pub use variant::{VariantBatchBuilder, VariantRecord};
