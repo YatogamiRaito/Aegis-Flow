@@ -41,10 +41,10 @@ anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 hex = "0.4"
+rand.workspace = true
 
 [dev-dependencies]
 criterion.workspace = true
-rand.workspace = true
 
 [[bin]]
 name = "aegis-proxy"
