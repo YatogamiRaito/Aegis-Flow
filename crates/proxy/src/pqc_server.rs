@@ -254,7 +254,7 @@ mod tests {
 
         let mut buf = vec![0u8; frame1.len() + frame2.len()];
         encrypted_client.read_exact(&mut buf).await.unwrap();
-        
+
         println!("Received echo: {:?}", String::from_utf8_lossy(&buf));
         assert_eq!(&buf[..frame1.len()], frame1);
         assert_eq!(&buf[frame1.len()..], frame2);
