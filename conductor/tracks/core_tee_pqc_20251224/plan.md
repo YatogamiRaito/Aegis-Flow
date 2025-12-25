@@ -38,19 +38,19 @@
 - [x] Task: Configure Gramine Manifest
     - Create `proxy.manifest.template` for Gramine.
     - Define trusted files and entry points.
-- [ ] Task: Run in Simulation Mode
+- [x] Task: Run in Simulation Mode
     - Update Makefile/Scripts to build and run the SGX enclave in simulation mode.
     - Verify the proxy starts and accepts traffic inside the enclave.
 - [x] Task: Conductor - User Manual Verification 'TEE Simulation with Gramine' (Protocol in workflow.md)
 
 ## Phase 5: Final Validation & Release
-- [ ] Task: Performance Benchmark
+- [x] Task: Performance Benchmark
     - Run `criterion` benchmarks on the PQC handshake.
     - Measure end-to-end latency and compare against the <2ms overhead target.
-- [ ] Task: Security Audit
+- [x] Task: Security Audit
     - Run `cargo audit` and `cargo deny`.
     - Manually review any `unsafe` blocks (if any exist).
-- [ ] Task: Release v0.1.0-mvp
+- [x] Task: Release v0.1.0-mvp
     - Tag the release.
     - Generate final SBOM.
-- [ ] Task: Conductor - User Manual Verification 'Final Validation & Release' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Final Validation & Release' (Protocol in workflow.md)
