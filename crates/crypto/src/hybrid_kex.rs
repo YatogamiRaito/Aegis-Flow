@@ -2,13 +2,16 @@
 //!
 //! This module implements a hybrid key exchange combining classical X25519
 //! with post-quantum Kyber-768 for "Harvest Now, Decrypt Later" protection.
+//!
+//! # RFC Reference
+//! See docs/rfcs/RFC-001-hybrid-kex.md for design details.
 
 use aegis_common::{AegisError, Result};
 use pqcrypto_kyber::kyber768;
 use pqcrypto_traits::kem::{Ciphertext, PublicKey, SecretKey, SharedSecret as KyberSharedSecret};
 use rand::rngs::OsRng;
 use tracing::{debug, instrument};
-use x25519_dalek::{EphemeralSecret, PublicKey as X25519PublicKey};
+use x25519_dalek::{PublicKey as X25519PublicKey, StaticSecret as X25519StaticSecret};
 
 /// Combined public key for hybrid key exchange
 #[derive(Debug, Clone)]
@@ -19,39 +22,90 @@ pub struct HybridPublicKey {
     pub kyber: Vec<u8>,
 }
 
+impl HybridPublicKey {
+    /// Serialize the hybrid public key to bytes
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::with_capacity(32 + self.kyber.len());
+        bytes.extend_from_slice(&self.x25519);
+        bytes.extend_from_slice(&self.kyber);
+        bytes
+    }
+
+    /// Deserialize from bytes
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+        if bytes.len() < 32 {
+            return Err(AegisError::Crypto("Public key too short".to_string()));
+        }
+        let mut x25519 = [0u8; 32];
+        x25519.copy_from_slice(&bytes[..32]);
+        let kyber = bytes[32..].to_vec();
+
+        Ok(Self { x25519, kyber })
+    }
+}
+
 impl AsRef<[u8]> for HybridPublicKey {
     fn as_ref(&self) -> &[u8] {
-        // For simplicity, return X25519 part. Full serialization would concat both.
         &self.x25519
     }
 }
 
 /// Combined shared secret from hybrid key exchange
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct HybridSharedSecret {
     /// The combined shared secret (KDF output)
-    inner: Vec<u8>,
+    inner: [u8; 64],
 }
 
 impl HybridSharedSecret {
     /// Create a new hybrid shared secret from X25519 and Kyber secrets
-    pub fn combine(x25519_secret: &[u8], kyber_secret: &[u8]) -> Self {
-        // Simple concatenation - in production, use HKDF
-        let mut combined = Vec::with_capacity(x25519_secret.len() + kyber_secret.len());
-        combined.extend_from_slice(x25519_secret);
-        combined.extend_from_slice(kyber_secret);
-        Self { inner: combined }
+    pub fn combine(x25519_secret: &[u8; 32], kyber_secret: &[u8]) -> Self {
+        let mut inner = [0u8; 64];
+        inner[..32].copy_from_slice(x25519_secret);
+
+        // Kyber shared secret is 32 bytes
+        let kyber_len = kyber_secret.len().min(32);
+        inner[32..32 + kyber_len].copy_from_slice(&kyber_secret[..kyber_len]);
+
+        Self { inner }
     }
 
     /// Get the combined secret as bytes
-    pub fn as_bytes(&self) -> &[u8] {
+    pub fn as_bytes(&self) -> &[u8; 64] {
         &self.inner
+    }
+
+    /// Derive a 32-byte key from the hybrid secret
+    /// In production, use HKDF-SHA256
+    pub fn derive_key(&self) -> [u8; 32] {
+        // Simple XOR-based derivation for MVP
+        // TODO: Replace with HKDF-SHA256
+        let mut key = [0u8; 32];
+        for i in 0..32 {
+            key[i] = self.inner[i] ^ self.inner[i + 32];
+        }
+        key
+    }
+}
+
+impl std::fmt::Debug for HybridSharedSecret {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("HybridSharedSecret")
+            .field("inner", &"[REDACTED]")
+            .finish()
     }
 }
 
 impl AsRef<[u8]> for HybridSharedSecret {
     fn as_ref(&self) -> &[u8] {
         &self.inner
+    }
+}
+
+impl Drop for HybridSharedSecret {
+    fn drop(&mut self) {
+        // Zeroize on drop for security
+        self.inner.iter_mut().for_each(|b| *b = 0);
     }
 }
 
@@ -70,8 +124,8 @@ impl HybridKeyExchange {
     pub fn generate_keypair(&self) -> Result<(HybridPublicKey, HybridSecretKey)> {
         debug!("Generating hybrid key pair (X25519 + Kyber-768)");
 
-        // Generate X25519 key pair
-        let x25519_secret = EphemeralSecret::random_from_rng(OsRng);
+        // Generate X25519 key pair using StaticSecret (reusable)
+        let x25519_secret = X25519StaticSecret::random_from_rng(OsRng);
         let x25519_public = X25519PublicKey::from(&x25519_secret);
 
         // Generate Kyber-768 key pair
@@ -99,8 +153,8 @@ impl HybridKeyExchange {
     ) -> Result<(HybridCiphertext, HybridSharedSecret)> {
         debug!("Encapsulating hybrid shared secret");
 
-        // X25519 key exchange
-        let ephemeral_secret = EphemeralSecret::random_from_rng(OsRng);
+        // X25519 key exchange - generate ephemeral keypair
+        let ephemeral_secret = X25519StaticSecret::random_from_rng(OsRng);
         let ephemeral_public = X25519PublicKey::from(&ephemeral_secret);
 
         let peer_x25519_pk = X25519PublicKey::from(peer_public_key.x25519);
@@ -133,11 +187,8 @@ impl HybridKeyExchange {
         debug!("Decapsulating hybrid shared secret");
 
         // X25519 key exchange using the ephemeral public key from ciphertext
-        // Note: We need to reconstruct the X25519 shared secret differently
-        // since EphemeralSecret is consumed. This is a limitation we'll address.
-
-        // For now, we'll use a workaround - in production, use StaticSecret
-        let _peer_ephemeral = X25519PublicKey::from(ciphertext.x25519_ephemeral);
+        let peer_ephemeral = X25519PublicKey::from(ciphertext.x25519_ephemeral);
+        let x25519_shared = secret_key.x25519.diffie_hellman(&peer_ephemeral);
 
         // Kyber-768 decapsulation
         let kyber_sk = kyber768::SecretKey::from_bytes(&secret_key.kyber)
@@ -147,12 +198,8 @@ impl HybridKeyExchange {
 
         let kyber_ss = kyber768::decapsulate(&kyber_ct, &kyber_sk);
 
-        // Note: Full X25519 decapsulation would require storing the secret key
-        // For this MVP, we'll return just the Kyber shared secret with X25519 placeholder
-        let shared_secret = HybridSharedSecret::combine(
-            &[0u8; 32], // Placeholder - needs StaticSecret for proper implementation
-            kyber_ss.as_bytes(),
-        );
+        let shared_secret =
+            HybridSharedSecret::combine(x25519_shared.as_bytes(), kyber_ss.as_bytes());
 
         debug!("Hybrid decapsulation completed");
         Ok(shared_secret)
@@ -165,9 +212,8 @@ impl HybridKeyExchange {
 }
 
 /// Secret key for hybrid key exchange
-#[allow(dead_code)] // x25519 field will be used when we implement StaticSecret for decapsulation
 pub struct HybridSecretKey {
-    x25519: EphemeralSecret,
+    x25519: X25519StaticSecret,
     kyber: Vec<u8>,
 }
 
@@ -187,6 +233,31 @@ pub struct HybridCiphertext {
     pub x25519_ephemeral: [u8; 32],
     /// Kyber-768 ciphertext
     pub kyber_ciphertext: Vec<u8>,
+}
+
+impl HybridCiphertext {
+    /// Serialize to bytes
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::with_capacity(32 + self.kyber_ciphertext.len());
+        bytes.extend_from_slice(&self.x25519_ephemeral);
+        bytes.extend_from_slice(&self.kyber_ciphertext);
+        bytes
+    }
+
+    /// Deserialize from bytes
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+        if bytes.len() < 32 {
+            return Err(AegisError::Crypto("Ciphertext too short".to_string()));
+        }
+        let mut x25519_ephemeral = [0u8; 32];
+        x25519_ephemeral.copy_from_slice(&bytes[..32]);
+        let kyber_ciphertext = bytes[32..].to_vec();
+
+        Ok(Self {
+            x25519_ephemeral,
+            kyber_ciphertext,
+        })
+    }
 }
 
 #[cfg(test)]
@@ -219,6 +290,41 @@ mod tests {
     }
 
     #[test]
+    fn test_full_key_exchange_roundtrip() {
+        let kex = HybridKeyExchange::new();
+
+        // Server generates keypair
+        let (server_pk, server_sk) = kex.generate_keypair().unwrap();
+
+        // Client encapsulates
+        let (ciphertext, client_ss) = kex.encapsulate(&server_pk).unwrap();
+
+        // Server decapsulates
+        let server_ss = kex.decapsulate(&ciphertext, &server_sk).unwrap();
+
+        // Both should derive the same shared secret
+        assert_eq!(
+            client_ss.as_bytes(),
+            server_ss.as_bytes(),
+            "Client and server should derive the same shared secret"
+        );
+    }
+
+    #[test]
+    fn test_derive_key() {
+        let kex = HybridKeyExchange::new();
+        let (pk, sk) = kex.generate_keypair().unwrap();
+        let (ct, client_ss) = kex.encapsulate(&pk).unwrap();
+        let server_ss = kex.decapsulate(&ct, &sk).unwrap();
+
+        let client_key = client_ss.derive_key();
+        let server_key = server_ss.derive_key();
+
+        assert_eq!(client_key, server_key, "Derived keys should match");
+        assert_ne!(client_key, [0u8; 32], "Derived key should not be all zeros");
+    }
+
+    #[test]
     fn test_algorithm_name() {
         let kex = HybridKeyExchange::new();
         assert_eq!(kex.algorithm_name(), "X25519-Kyber768-Hybrid");
@@ -233,5 +339,30 @@ mod tests {
         assert_eq!(ss.as_bytes().len(), 64);
         assert_eq!(&ss.as_bytes()[..32], &x25519);
         assert_eq!(&ss.as_bytes()[32..], &kyber);
+    }
+
+    #[test]
+    fn test_public_key_serialization() {
+        let kex = HybridKeyExchange::new();
+        let (pk, _) = kex.generate_keypair().unwrap();
+
+        let bytes = pk.to_bytes();
+        let pk2 = HybridPublicKey::from_bytes(&bytes).unwrap();
+
+        assert_eq!(pk.x25519, pk2.x25519);
+        assert_eq!(pk.kyber, pk2.kyber);
+    }
+
+    #[test]
+    fn test_ciphertext_serialization() {
+        let kex = HybridKeyExchange::new();
+        let (pk, _) = kex.generate_keypair().unwrap();
+        let (ct, _) = kex.encapsulate(&pk).unwrap();
+
+        let bytes = ct.to_bytes();
+        let ct2 = HybridCiphertext::from_bytes(&bytes).unwrap();
+
+        assert_eq!(ct.x25519_ephemeral, ct2.x25519_ephemeral);
+        assert_eq!(ct.kyber_ciphertext, ct2.kyber_ciphertext);
     }
 }

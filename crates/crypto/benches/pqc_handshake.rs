@@ -20,6 +20,16 @@ fn benchmark_encapsulation(c: &mut Criterion) {
     });
 }
 
+fn benchmark_decapsulation(c: &mut Criterion) {
+    let kex = HybridKeyExchange::new();
+    let (pk, sk) = kex.generate_keypair().unwrap();
+    let (ct, _) = kex.encapsulate(&pk).unwrap();
+
+    c.bench_function("hybrid_decapsulation", |b| {
+        b.iter(|| black_box(kex.decapsulate(&ct, &sk).unwrap()))
+    });
+}
+
 fn benchmark_full_handshake(c: &mut Criterion) {
     let kex = HybridKeyExchange::new();
 
@@ -32,11 +42,24 @@ fn benchmark_full_handshake(c: &mut Criterion) {
     });
 }
 
+fn benchmark_derive_key(c: &mut Criterion) {
+    let kex = HybridKeyExchange::new();
+    let (pk, sk) = kex.generate_keypair().unwrap();
+    let (ct, _) = kex.encapsulate(&pk).unwrap();
+    let ss = kex.decapsulate(&ct, &sk).unwrap();
+
+    c.bench_function("hybrid_derive_key", |b| {
+        b.iter(|| black_box(ss.derive_key()))
+    });
+}
+
 criterion_group!(
     benches,
     benchmark_keypair_generation,
     benchmark_encapsulation,
+    benchmark_decapsulation,
     benchmark_full_handshake,
+    benchmark_derive_key,
 );
 
 criterion_main!(benches);

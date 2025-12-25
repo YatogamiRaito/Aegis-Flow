@@ -9,18 +9,18 @@
     - Add GitHub Actions workflow for CI (build, test, lint, audit).
 - [x] Task: Implement SLSA L3 Stub
     - Add `syft` and `cosign` steps to the CI pipeline (mock or dry-run for now).
-- [ ] Task: Conductor - User Manual Verification 'Project Scaffolding & CI/CD' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Project Scaffolding & CI/CD' (Protocol in workflow.md)
 
 ## Phase 2: Post-Quantum Crypto Integration
-- [ ] Task: Implement Hybrid Key Exchange Wrapper (TDD)
+- [x] Task: Implement Hybrid Key Exchange Wrapper (TDD)
     - **RFC Required:** Draft RFC for "Hybrid Kyber+X25519 Integration Strategy".
     - Write tests for a generic `KeyExchange` trait.
     - Implement `Kyber1024` + `X25519` wrapper using `pqcrypto` and `x25519-dalek`.
     - *Formal Verification:* Use Kani to verify the state machine of the handshake wrapper.
-- [ ] Task: Integrate PQC with Transport Layer (TDD)
+- [x] Task: Integrate PQC with Transport Layer (TDD)
     - Create a custom `rustls::CryptoProvider` or `s2n-quic` crypto configuration that uses the hybrid wrapper.
     - Implement an echo server using this secure transport.
-- [ ] Task: Conductor - User Manual Verification 'Post-Quantum Crypto Integration' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Post-Quantum Crypto Integration' (Protocol in workflow.md)
 
 ## Phase 3: Basic Proxy Implementation
 - [ ] Task: Implement Async Proxy Core (TDD)
