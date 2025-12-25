@@ -106,6 +106,7 @@ impl<S: AsyncRead + Unpin> AsyncRead for EncryptedStream<S> {
                         )))
                     };
                 }
+                // println!("EncryptedStream: Read {} bytes, total buffer: {}", n, me.read_buffer.len());
                 continue;
             }
 
@@ -114,14 +115,17 @@ impl<S: AsyncRead + Unpin> AsyncRead for EncryptedStream<S> {
             len_bytes.copy_from_slice(&me.read_buffer[..4]);
             let frame_len = u32::from_be_bytes(len_bytes) as usize;
 
+            // println!("EncryptedStream: Parsed frame_len: {}", frame_len);
+
             if frame_len < NONCE_SIZE + 16 {
-                // Minimum: nonce + tag (empty payload)
+                // println!("EncryptedStream: Frame too short: {}", frame_len);
                 return Poll::Ready(Err(io::Error::new(
                     io::ErrorKind::InvalidData,
                     "Frame too short",
                 )));
             }
             if frame_len > MAX_FRAME_SIZE + FRAME_OVERHEAD {
+                // println!("EncryptedStream: Frame too large: {}", frame_len);
                 return Poll::Ready(Err(io::Error::new(
                     io::ErrorKind::InvalidData,
                     "Frame too large",
@@ -147,6 +151,7 @@ impl<S: AsyncRead + Unpin> AsyncRead for EncryptedStream<S> {
                         "Incomplete frame",
                     )));
                 }
+                // println!("EncryptedStream: Read more bytes for frame. Buffer: {}/{}", me.read_buffer.len(), total_required);
                 continue;
             }
 
@@ -160,11 +165,17 @@ impl<S: AsyncRead + Unpin> AsyncRead for EncryptedStream<S> {
 
             match me.decryptor.decrypt(&nonce, payload) {
                 Ok(plaintext) => {
+                    // println!("EncryptedStream: Decrypted {} bytes", plaintext.len());
+                    // print hex of first 8 bytes if available
+                    // if plaintext.len() >= 8 {
+                    //      println!("EncryptedStream: First 8 bytes: {:02X?}", &plaintext[..8]);
+                    // }
                     me.decrypted_buffer.extend_from_slice(&plaintext);
                     me.read_buffer.advance(frame_len);
                     // Loop continues to serve from decrypted_buffer
                 }
                 Err(_) => {
+                    // println!("EncryptedStream: Decryption failed!");
                     return Poll::Ready(Err(io::Error::new(
                         io::ErrorKind::InvalidData,
                         "Decryption failed",
@@ -199,11 +210,14 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for EncryptedStream<S> {
         if buf.is_empty() {
             return Poll::Ready(Ok(0));
         }
+        
+        // println!("EncryptedStream: Encrypting {} bytes", buf.len());
 
         let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
         match me.encryptor.encrypt(&nonce, buf) {
             Ok(ciphertext_tag) => {
                 let frame_len = NONCE_SIZE + ciphertext_tag.len();
+                // println!("EncryptedStream: Writing frame len: {} (overhead: {})", frame_len, FRAME_OVERHEAD);
 
                 // Write Header: Length(4) + Nonce(12) + CiphertextTag(...)
                 me.write_buffer.put_u32(frame_len as u32);

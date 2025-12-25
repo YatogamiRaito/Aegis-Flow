@@ -85,7 +85,9 @@ impl HttpProxy {
 
 /// Handle incoming HTTP request
 #[instrument(skip(req))]
-async fn handle_request(
+/// Handle incoming HTTP request
+#[instrument(skip(req))]
+pub(crate) async fn handle_request(
     req: Request<Incoming>,
     _upstream: &str,
 ) -> Result<Response<Full<Bytes>>, hyper::Error> {
@@ -158,7 +160,7 @@ async fn handle_request(
 
 /// Tokio executor for Hyper
 #[derive(Clone, Copy)]
-struct TokioExecutor;
+pub(crate) struct TokioExecutor;
 
 impl<F> hyper::rt::Executor<F> for TokioExecutor
 where

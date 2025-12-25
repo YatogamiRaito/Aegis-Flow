@@ -15,6 +15,8 @@ pub struct ProxyConfig {
     pub pqc_enabled: bool,
     /// Worker thread count (0 = auto)
     pub worker_threads: usize,
+    /// Upstream address to forward requests to
+    pub upstream_addr: String,
 }
 
 impl Default for ProxyConfig {
@@ -25,6 +27,7 @@ impl Default for ProxyConfig {
             tls_enabled: true,
             pqc_enabled: true,
             worker_threads: 0,
+            upstream_addr: "127.0.0.1:8080".to_string(),
         }
     }
 }
