@@ -7,10 +7,12 @@ use tracing::{Level, info};
 use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
 mod config;
+mod http_proxy;
 mod pqc_server;
 mod server;
 
 pub use config::ProxyConfig;
+pub use http_proxy::{HttpProxy, HttpProxyConfig};
 pub use pqc_server::PqcProxyServer;
 
 #[tokio::main]

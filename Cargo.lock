@@ -57,6 +57,7 @@ dependencies = [
  "anyhow",
  "bytes",
  "criterion",
+ "http-body-util",
  "hyper",
  "hyper-util",
  "metrics",
