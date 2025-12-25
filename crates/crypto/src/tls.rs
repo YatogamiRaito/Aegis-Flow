@@ -176,8 +176,6 @@ impl std::fmt::Debug for ServerHandshakeState {
     }
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use super::*;

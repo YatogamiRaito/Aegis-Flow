@@ -7,7 +7,11 @@ use tracing::{Level, info};
 use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
 mod config;
+mod pqc_server;
 mod server;
+
+pub use config::ProxyConfig;
+pub use pqc_server::PqcProxyServer;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -25,7 +29,13 @@ async fn main() -> Result<()> {
     let config = config::ProxyConfig::default();
     info!("🌐 Listening on {}:{}", config.host, config.port);
 
-    server::run(config).await?;
+    if config.pqc_enabled {
+        info!("🛡️ PQC mode enabled - using hybrid key exchange");
+        let pqc_server = PqcProxyServer::new(config);
+        pqc_server.run().await?;
+    } else {
+        server::run(config).await?;
+    }
 
     Ok(())
 }

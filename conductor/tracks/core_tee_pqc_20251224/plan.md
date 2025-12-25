@@ -23,14 +23,14 @@
 - [x] Task: Conductor - User Manual Verification 'Post-Quantum Crypto Integration' (Protocol in workflow.md)
 
 ## Phase 3: Basic Proxy Implementation
-- [ ] Task: Implement Async Proxy Core (TDD)
+- [x] Task: Implement Async Proxy Core (TDD)
     - Create a `tokio`-based TCP/UDP listener.
     - Implement basic traffic forwarding (Echo or transparent proxy).
     - Ensure `tokio-uring` is utilized (if supported by kernel) or fallback to epoll.
-- [ ] Task: Add Observability Hooks
+- [x] Task: Add Observability Hooks
     - Integrate `tracing` and `metrics` crates.
     - Expose basic latency and throughput metrics.
-- [ ] Task: Conductor - User Manual Verification 'Basic Proxy Implementation' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Basic Proxy Implementation' (Protocol in workflow.md)
 
 ## Phase 4: TEE Simulation with Gramine
 - [ ] Task: Containerize Proxy
