@@ -19,6 +19,7 @@ hyper-util.workspace = true
 tower.workspace = true
 bytes.workspace = true
 http-body-util = "0.1"
+async-trait = "0.1"
 
 # TLS
 rustls.workspace = true

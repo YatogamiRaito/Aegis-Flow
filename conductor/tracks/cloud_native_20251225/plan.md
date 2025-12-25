@@ -24,16 +24,16 @@
 - [x] Task: Conductor Verification 'Kubernetes Deployment'
 
 ## Phase 3: Service Discovery
-- [ ] Task: DNS Resolver
+- [x] Task: DNS Resolver
     - Async DNS resolution
     - TTL-based caching
-- [ ] Task: Endpoint Watcher
+- [x] Task: Endpoint Watcher
     - Watch Kubernetes endpoints
     - Dynamic backend updates
-- [ ] Task: Load Balancer
+- [x] Task: Load Balancer
     - Round-robin, least-connections
     - Health-aware routing
-- [ ] Task: Conductor Verification 'Service Discovery'
+- [x] Task: Conductor Verification 'Service Discovery'
 
 ## Phase 4: Distributed Tracing
 - [ ] Task: OpenTelemetry Integration

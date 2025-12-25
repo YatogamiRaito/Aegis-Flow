@@ -7,12 +7,14 @@ use tracing::{Level, info};
 use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
 mod config;
+mod discovery;
 mod http_proxy;
 pub mod metrics;
 mod pqc_server;
 mod server;
 
 pub use config::ProxyConfig;
+pub use discovery::{LoadBalancer, LoadBalanceStrategy, ServiceDiscovery};
 pub use http_proxy::{HttpProxy, HttpProxyConfig};
 pub use pqc_server::PqcProxyServer;
 
