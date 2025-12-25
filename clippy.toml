@@ -1,0 +1,11 @@
+# Clippy configuration for Aegis-Flow
+# See: https://doc.rust-lang.org/clippy/configuration.html
+
+# Cognitive complexity threshold
+cognitive-complexity-threshold = 25
+
+# Max lines in a function
+too-many-lines-threshold = 100
+
+# Minimum identifier characters
+min-ident-chars-threshold = 2

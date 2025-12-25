@@ -1,0 +1,38 @@
+[package]
+name = "aegis-crypto"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Post-Quantum Cryptography module for Aegis-Flow"
+
+[dependencies]
+aegis-common = { path = "../common" }
+
+# Post-Quantum Cryptography
+pqcrypto-kyber.workspace = true
+pqcrypto-dilithium.workspace = true
+pqcrypto-traits.workspace = true
+x25519-dalek.workspace = true
+
+# Standard crypto
+rand.workspace = true
+
+# Error handling
+thiserror.workspace = true
+anyhow.workspace = true
+
+# Observability
+tracing.workspace = true
+
+# Serialization
+serde.workspace = true
+bytes.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread"] }
+criterion.workspace = true
+
+[[bench]]
+name = "pqc_handshake"
+harness = false

@@ -1,0 +1,49 @@
+[package]
+name = "aegis-proxy"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "High-performance PQC-enabled proxy server for Aegis-Flow"
+
+[dependencies]
+aegis-common = { path = "../common" }
+aegis-crypto = { path = "../crypto" }
+
+# Async Runtime
+tokio.workspace = true
+
+# Networking
+hyper.workspace = true
+hyper-util.workspace = true
+tower.workspace = true
+bytes.workspace = true
+
+# TLS
+rustls.workspace = true
+tokio-rustls.workspace = true
+
+# QUIC (optional)
+s2n-quic.workspace = true
+
+# Observability
+tracing.workspace = true
+tracing-subscriber.workspace = true
+metrics.workspace = true
+metrics-exporter-prometheus.workspace = true
+
+# Error handling
+thiserror.workspace = true
+anyhow.workspace = true
+
+# Config & Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+rand.workspace = true
+
+[[bin]]
+name = "aegis-proxy"
+path = "src/main.rs"

@@ -1,10 +1,10 @@
 # Track Plan: Core TEE-Native PQC Data Plane
 
 ## Phase 1: Project Scaffolding & CI/CD
-- [ ] Task: Initialize Rust Project Structure
+- [x] Task: Initialize Rust Project Structure
     - Create a workspace with `proxy`, `common`, and `crypto` crates.
     - Configure `Cargo.toml` with project metadata and dependencies.
-- [ ] Task: Set up Quality Tools
+- [x] Task: Set up Quality Tools
     - Configure `clippy`, `rustfmt`, and `deny.toml`.
     - Add GitHub Actions workflow for CI (build, test, lint, audit).
 - [ ] Task: Implement SLSA L3 Stub

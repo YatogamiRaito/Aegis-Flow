@@ -1,6 +1,6 @@
 
 ## 1. Core Language & Runtime
-*   **Language:** **Rust** (Edition 2024 or latest stable)
+*   **Language:** **Rust** (Edition 2024 - requires Rust 1.85+ / using 1.92.0 stable)
     *   *Rationale:* Provides memory safety, zero-cost abstractions, and is the industry direction for secure infrastructure (Microsoft/Google mandate).
 *   **Async Runtime:** **Tokio**
     *   *Rationale:* Industry standard for async I/O, offering stability and a rich ecosystem.
