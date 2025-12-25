@@ -9,6 +9,7 @@ use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 pub mod carbon_router;
 mod config;
 pub mod discovery;
+pub mod green_wait;
 mod http_proxy;
 pub mod metrics;
 mod pqc_server;
@@ -18,6 +19,9 @@ pub mod tracing_otel;
 pub use carbon_router::{CarbonRouter, CarbonRouterConfig, RegionScore};
 pub use config::ProxyConfig;
 pub use discovery::{LoadBalanceStrategy, ServiceRegistry};
+pub use green_wait::{
+    DeferredJob, GreenWaitConfig, GreenWaitScheduler, JobPriority, ScheduleResult,
+};
 pub use http_proxy::{HttpProxy, HttpProxyConfig};
 pub use pqc_server::PqcProxyServer;
 pub use tracing_otel::TraceContext;
