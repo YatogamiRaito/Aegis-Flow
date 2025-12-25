@@ -55,3 +55,19 @@ chrono = { version = "0.4", features = ["serde"] }
 [[bin]]
 name = "aegis-proxy"
 path = "src/main.rs"
+
+[lib]
+name = "aegis_proxy"
+path = "src/lib.rs"
+
+[[bench]]
+name = "pqc_handshake"
+harness = false
+
+[[bench]]
+name = "http3_throughput"
+harness = false
+
+[[bench]]
+name = "carbon_router"
+harness = false

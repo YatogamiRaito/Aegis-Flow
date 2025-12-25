@@ -1,6 +1,6 @@
 //! TCP/UDP server implementation
 
-use crate::config::ProxyConfig;
+use crate::ProxyConfig;
 use anyhow::Result;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
