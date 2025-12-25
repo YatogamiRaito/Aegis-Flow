@@ -5,6 +5,20 @@ All notable changes to Aegis-Flow will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2025-12-26
+
+### Added
+- **Performance Benchmark Suite**
+  - PQC handshake benchmark (230µs - 21x faster than target)
+  - HTTP/3 throughput benchmark
+  - Carbon router benchmark
+  - Load testing (43M elem/s @ 500 workers)
+  - docs/benchmarks/RESULTS.md comparison report
+
+### Changed
+- Converted aegis-proxy to lib+bin structure for benchmark access
+- Updated test count to 99 passing tests
+
 ## [0.5.0] - 2025-12-26
 
 ### Added

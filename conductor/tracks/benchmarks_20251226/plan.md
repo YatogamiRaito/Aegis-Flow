@@ -16,14 +16,14 @@
 - [x] Task: Conductor Verification 'Load Testing'
 
 ## Phase 3: Comparison & Reports
-- [ ] Task: Document Envoy baseline setup
-- [ ] Task: Generate comparison charts
-- [ ] Task: Create benchmark summary markdown
-- [ ] Task: README badges for performance claims
-- [ ] Task: Conductor Verification 'Comparison Reports'
+- [x] Task: Document Envoy baseline setup
+- [x] Task: Generate comparison charts
+- [x] Task: Create benchmark summary markdown (RESULTS.md)
+- [x] Task: README badges for performance claims
+- [x] Task: Conductor Verification 'Comparison Reports'
 
 ## Phase 4: Release v0.6.0
-- [ ] Task: Documentation update
-- [ ] Task: CI benchmark workflow
-- [ ] Task: Release v0.6.0
-- [ ] Task: Conductor Verification 'Release v0.6.0'
+- [x] Task: Documentation update
+- [x] Task: CI benchmark workflow
+- [x] Task: Release v0.6.0
+- [x] Task: Conductor Verification 'Release v0.6.0'
