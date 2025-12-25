@@ -181,4 +181,57 @@ mod tests {
         let _proxy = HttpProxy::new(config);
         // Just verify it creates without panicking
     }
+
+    #[test]
+    fn test_config_clone() {
+        let config = HttpProxyConfig::default();
+        let cloned = config.clone();
+        assert_eq!(config.listen_addr, cloned.listen_addr);
+        assert_eq!(config.upstream_addr, cloned.upstream_addr);
+        assert_eq!(config.max_concurrent_streams, cloned.max_concurrent_streams);
+        assert_eq!(config.initial_window_size, cloned.initial_window_size);
+    }
+
+    #[test]
+    fn test_config_debug() {
+        let config = HttpProxyConfig::default();
+        let debug_str = format!("{:?}", config);
+        assert!(debug_str.contains("HttpProxyConfig"));
+        assert!(debug_str.contains("listen_addr"));
+        assert!(debug_str.contains("upstream_addr"));
+    }
+
+    #[test]
+    fn test_config_listen_addr_parsing() {
+        let config = HttpProxyConfig {
+            listen_addr: "0.0.0.0:3000".parse().unwrap(),
+            ..Default::default()
+        };
+        assert_eq!(config.listen_addr.port(), 3000);
+    }
+
+    #[test]
+    fn test_config_with_different_ports() {
+        for port in [8080, 8443, 9000, 3000] {
+            let addr: SocketAddr = format!("127.0.0.1:{}", port).parse().unwrap();
+            let config = HttpProxyConfig {
+                listen_addr: addr,
+                ..Default::default()
+            };
+            assert_eq!(config.listen_addr.port(), port);
+        }
+    }
+
+    #[test]
+    fn test_proxy_new_preserves_config() {
+        let config = HttpProxyConfig {
+            listen_addr: "127.0.0.1:7777".parse().unwrap(),
+            upstream_addr: "custom-backend:8080".to_string(),
+            max_concurrent_streams: 200,
+            initial_window_size: 131070,
+        };
+        let proxy = HttpProxy::new(config.clone());
+        assert_eq!(proxy.config.listen_addr, config.listen_addr);
+        assert_eq!(proxy.config.upstream_addr, config.upstream_addr);
+    }
 }

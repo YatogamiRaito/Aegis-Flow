@@ -1,0 +1,14 @@
+[tarpaulin]
+# Exclude main.rs from coverage (entry point, hard to unit test)
+exclude-files = [
+    "crates/proxy/src/main.rs"
+]
+
+# Engine (recommended for Rust 2024)
+engine = "llvm"
+
+# Timeout for long-running tests
+timeout = "120s"
+
+# Output settings
+output-dir = "coverage"

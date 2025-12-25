@@ -6,7 +6,9 @@
 
 [![Rust](https://img.shields.io/badge/rust-1.92%2B-orange.svg)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-28%20passing-brightgreen.svg)]()
+[![CI](https://github.com/YatogamiRaito/Aegis-Flow/actions/workflows/ci.yml/badge.svg)](https://github.com/YatogamiRaito/Aegis-Flow/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/YatogamiRaito/Aegis-Flow/graph/badge.svg?token=YOUR_TOKEN)](https://codecov.io/gh/YatogamiRaito/Aegis-Flow)
+[![Tests](https://img.shields.io/badge/tests-56%20passing-brightgreen.svg)]()
 
 </div>
 

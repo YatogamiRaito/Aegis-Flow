@@ -113,6 +113,44 @@ mod tests {
         assert!(names::HANDSHAKE_DURATION.contains("duration"));
     }
 
-    // Note: Full metrics tests require integration testing
-    // as the recorder can only be installed once per process
+    #[test]
+    fn test_all_metric_names_have_prefix() {
+        assert!(names::REQUESTS_TOTAL.starts_with("aegis_"));
+        assert!(names::REQUEST_DURATION.starts_with("aegis_"));
+        assert!(names::CONNECTIONS_ACTIVE.starts_with("aegis_"));
+        assert!(names::HANDSHAKES_TOTAL.starts_with("aegis_"));
+        assert!(names::HANDSHAKE_DURATION.starts_with("aegis_"));
+        assert!(names::BYTES_SENT.starts_with("aegis_"));
+        assert!(names::BYTES_RECEIVED.starts_with("aegis_"));
+        assert!(names::ENCRYPTION_OPERATIONS.starts_with("aegis_"));
+        assert!(names::ERRORS_TOTAL.starts_with("aegis_"));
+    }
+
+    #[test]
+    fn test_metric_names_are_not_empty() {
+        assert!(!names::REQUESTS_TOTAL.is_empty());
+        assert!(!names::REQUEST_DURATION.is_empty());
+        assert!(!names::CONNECTIONS_ACTIVE.is_empty());
+        assert!(!names::HANDSHAKES_TOTAL.is_empty());
+        assert!(!names::HANDSHAKE_DURATION.is_empty());
+        assert!(!names::BYTES_SENT.is_empty());
+        assert!(!names::BYTES_RECEIVED.is_empty());
+        assert!(!names::ENCRYPTION_OPERATIONS.is_empty());
+        assert!(!names::ERRORS_TOTAL.is_empty());
+    }
+
+    #[test]
+    fn test_metric_names_contain_expected_keywords() {
+        assert!(names::REQUESTS_TOTAL.contains("requests"));
+        assert!(names::REQUEST_DURATION.contains("duration"));
+        assert!(names::CONNECTIONS_ACTIVE.contains("connections"));
+        assert!(names::HANDSHAKES_TOTAL.contains("handshakes"));
+        assert!(names::BYTES_SENT.contains("bytes"));
+        assert!(names::BYTES_RECEIVED.contains("bytes"));
+        assert!(names::ENCRYPTION_OPERATIONS.contains("encryption"));
+        assert!(names::ERRORS_TOTAL.contains("errors"));
+    }
+
+    // Note: Functions like record_request, record_handshake etc. require
+    // a metrics recorder to be installed. These are tested in integration tests.
 }

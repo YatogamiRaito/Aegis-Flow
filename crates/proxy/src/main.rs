@@ -6,6 +6,7 @@ use anyhow::Result;
 use tracing::{Level, info};
 use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
+mod carbon_router;
 mod config;
 pub mod discovery;
 mod http_proxy;
