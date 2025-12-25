@@ -1,5 +1,6 @@
 # cargo-deny configuration for Aegis-Flow
 # Security and license compliance for dependencies
+# Compatible with cargo-deny 0.14+
 
 [graph]
 targets = []
@@ -7,15 +8,12 @@ all-features = false
 no-default-features = false
 
 [advisories]
+version = 2
 db-path = "~/.cargo/advisory-db"
-vulnerability = "deny"
-unmaintained = "warn"
-yanked = "warn"
-notice = "warn"
 ignore = []
 
 [licenses]
-unlicensed = "deny"
+version = 2
 allow = [
     "MIT",
     "Apache-2.0",
@@ -39,10 +37,9 @@ highlight = "all"
 workspace-default-features = "allow"
 external-default-features = "allow"
 
-# Deny certain crates
 deny = [
-    { name = "openssl" },  # Prefer rustls
-    { name = "native-tls" },  # Prefer rustls
+    { name = "openssl" },
+    { name = "native-tls" },
 ]
 
 skip = []
