@@ -2,7 +2,7 @@
 //!
 //! Provides metrics collection and export for observability.
 
-use metrics::{counter, gauge, histogram, describe_counter, describe_gauge, describe_histogram};
+use metrics::{counter, describe_counter, describe_gauge, describe_histogram, gauge, histogram};
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
 use std::sync::OnceLock;
 use tracing::info;
@@ -34,14 +34,20 @@ pub fn init_metrics() -> PrometheusHandle {
     describe_histogram!(names::REQUEST_DURATION, "Request duration in seconds");
     describe_gauge!(names::CONNECTIONS_ACTIVE, "Number of active connections");
     describe_counter!(names::HANDSHAKES_TOTAL, "Total PQC handshakes completed");
-    describe_histogram!(names::HANDSHAKE_DURATION, "PQC handshake duration in seconds");
+    describe_histogram!(
+        names::HANDSHAKE_DURATION,
+        "PQC handshake duration in seconds"
+    );
     describe_counter!(names::BYTES_SENT, "Total bytes sent");
     describe_counter!(names::BYTES_RECEIVED, "Total bytes received");
-    describe_counter!(names::ENCRYPTION_OPERATIONS, "Total encryption/decryption operations");
+    describe_counter!(
+        names::ENCRYPTION_OPERATIONS,
+        "Total encryption/decryption operations"
+    );
     describe_counter!(names::ERRORS_TOTAL, "Total errors");
 
     info!("📊 Metrics system initialized");
-    
+
     METRICS_HANDLE.set(handle.clone()).ok();
     handle
 }
@@ -61,7 +67,8 @@ pub fn record_request(method: &str, path: &str, status: u16, duration_secs: f64)
 pub fn record_handshake(algorithm: &str, duration_secs: f64, success: bool) {
     counter!(names::HANDSHAKES_TOTAL, "algorithm" => algorithm.to_string(), "success" => success.to_string()).increment(1);
     if success {
-        histogram!(names::HANDSHAKE_DURATION, "algorithm" => algorithm.to_string()).record(duration_secs);
+        histogram!(names::HANDSHAKE_DURATION, "algorithm" => algorithm.to_string())
+            .record(duration_secs);
     }
 }
 
