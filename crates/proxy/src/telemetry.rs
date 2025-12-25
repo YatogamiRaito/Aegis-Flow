@@ -4,8 +4,7 @@
 
 use anyhow::Result;
 use opentelemetry::global;
-use opentelemetry::trace::TraceError;
-use opentelemetry_sdk::{propagation::TraceContextPropagator, trace::Tracer};
+use opentelemetry_sdk::propagation::TraceContextPropagator;
 use tracing_subscriber::{layer::SubscriberExt, EnvFilter, Registry};
 
 /// Initialize distributed tracing
@@ -43,20 +42,14 @@ pub fn init_tracing(_service_name: &str, _endpoint: Option<String>) -> Result<()
 }
 
 /// Initialize OTLP tracer (placeholder for future expansion)
+/// Requires opentelemetry_otlp crate to be added to Cargo.toml
 #[allow(dead_code)]
-fn init_otlp_tracer(service_name: &str, _endpoint: Option<String>) -> Result<Tracer, TraceError> {
-    // Configuration for OTLP would go here
-     opentelemetry_otlp::new_pipeline()
-        .tracing()
-        .with_exporter(
-            opentelemetry_otlp::new_exporter()
-                .tonic()
-        )
-        .with_trace_config(
-            opentelemetry_sdk::trace::config()
-                .with_resource(opentelemetry_sdk::Resource::new(vec![
-                    opentelemetry::KeyValue::new("service.name", service_name.to_string()),
-                ]))
-        )
-        .install_batch(opentelemetry_sdk::runtime::Tokio)
+fn init_otlp_tracer(_service_name: &str, _endpoint: Option<String>) {
+    // Configuration for OTLP would go here when opentelemetry_otlp is added:
+    // opentelemetry_otlp::new_pipeline()
+    //     .tracing()
+    //     .with_exporter(opentelemetry_otlp::new_exporter().tonic())
+    //     .install_batch(opentelemetry_sdk::runtime::Tokio)
+    unimplemented!("Add opentelemetry_otlp to Cargo.toml to enable OTLP tracing")
 }
+

@@ -8,8 +8,8 @@
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![CI](https://github.com/YatogamiRaito/Aegis-Flow/actions/workflows/ci.yml/badge.svg)](https://github.com/YatogamiRaito/Aegis-Flow/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/YatogamiRaito/Aegis-Flow/graph/badge.svg?token=YOUR_TOKEN)](https://codecov.io/gh/YatogamiRaito/Aegis-Flow)
-[![Tests](https://img.shields.io/badge/tests-56%20passing-brightgreen.svg)]()
-[![Version](https://img.shields.io/badge/version-0.4.0-blue.svg)]()
+[![Tests](https://img.shields.io/badge/tests-99%20passing-brightgreen.svg)]()
+[![Version](https://img.shields.io/badge/version-0.5.0-blue.svg)]()
 
 </div>
 
@@ -160,6 +160,13 @@ aegis-flow/
 - [x] Green-Wait temporal shifting
 - [x] Energy telemetry metrics
 - [x] Grafana dashboard
+
+### ✅ Track 5: HTTP/3 and QUIC Protocol Support (v0.5.0)
+- [x] QUIC server with s2n-quic
+- [x] HTTP/3 request/response handling
+- [x] Dual-stack HTTP/2 + HTTP/3 server
+- [x] Alt-Svc header for HTTP/3 discovery
+- [x] PQC integration with QUIC TLS
 
 ## 📜 License
 

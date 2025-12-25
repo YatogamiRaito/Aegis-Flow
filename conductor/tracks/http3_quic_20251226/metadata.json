@@ -1,0 +1,8 @@
+{
+    "track_id": "http3_quic_20251226",
+    "type": "feature",
+    "status": "new",
+    "created_at": "2025-12-26T00:15:00Z",
+    "updated_at": "2025-12-26T00:15:00Z",
+    "description": "HTTP/3 and QUIC protocol support using s2n-quic for modern low-latency transport"
+}

@@ -5,6 +5,21 @@ All notable changes to Aegis-Flow will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2025-12-26
+
+### Added
+- **HTTP/3 and QUIC Protocol Support**
+  - `QuicServer` with s2n-quic for QUIC connections
+  - HTTP/3 request/response handling via `Http3Handler`
+  - `DualStackServer` running HTTP/2 and HTTP/3 simultaneously
+  - Alt-Svc header for HTTP/3 discovery
+  - 0-RTT session resumption support
+  - PQC (Kyber+X25519) integration with QUIC TLS
+
+### Changed
+- Updated test count to 99 passing tests
+- Added `pqc_enabled` field to `QuicConfig`
+
 ## [0.4.0] - 2025-12-26
 
 ### Added

@@ -18,3 +18,9 @@ This file tracks all major tracks for the project. Each track has its own detail
 ## [x] Track: Carbon-Aware Traffic Routing
 *Link: [./conductor/tracks/carbon_aware_20251225/](./conductor/tracks/carbon_aware_20251225/)*
 
+---
+
+## [~] Track: HTTP/3 and QUIC Protocol Support
+*Link: [./conductor/tracks/http3_quic_20251226/](./conductor/tracks/http3_quic_20251226/)*
+
+
