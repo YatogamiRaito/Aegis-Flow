@@ -9,6 +9,7 @@ description = "High-performance PQC-enabled proxy server for Aegis-Flow"
 [dependencies]
 aegis-common = { path = "../common" }
 aegis-crypto = { path = "../crypto" }
+aegis-energy = { path = "../energy" }
 
 # Async Runtime
 tokio.workspace = true
@@ -45,6 +46,8 @@ rand.workspace = true
 
 [dev-dependencies]
 criterion.workspace = true
+async-trait = "0.1"
+chrono = { version = "0.4", features = ["serde"] }
 
 [[bin]]
 name = "aegis-proxy"

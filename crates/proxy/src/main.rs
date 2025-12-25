@@ -6,7 +6,7 @@ use anyhow::Result;
 use tracing::{Level, info};
 use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
-mod carbon_router;
+pub mod carbon_router;
 mod config;
 pub mod discovery;
 mod http_proxy;
@@ -15,6 +15,7 @@ mod pqc_server;
 mod server;
 pub mod tracing_otel;
 
+pub use carbon_router::{CarbonRouter, CarbonRouterConfig, RegionScore};
 pub use config::ProxyConfig;
 pub use discovery::{LoadBalanceStrategy, ServiceRegistry};
 pub use http_proxy::{HttpProxy, HttpProxyConfig};
