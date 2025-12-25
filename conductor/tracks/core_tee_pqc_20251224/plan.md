@@ -7,7 +7,7 @@
 - [x] Task: Set up Quality Tools
     - Configure `clippy`, `rustfmt`, and `deny.toml`.
     - Add GitHub Actions workflow for CI (build, test, lint, audit).
-- [ ] Task: Implement SLSA L3 Stub
+- [x] Task: Implement SLSA L3 Stub
     - Add `syft` and `cosign` steps to the CI pipeline (mock or dry-run for now).
 - [ ] Task: Conductor - User Manual Verification 'Project Scaffolding & CI/CD' (Protocol in workflow.md)
 
