@@ -110,7 +110,6 @@ impl PqcProxyServer {
                             secure_channel.channel_id()
                         );
 
-
                         // Secure echo server (Encrypted Data Plane)
                         let key = secure_channel.encryption_key().as_bytes();
                         let mut encrypted_socket = EncryptedStream::new(socket, key);
@@ -246,7 +245,11 @@ mod tests {
         encrypted_client.flush().await.unwrap();
 
         let mut response = vec![0u8; test_data.len()];
-        let result = timeout(Duration::from_secs(1), encrypted_client.read_exact(&mut response)).await;
+        let result = timeout(
+            Duration::from_secs(1),
+            encrypted_client.read_exact(&mut response),
+        )
+        .await;
 
         assert!(result.is_ok(), "Read timed out");
         assert_eq!(&response, test_data);
