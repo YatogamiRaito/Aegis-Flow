@@ -3,10 +3,10 @@
 //! This crate provides integration with energy grid APIs (WattTime, Electricity Maps)
 //! for carbon-aware traffic routing in Aegis-Flow.
 
-mod client;
 mod cache;
+mod client;
 mod types;
 
-pub use client::{EnergyApiClient, WattTimeClient, ElectricityMapsClient};
 pub use cache::CarbonIntensityCache;
-pub use types::{CarbonIntensity, Region, EnergyApiError, EnergyApiProvider};
+pub use client::{ElectricityMapsClient, EnergyApiClient, WattTimeClient};
+pub use types::{CarbonIntensity, EnergyApiError, EnergyApiProvider, Region};

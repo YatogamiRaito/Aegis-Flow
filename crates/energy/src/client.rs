@@ -1,8 +1,8 @@
 //! Energy API clients for WattTime and Electricity Maps
 
 use crate::types::{
-    CarbonIntensity, EnergyApiError, ElectricityMapsResponse, Region,
-    WattTimeIndexResponse, WattTimeRegionResponse,
+    CarbonIntensity, ElectricityMapsResponse, EnergyApiError, Region, WattTimeIndexResponse,
+    WattTimeRegionResponse,
 };
 use reqwest::Client;
 use std::sync::Arc;
@@ -12,7 +12,10 @@ use tracing::{debug, instrument};
 #[allow(async_fn_in_trait)]
 pub trait EnergyApiClient: Send + Sync {
     /// Get current carbon intensity for a region
-    async fn get_carbon_intensity(&self, region: &Region) -> Result<CarbonIntensity, EnergyApiError>;
+    async fn get_carbon_intensity(
+        &self,
+        region: &Region,
+    ) -> Result<CarbonIntensity, EnergyApiError>;
 
     /// Get carbon intensity for coordinates (reverse geocoding)
     async fn get_carbon_intensity_by_location(
@@ -69,7 +72,7 @@ impl WattTimeClient {
 
         // Need to authenticate
         let mut token_guard = self.token.write().await;
-        
+
         // Double-check after acquiring write lock
         if let Some(ref token) = *token_guard {
             return Ok(token.clone());
@@ -100,7 +103,10 @@ impl WattTimeClient {
 
 impl EnergyApiClient for WattTimeClient {
     #[instrument(skip(self))]
-    async fn get_carbon_intensity(&self, region: &Region) -> Result<CarbonIntensity, EnergyApiError> {
+    async fn get_carbon_intensity(
+        &self,
+        region: &Region,
+    ) -> Result<CarbonIntensity, EnergyApiError> {
         let token = self.ensure_token().await?;
 
         let response = self
@@ -225,7 +231,10 @@ impl ElectricityMapsClient {
 
 impl EnergyApiClient for ElectricityMapsClient {
     #[instrument(skip(self))]
-    async fn get_carbon_intensity(&self, region: &Region) -> Result<CarbonIntensity, EnergyApiError> {
+    async fn get_carbon_intensity(
+        &self,
+        region: &Region,
+    ) -> Result<CarbonIntensity, EnergyApiError> {
         let response = self
             .client
             .get(format!("{}/carbon-intensity/latest", self.base_url))
@@ -255,13 +264,16 @@ impl EnergyApiClient for ElectricityMapsClient {
             value: data.carbon_intensity,
             timestamp,
             valid_for_seconds: 3600, // 1 hour for Electricity Maps
-            rating: Some(match data.carbon_intensity as u32 {
-                0..=50 => "very_low",
-                51..=150 => "low",
-                151..=300 => "medium",
-                301..=500 => "high",
-                _ => "very_high",
-            }.to_string()),
+            rating: Some(
+                match data.carbon_intensity as u32 {
+                    0..=50 => "very_low",
+                    51..=150 => "low",
+                    151..=300 => "medium",
+                    301..=500 => "high",
+                    _ => "very_high",
+                }
+                .to_string(),
+            ),
         })
     }
 
@@ -316,7 +328,9 @@ impl EnergyApiClient for ElectricityMapsClient {
     ) -> Result<Region, EnergyApiError> {
         // Electricity Maps infers zone from coordinates in the carbon-intensity call
         // So we make a lightweight call to get the zone
-        let intensity = self.get_carbon_intensity_by_location(latitude, longitude).await?;
+        let intensity = self
+            .get_carbon_intensity_by_location(latitude, longitude)
+            .await?;
         Ok(intensity.region)
     }
 }
@@ -324,8 +338,8 @@ impl EnergyApiClient for ElectricityMapsClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wiremock::{Mock, MockServer, ResponseTemplate};
     use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[tokio::test]
     async fn test_watttime_authentication() {
@@ -361,8 +375,8 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = ElectricityMapsClient::new("test_key".to_string())
-            .with_base_url(mock_server.uri());
+        let client =
+            ElectricityMapsClient::new("test_key".to_string()).with_base_url(mock_server.uri());
 
         let region = Region::new("DE", "Germany");
         let intensity = client.get_carbon_intensity(&region).await.unwrap();

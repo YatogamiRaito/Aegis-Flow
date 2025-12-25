@@ -135,7 +135,7 @@ mod tests {
     fn test_region_creation() {
         let region = Region::new("CAISO_NORTH", "California ISO - North")
             .with_coordinates(37.7749, -122.4194);
-        
+
         assert_eq!(region.id, "CAISO_NORTH");
         assert_eq!(region.latitude, Some(37.7749));
     }
@@ -143,7 +143,7 @@ mod tests {
     #[test]
     fn test_carbon_intensity_normalized_score() {
         let region = Region::new("TEST", "Test Region");
-        
+
         let low = CarbonIntensity {
             region: region.clone(),
             value: 50.0,
@@ -151,7 +151,7 @@ mod tests {
             valid_for_seconds: 300,
             rating: Some("low".to_string()),
         };
-        
+
         let high = CarbonIntensity {
             region,
             value: 600.0,
@@ -167,7 +167,7 @@ mod tests {
     #[test]
     fn test_carbon_intensity_validity() {
         let region = Region::new("TEST", "Test Region");
-        
+
         let valid = CarbonIntensity {
             region: region.clone(),
             value: 100.0,

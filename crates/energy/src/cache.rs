@@ -31,7 +31,7 @@ impl CarbonIntensityCache {
     pub async fn get(&self, region: &Region) -> Option<Arc<CarbonIntensity>> {
         let key = Self::cache_key(region);
         let result = self.cache.get(&key).await;
-        
+
         if let Some(ref intensity) = result {
             if !intensity.is_valid() {
                 debug!(region_id = %region.id, "Cached intensity expired");
@@ -42,7 +42,7 @@ impl CarbonIntensityCache {
         } else {
             debug!(region_id = %region.id, "Cache miss");
         }
-        
+
         result
     }
 
@@ -73,7 +73,7 @@ impl CarbonIntensityCache {
         let intensity = fetch_fn().await?;
         let arc_intensity = Arc::new(intensity.clone());
         self.put(intensity).await;
-        
+
         Ok(arc_intensity)
     }
 
@@ -135,7 +135,7 @@ mod tests {
         let region = intensity.region.clone();
 
         cache.put(intensity).await;
-        
+
         let cached = cache.get(&region).await;
         assert!(cached.is_some());
         assert_eq!(cached.unwrap().value, 150.0);
@@ -175,7 +175,7 @@ mod tests {
             })
             .await
             .unwrap();
-        
+
         assert_eq!(result.value, 100.0);
 
         // Second call should use cache (different value in fetch proves it)
@@ -185,7 +185,7 @@ mod tests {
             })
             .await
             .unwrap();
-        
+
         assert_eq!(result2.value, 100.0); // Still 100, not 999
     }
 }
