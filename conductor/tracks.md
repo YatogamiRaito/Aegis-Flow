@@ -10,6 +10,6 @@ This file tracks all major tracks for the project. Each track has its own detail
 ## [x] Track: Secure Data Plane with Encryption
 *Link: [./conductor/tracks/secure_data_plane_20251225/](./conductor/tracks/secure_data_plane_20251225/)*
 
-## [~] Track: Cloud Native Integration
+## [x] Track: Cloud Native Integration
 *Link: [./conductor/tracks/cloud_native_20251225/](./conductor/tracks/cloud_native_20251225/)*
 

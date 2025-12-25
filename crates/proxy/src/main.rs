@@ -7,14 +7,18 @@ use tracing::{Level, info};
 use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
 mod config;
+pub mod discovery;
 mod http_proxy;
 pub mod metrics;
 mod pqc_server;
 mod server;
+pub mod tracing_otel;
 
 pub use config::ProxyConfig;
+pub use discovery::{LoadBalanceStrategy, ServiceRegistry};
 pub use http_proxy::{HttpProxy, HttpProxyConfig};
 pub use pqc_server::PqcProxyServer;
+pub use tracing_otel::TraceContext;
 
 #[tokio::main]
 async fn main() -> Result<()> {
