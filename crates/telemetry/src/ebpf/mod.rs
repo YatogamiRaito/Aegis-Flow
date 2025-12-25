@@ -23,6 +23,7 @@ pub fn is_ebpf_available() -> bool {
 }
 
 #[cfg(feature = "ebpf")]
+#[allow(clippy::collapsible_if)]
 fn check_kernel_support() -> bool {
     use std::fs;
 
@@ -39,6 +40,7 @@ fn check_kernel_support() -> bool {
 }
 
 #[cfg(feature = "ebpf")]
+#[allow(clippy::collapsible_if)]
 fn extract_kernel_version(version_str: &str) -> Option<(u32, u32)> {
     // Parse "Linux version X.Y.Z..."
     let parts: Vec<&str> = version_str.split_whitespace().collect();
