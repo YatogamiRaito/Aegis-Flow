@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Represents the type of key exchange used
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum KeyExchangeType {
     /// Classical X25519 key exchange
     X25519,
@@ -12,33 +12,22 @@ pub enum KeyExchangeType {
     /// Post-Quantum Kyber-1024 key exchange
     Kyber1024,
     /// Hybrid: X25519 + Kyber (recommended)
+    #[default]
     HybridX25519Kyber768,
     /// Hybrid: X25519 + Kyber-1024
     HybridX25519Kyber1024,
 }
 
-impl Default for KeyExchangeType {
-    fn default() -> Self {
-        // Default to hybrid for quantum resistance + classical security
-        Self::HybridX25519Kyber768
-    }
-}
-
 /// Connection security level
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum SecurityLevel {
     /// Standard TLS (classical crypto only)
     Standard,
     /// Post-Quantum ready (hybrid mode)
+    #[default]
     PostQuantum,
     /// TEE-backed with attestation
     Confidential,
-}
-
-impl Default for SecurityLevel {
-    fn default() -> Self {
-        Self::PostQuantum
-    }
 }
 
 /// Attestation token structure (placeholder for future TEE integration)
