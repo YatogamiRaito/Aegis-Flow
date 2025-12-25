@@ -7,6 +7,6 @@ This file tracks all major tracks for the project. Each track has its own detail
 ## [x] Track: Core TEE-Native PQC Data Plane
 *Link: [./conductor/tracks/core_tee_pqc_20251224/](./conductor/tracks/core_tee_pqc_20251224/)*
 
-## [~] Track: Secure Data Plane with Encryption
+## [x] Track: Secure Data Plane with Encryption
 *Link: [./conductor/tracks/secure_data_plane_20251225/](./conductor/tracks/secure_data_plane_20251225/)*
 

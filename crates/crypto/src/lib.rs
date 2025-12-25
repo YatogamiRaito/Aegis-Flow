@@ -31,9 +31,11 @@
 
 pub mod cipher;
 pub mod hybrid_kex;
+pub mod mtls;
 pub mod tls;
 pub mod traits;
 
 pub use cipher::{Cipher, CipherAlgorithm, EncryptionKey};
 pub use hybrid_kex::{HybridCiphertext, HybridKeyExchange, HybridPublicKey, HybridSharedSecret};
+pub use mtls::{CertInfo, MtlsConfig, MtlsHandler};
 pub use traits::KeyExchange;
