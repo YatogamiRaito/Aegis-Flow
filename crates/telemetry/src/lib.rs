@@ -16,10 +16,12 @@
 //! println!("Energy: {} J", metrics.total_joules());
 //! ```
 
+pub mod ebpf;
 pub mod energy;
 pub mod estimator;
 pub mod prometheus;
 
+pub use ebpf::{EbpfLoader, EbpfMetrics};
 pub use energy::{EnergyBreakdown, EnergyMetrics, EnergySource};
 pub use estimator::EnergyEstimator;
 pub use prometheus::EnergyPrometheusExporter;
