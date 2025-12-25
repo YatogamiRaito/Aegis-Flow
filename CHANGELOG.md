@@ -5,6 +5,22 @@ All notable changes to Aegis-Flow will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2025-12-26
+
+### Added
+- **Genomic Data Processing (Track 8)**
+  - New aegis-genomics crate with Apache Arrow and Polars
+  - GenomicSchema for VCF variants, BAM alignments, sequences
+  - VariantBatchBuilder and AlignmentBatchBuilder for Arrow RecordBatch
+  - VcfParser for VCF to Arrow conversion
+  - BamHeader parser for SAM/BAM header parsing
+  - VariantAnalytics: count_by_chromosome, filter_by_quality/region
+  - 22 new tests in genomics crate
+
+### Fixed
+- deny.toml: Added polars-arrow-format license exception
+- deny.toml: Skip duplicate bitflags/hashbrown/indexmap versions
+
 ## [0.7.0] - 2025-12-26
 
 ### Added

@@ -22,7 +22,7 @@
 - [x] Task: Conductor Verification 'Polars Analytics'
 
 ## Phase 4: Release v0.8.0
-- [ ] Task: Documentation update
-- [ ] Task: Arrow Flight endpoint (optional)
-- [ ] Task: Release v0.8.0
-- [ ] Task: Conductor Verification 'Release v0.8.0'
+- [x] Task: Documentation update
+- [x] Task: Arrow Flight endpoint (optional)
+- [x] Task: Release v0.8.0
+- [x] Task: Conductor Verification 'Release v0.8.0'

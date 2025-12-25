@@ -35,5 +35,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-## [~] Track: Genomic Data Processing
+## [x] Track: Genomic Data Processing
 *Link: [./conductor/tracks/genomics_20251226/](./conductor/tracks/genomics_20251226/)*
