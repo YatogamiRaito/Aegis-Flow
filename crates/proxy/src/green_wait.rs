@@ -11,8 +11,7 @@ use tokio::sync::{Mutex, RwLock};
 use tracing::{debug, info, warn};
 
 /// Priority level for deferred jobs
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub enum JobPriority {
     /// Must execute immediately regardless of carbon intensity
     Critical = 0,
@@ -26,7 +25,6 @@ pub enum JobPriority {
     /// Can wait indefinitely for optimal green window
     Background = 4,
 }
-
 
 impl JobPriority {
     /// Maximum wait time for this priority level
@@ -178,15 +176,16 @@ impl<C: EnergyApiClient + Send + Sync + 'static> GreenWaitScheduler<C> {
 
         // Check current carbon intensity
         if let Some(intensity) = self.get_region_intensity(&job.region.id).await
-            && intensity <= job.carbon_threshold {
-                info!(
-                    job_id = %job.id,
-                    intensity = intensity,
-                    threshold = job.carbon_threshold,
-                    "Carbon intensity is low, executing immediately"
-                );
-                return ScheduleResult::ExecutedImmediately;
-            }
+            && intensity <= job.carbon_threshold
+        {
+            info!(
+                job_id = %job.id,
+                intensity = intensity,
+                threshold = job.carbon_threshold,
+                "Carbon intensity is low, executing immediately"
+            );
+            return ScheduleResult::ExecutedImmediately;
+        }
 
         // Queue the job
         let mut queue = self.queue.lock().await;
@@ -235,16 +234,17 @@ impl<C: EnergyApiClient + Send + Sync + 'static> GreenWaitScheduler<C> {
 
             // Check if carbon intensity is acceptable
             if let Some(&intensity) = intensities.get(&job.region.id)
-                && intensity <= job.carbon_threshold {
-                    info!(
-                        job_id = %job.id,
-                        intensity = intensity,
-                        threshold = job.carbon_threshold,
-                        "Green window detected, executing job"
-                    );
-                    ready_jobs.push(job);
-                    continue;
-                }
+                && intensity <= job.carbon_threshold
+            {
+                info!(
+                    job_id = %job.id,
+                    intensity = intensity,
+                    threshold = job.carbon_threshold,
+                    "Green window detected, executing job"
+                );
+                ready_jobs.push(job);
+                continue;
+            }
 
             // Job not ready, keep in queue
             remaining_jobs.push_back(job);
