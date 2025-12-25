@@ -1,10 +1,11 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/proxy",
     "crates/common",
     "crates/crypto",
     "crates/energy",
+    "crates/genomics",
+    "crates/proxy",
     "crates/telemetry",
 ]
 

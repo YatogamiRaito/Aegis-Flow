@@ -1,0 +1,7 @@
+{
+    "track_id": "genomics_20251226",
+    "name": "Genomic Data Processing",
+    "description": "Apache Arrow + Polars for high-performance genomic data processing, BAM/VCF parsing",
+    "created_at": "2025-12-26T01:20:00Z",
+    "status": "in_progress"
+}
