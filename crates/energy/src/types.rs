@@ -107,6 +107,7 @@ pub struct WattTimeRegionResponse {
 
 /// WattTime API response for real-time carbon intensity
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct WattTimeIndexResponse {
     pub freq: Option<String>,
     pub ba: String,
@@ -117,6 +118,7 @@ pub struct WattTimeIndexResponse {
 
 /// Electricity Maps API response
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 #[serde(rename_all = "camelCase")]
 pub struct ElectricityMapsResponse {
     pub zone: String,
