@@ -13,3 +13,7 @@ This file tracks all major tracks for the project. Each track has its own detail
 ## [x] Track: Cloud Native Integration
 *Link: [./conductor/tracks/cloud_native_20251225/](./conductor/tracks/cloud_native_20251225/)*
 
+---
+
+## [~] Track: Carbon-Aware Traffic Routing
+*Link: [./conductor/tracks/carbon_aware_20251225/](./conductor/tracks/carbon_aware_20251225/)*

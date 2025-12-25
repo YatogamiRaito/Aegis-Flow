@@ -1,0 +1,38 @@
+[package]
+name = "aegis-energy"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Carbon-aware energy API integration for Aegis-Flow"
+
+[dependencies]
+aegis-common = { path = "../common" }
+
+# Async Runtime
+tokio.workspace = true
+
+# HTTP Client
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# Error Handling
+thiserror.workspace = true
+anyhow.workspace = true
+
+# Observability
+tracing.workspace = true
+metrics.workspace = true
+
+# Caching
+moka = { version = "0.12", features = ["future"] }
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util", "macros"] }
+wiremock = "0.6"
