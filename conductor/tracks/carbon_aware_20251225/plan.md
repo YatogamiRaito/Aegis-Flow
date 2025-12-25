@@ -23,10 +23,10 @@
 - [x] Task: Conductor Verification 'Temporal Shifting'
 
 ## Phase 4: Energy Telemetry
-- [ ] Task: Add carbon intensity metrics
-- [ ] Task: Per-request energy tracking
-- [ ] Task: Grafana dashboard template
-- [ ] Task: Conductor Verification 'Energy Telemetry'
+- [x] Task: Add carbon intensity metrics
+- [x] Task: Per-request energy tracking
+- [x] Task: Grafana dashboard template
+- [x] Task: Conductor Verification 'Energy Telemetry'
 
 ## Phase 5: Release v0.4.0
 - [ ] Task: Documentation update

@@ -19,4 +19,4 @@ Implement energy-aware traffic routing for Aegis-Flow proxy, enabling carbon-con
 - [x] Energy crate compiles and tests pass
 - [x] Carbon router integrates with proxy discovery
 - [x] Green-wait queue supports deferred execution
-- [ ] Prometheus metrics for carbon intensity exposed
+- [x] Prometheus metrics for carbon intensity exposed

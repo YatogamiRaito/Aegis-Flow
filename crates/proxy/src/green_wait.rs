@@ -4,6 +4,7 @@
 //! Uses energy forecasts to schedule jobs during "green" windows.
 
 use aegis_energy::{CarbonIntensityCache, EnergyApiClient, Region};
+use crate::metrics;
 use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -197,6 +198,7 @@ impl<C: EnergyApiClient + Send + Sync + 'static> GreenWaitScheduler<C> {
         let position = queue.len();
         debug!(job_id = %job.id, position = position, "Job queued for green window");
         queue.push_back(job);
+        metrics::update_deferred_jobs(queue.len());
 
         ScheduleResult::Queued { position }
     }
@@ -251,6 +253,7 @@ impl<C: EnergyApiClient + Send + Sync + 'static> GreenWaitScheduler<C> {
         }
 
         *queue = remaining_jobs;
+        metrics::update_deferred_jobs(queue.len());
         ready_jobs
     }
 
@@ -272,10 +275,12 @@ impl<C: EnergyApiClient + Send + Sync + 'static> GreenWaitScheduler<C> {
         for region in regions {
             if let Some(cached) = self.cache.get(&region).await {
                 self.update_region_intensity(&region.id, cached.value).await;
+                metrics::update_carbon_intensity(&region.id, cached.value);
             } else if let Ok(intensity) = self.client.get_carbon_intensity(&region).await {
                 self.cache.put(intensity.clone()).await;
                 self.update_region_intensity(&region.id, intensity.value)
                     .await;
+                metrics::update_carbon_intensity(&region.id, intensity.value);
             }
         }
     }

@@ -10,8 +10,11 @@ use hyper::{
 };
 use hyper_util::rt::TokioIo;
 use std::net::SocketAddr;
+use std::time::Instant;
 use tokio::net::TcpListener;
 use tracing::{debug, error, info, instrument};
+
+use crate::metrics;
 
 /// HTTP/2 Proxy Configuration
 #[derive(Debug, Clone)]
@@ -86,14 +89,14 @@ async fn handle_request(
     req: Request<Incoming>,
     _upstream: &str,
 ) -> Result<Response<Full<Bytes>>, hyper::Error> {
+    let start = Instant::now();
     let method = req.method().clone();
     let uri = req.uri().clone();
 
     debug!("📨 {} {}", method, uri);
 
-    // For now, return a simple response
-    // TODO: Forward to upstream with connection pooling
-    match (method, uri.path()) {
+    // Process request
+    let response = match (method.clone(), uri.path()) {
         (Method::GET, "/health") => Ok(Response::builder()
             .status(StatusCode::OK)
             .body(Full::new(Bytes::from("OK")))
@@ -105,18 +108,15 @@ async fn handle_request(
             .unwrap()),
 
         (Method::GET, "/metrics") => {
-            // Return Prometheus-style metrics
-            let metrics = r#"# HELP aegis_requests_total Total number of requests
-# TYPE aegis_requests_total counter
-aegis_requests_total 0
-# HELP aegis_connections_active Active connections
-# TYPE aegis_connections_active gauge
-aegis_connections_active 1
-"#;
+            let body = if let Some(handle) = metrics::get_metrics_handle() {
+                handle.render()
+            } else {
+                "# metrics not initialized".to_string()
+            };
             Ok(Response::builder()
                 .status(StatusCode::OK)
                 .header("content-type", "text/plain; version=0.0.4")
-                .body(Full::new(Bytes::from(metrics)))
+                .body(Full::new(Bytes::from(body)))
                 .unwrap())
         }
 
@@ -124,8 +124,8 @@ aegis_connections_active 1
             // Echo request info for testing
             let body = format!(
                 "{{\"method\":\"{}\",\"path\":\"{}\",\"version\":\"{:?}\"}}",
-                req.method(),
-                req.uri().path(),
+                method,
+                uri.path(),
                 req.version()
             );
             Ok(Response::builder()
@@ -134,7 +134,26 @@ aegis_connections_active 1
                 .body(Full::new(Bytes::from(body)))
                 .unwrap())
         }
-    }
+    };
+
+    // Record metrics
+    let status = response
+        .as_ref()
+        .map(|r| r.status().as_u16())
+        .unwrap_or(500);
+    let duration = start.elapsed().as_secs_f64();
+
+    metrics::record_request(method.as_str(), uri.path(), status, duration);
+
+    // Energy estimation (simplified model)
+    // Formula: Energy = (Overhead) + (Bytes * CostPerByte)
+    let estimated_bytes = 1024.0; // Placeholder for avg request size
+    let energy_j = (estimated_bytes * 0.5e-9) + 0.01; // 0.5 nJ/bit + 10mJ overhead
+    let carbon_g = energy_j / 3.6e6 * 150.0; // Assuming 150g/kWh avg intensity
+
+    metrics::record_energy_impact(energy_j, carbon_g, "unknown");
+
+    response
 }
 
 /// Tokio executor for Hyper

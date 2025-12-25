@@ -21,6 +21,10 @@ pub mod names {
     pub const BYTES_RECEIVED: &str = "aegis_bytes_received_total";
     pub const ENCRYPTION_OPERATIONS: &str = "aegis_encryption_operations_total";
     pub const ERRORS_TOTAL: &str = "aegis_errors_total";
+    pub const CARBON_INTENSITY: &str = "aegis_carbon_intensity_g_kwh";
+    pub const ESTIMATED_ENERGY: &str = "aegis_estimated_energy_joules_total";
+    pub const ESTIMATED_CARBON: &str = "aegis_estimated_carbon_grams_total";
+    pub const DEFERRED_JOBS: &str = "aegis_deferred_jobs_current";
 }
 
 /// Initialize the metrics system
@@ -45,6 +49,22 @@ pub fn init_metrics() -> PrometheusHandle {
         "Total encryption/decryption operations"
     );
     describe_counter!(names::ERRORS_TOTAL, "Total errors");
+    describe_gauge!(
+        names::CARBON_INTENSITY,
+        "Current carbon intensity for each region (gCO2/kWh)"
+    );
+    describe_counter!(
+        names::ESTIMATED_ENERGY,
+        "Estimated energy consumed in Joules"
+    );
+    describe_counter!(
+        names::ESTIMATED_CARBON,
+        "Estimated carbon emissions in grams"
+    );
+    describe_gauge!(
+        names::DEFERRED_JOBS,
+        "Number of jobs currently waiting in Green-Wait queue"
+    );
 
     info!("📊 Metrics system initialized");
 
@@ -101,6 +121,22 @@ pub fn record_encryption(operation: &str) {
 /// Record an error
 pub fn record_error(error_type: &str) {
     counter!(names::ERRORS_TOTAL, "type" => error_type.to_string()).increment(1);
+}
+
+/// Update carbon intensity for a region
+pub fn update_carbon_intensity(region: &str, intensity: f64) {
+    gauge!(names::CARBON_INTENSITY, "region" => region.to_string()).set(intensity);
+}
+
+/// Record estimated energy and carbon
+pub fn record_energy_impact(joules: f64, carbon_grams: f64, region: &str) {
+    counter!(names::ESTIMATED_ENERGY, "region" => region.to_string()).increment(joules as u64);
+    counter!(names::ESTIMATED_CARBON, "region" => region.to_string()).increment(carbon_grams as u64);
+}
+
+/// Update deferred jobs count
+pub fn update_deferred_jobs(count: usize) {
+    gauge!(names::DEFERRED_JOBS).set(count as f64);
 }
 
 #[cfg(test)]
