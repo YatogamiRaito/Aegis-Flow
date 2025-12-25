@@ -1,0 +1,42 @@
+# Aegis-Flow Proxy Configuration
+# This is the default configuration file
+
+# Server settings
+[server]
+host = "0.0.0.0"
+port = 8443
+pqc_enabled = true
+tls_enabled = true
+worker_threads = 0  # 0 = auto-detect
+
+# HTTP/2 settings
+[http2]
+listen_addr = "0.0.0.0:8080"
+upstream_addr = "127.0.0.1:9000"
+max_concurrent_streams = 100
+initial_window_size = 65535
+
+# Post-Quantum Cryptography settings
+[pqc]
+algorithm = "HybridKyber768"  # X25519Only, Kyber768Only, HybridKyber768, HybridKyber1024
+cipher = "Aes256Gcm"  # Aes256Gcm, ChaCha20Poly1305
+
+# Observability
+[observability]
+log_level = "info"  # trace, debug, info, warn, error
+log_format = "json"  # json, pretty
+metrics_enabled = true
+metrics_port = 9090
+
+# TLS settings
+[tls]
+cert_path = "/etc/aegis/certs/server.crt"
+key_path = "/etc/aegis/certs/server.key"
+ca_path = "/etc/aegis/certs/ca.crt"
+mtls_enabled = false
+
+# Health check
+[health]
+enabled = true
+path = "/health"
+ready_path = "/ready"
