@@ -8,7 +8,7 @@ use std::net::{SocketAddr, ToSocketAddrs};
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 use tokio::time;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error};
 
 /// Service Discovery Interface
 #[async_trait::async_trait]

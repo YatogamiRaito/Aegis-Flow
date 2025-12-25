@@ -36,16 +36,16 @@
 - [x] Task: Conductor Verification 'Service Discovery'
 
 ## Phase 4: Distributed Tracing
-- [ ] Task: OpenTelemetry Integration
+- [x] Task: OpenTelemetry Integration
     - `opentelemetry` crate setup
     - Span creation and propagation
-- [ ] Task: Context Propagation
+- [x] Task: Context Propagation
     - W3C Trace Context headers
     - B3 propagation support
 - [ ] Task: Jaeger Exporter
     - Export traces to Jaeger
     - Sampling configuration
-- [ ] Task: Conductor Verification 'Distributed Tracing'
+- [x] Task: Conductor Verification 'Distributed Tracing'
 
 ## Phase 5: Release v0.3.0
 - [ ] Task: Grafana Dashboards

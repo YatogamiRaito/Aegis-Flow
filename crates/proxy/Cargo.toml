@@ -20,6 +20,7 @@ tower.workspace = true
 bytes.workspace = true
 http-body-util = "0.1"
 async-trait = "0.1"
+rand = "0.8"
 
 # TLS
 rustls.workspace = true
@@ -33,6 +34,10 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 metrics.workspace = true
 metrics-exporter-prometheus.workspace = true
+opentelemetry = { version = "0.22", features = ["trace"] }
+opentelemetry_sdk = { version = "0.22", features = ["rt-tokio"] }
+tracing-opentelemetry = "0.23"
+opentelemetry-otlp = "0.15"
 
 # Error handling
 thiserror.workspace = true
