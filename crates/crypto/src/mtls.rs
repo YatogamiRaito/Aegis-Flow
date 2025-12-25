@@ -73,13 +73,11 @@ impl MtlsHandler {
             )));
         }
 
-        if let Some(ca_path) = &self.config.ca_path {
-            if !Path::new(ca_path).exists() {
-                return Err(AegisError::Config(format!(
-                    "CA certificate not found: {}",
-                    ca_path
-                )));
-            }
+        if self.config.ca_path.as_ref().is_some_and(|p| !Path::new(p).exists()) {
+            return Err(AegisError::Config(format!(
+                "CA certificate not found: {}",
+                self.config.ca_path.as_ref().unwrap()
+            )));
         }
 
         debug!("✅ Certificate paths validated");

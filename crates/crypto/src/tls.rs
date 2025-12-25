@@ -245,7 +245,7 @@ mod tests {
         let channel_server2 = handshake.server_complete(&ct2, state2).unwrap();
 
         // All channel IDs should be unique
-        let ids = vec![
+        let ids = [
             channel1.channel_id(),
             channel_server1.channel_id(),
             channel2.channel_id(),

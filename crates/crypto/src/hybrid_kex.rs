@@ -81,8 +81,8 @@ impl HybridSharedSecret {
         // Simple XOR-based derivation for MVP
         // TODO: Replace with HKDF-SHA256
         let mut key = [0u8; 32];
-        for i in 0..32 {
-            key[i] = self.inner[i] ^ self.inner[i + 32];
+        for (i, k) in key.iter_mut().enumerate() {
+            *k = self.inner[i] ^ self.inner[i + 32];
         }
         key
     }

@@ -13,18 +13,13 @@ use sha2::Sha256;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Cipher algorithm selection
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CipherAlgorithm {
     /// AES-256-GCM (recommended for hardware with AES-NI)
+    #[default]
     Aes256Gcm,
     /// ChaCha20-Poly1305 (recommended for software-only)
     ChaCha20Poly1305,
-}
-
-impl Default for CipherAlgorithm {
-    fn default() -> Self {
-        Self::Aes256Gcm
-    }
 }
 
 /// Encryption key derived from shared secret
