@@ -44,14 +44,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Cache cargo tools
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin
+          key: ${{ runner.os }}-cargo-tools-${{ hashFiles('deny.toml') }}
       - name: Install cargo-deny
-        run: cargo install cargo-deny --locked
+        run: command -v cargo-deny || cargo install cargo-deny --locked
       - name: Install cargo-audit
-        run: cargo install cargo-audit --locked
+        run: command -v cargo-audit || cargo install cargo-audit --locked
       - name: Run cargo-deny
         run: cargo deny check
-      - name: Clean advisory-db cache
-        run: rm -rf ~/.cargo/advisory-db
       - name: Run cargo-audit
         run: cargo audit
 
@@ -61,8 +65,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Cache cargo-tarpaulin
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cargo-tarpaulin
+          key: ${{ runner.os }}-tarpaulin-0.27
       - name: Install cargo-tarpaulin
-        run: cargo install cargo-tarpaulin --locked
+        run: command -v cargo-tarpaulin || cargo install cargo-tarpaulin --locked
       - name: Generate coverage
         run: cargo tarpaulin --workspace --out Xml --output-dir coverage
       - name: Upload coverage
