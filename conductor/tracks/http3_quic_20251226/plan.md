@@ -29,7 +29,7 @@
 - [x] Task: Conductor Verification 'Dual-Stack Server'
 
 ## Phase 5: Release v0.5.0
-- [ ] Task: Documentation update
-- [ ] Task: Performance benchmarks (connection time, throughput)
-- [ ] Task: Release v0.5.0
-- [ ] Task: Conductor Verification 'Release v0.5.0'
+- [x] Task: Documentation update
+- [x] Task: Performance benchmarks (connection time, throughput)
+- [x] Task: Release v0.5.0
+- [x] Task: Conductor Verification 'Release v0.5.0'

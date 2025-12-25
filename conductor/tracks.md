@@ -20,7 +20,7 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-## [~] Track: HTTP/3 and QUIC Protocol Support
+## [x] Track: HTTP/3 and QUIC Protocol Support
 *Link: [./conductor/tracks/http3_quic_20251226/](./conductor/tracks/http3_quic_20251226/)*
 
 
