@@ -215,10 +215,7 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for EncryptedStream<S> {
                 // This is compliant with AsyncWrite, provided we do eventually write it.
                 Poll::Ready(Ok(buf.len()))
             }
-            Err(_) => Poll::Ready(Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Encryption failed",
-            ))),
+            Err(_) => Poll::Ready(Err(io::Error::other("Encryption failed"))),
         }
     }
 
