@@ -1,0 +1,12 @@
+authorityKeyIdentifier=keyid,issuer
+basicConstraints=CA:FALSE
+keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment
+extendedKeyUsage = serverAuth
+subjectAltName = @alt_names
+
+[alt_names]
+DNS.1 = aegis-flow
+DNS.2 = aegis-flow.default
+DNS.3 = aegis-flow.default.svc
+DNS.4 = localhost
+IP.1 = 127.0.0.1

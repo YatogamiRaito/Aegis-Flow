@@ -3,25 +3,26 @@
 //! This is the main entry point for the Aegis-Flow proxy service.
 
 use anyhow::Result;
-use tracing::info;
+use tracing::{Level, info};
+use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
 mod config;
-mod discovery;
 mod http_proxy;
 pub mod metrics;
 mod pqc_server;
 mod server;
-mod tracing;
 
 pub use config::ProxyConfig;
-pub use discovery::{LoadBalancer, LoadBalanceStrategy, ServiceDiscovery};
 pub use http_proxy::{HttpProxy, HttpProxyConfig};
 pub use pqc_server::PqcProxyServer;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     // Initialize tracing
-    crate::tracing::init_tracing("aegis-proxy", None)?;
+    tracing_subscriber::registry()
+        .with(fmt::layer())
+        .with(EnvFilter::from_default_env().add_directive(Level::INFO.into()))
+        .init();
 
     info!("🚀 Aegis-Flow Proxy starting...");
     info!("📦 Version: {}", env!("CARGO_PKG_VERSION"));

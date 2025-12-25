@@ -58,6 +58,7 @@ impl MtlsHandler {
     }
 
     /// Check if certificate files exist
+    #[allow(clippy::collapsible_if)]
     pub fn validate_paths(&self) -> Result<()> {
         if !Path::new(&self.config.cert_path).exists() {
             return Err(AegisError::Config(format!(
@@ -73,11 +74,13 @@ impl MtlsHandler {
             )));
         }
 
-        if self.config.ca_path.as_ref().is_some_and(|p| !Path::new(p).exists()) {
-            return Err(AegisError::Config(format!(
-                "CA certificate not found: {}",
-                self.config.ca_path.as_ref().unwrap()
-            )));
+        if let Some(ca_path) = &self.config.ca_path {
+            if !Path::new(ca_path).exists() {
+                return Err(AegisError::Config(format!(
+                    "CA certificate not found: {}",
+                    ca_path
+                )));
+            }
         }
 
         debug!("✅ Certificate paths validated");

@@ -24,36 +24,36 @@
 - [x] Task: Conductor Verification 'Kubernetes Deployment'
 
 ## Phase 3: Service Discovery
-- [x] Task: DNS Resolver
+- [ ] Task: DNS Resolver
     - Async DNS resolution
     - TTL-based caching
-- [x] Task: Endpoint Watcher
+- [ ] Task: Endpoint Watcher
     - Watch Kubernetes endpoints
     - Dynamic backend updates
-- [x] Task: Load Balancer
+- [ ] Task: Load Balancer
     - Round-robin, least-connections
     - Health-aware routing
-- [x] Task: Conductor Verification 'Service Discovery'
+- [ ] Task: Conductor Verification 'Service Discovery'
 
 ## Phase 4: Distributed Tracing
-- [x] Task: OpenTelemetry Integration
+- [ ] Task: OpenTelemetry Integration
     - `opentelemetry` crate setup
     - Span creation and propagation
-- [x] Task: Context Propagation
+- [ ] Task: Context Propagation
     - W3C Trace Context headers
     - B3 propagation support
 - [ ] Task: Jaeger Exporter
     - Export traces to Jaeger
     - Sampling configuration
-- [x] Task: Conductor Verification 'Distributed Tracing'
+- [ ] Task: Conductor Verification 'Distributed Tracing'
 
 ## Phase 5: Release v0.3.0
-- [x] Task: Grafana Dashboards
+- [ ] Task: Grafana Dashboards
     - JSON dashboard definitions
     - Key metrics visualization
-- [x] Task: Documentation
+- [ ] Task: Documentation
     - Kubernetes deployment guide
     - Observability setup
-- [x] Task: Release v0.3.0
+- [ ] Task: Release v0.3.0
     - Tag and changelog
-- [x] Task: Conductor Verification 'Release v0.3.0'
+- [ ] Task: Conductor Verification 'Release v0.3.0'
