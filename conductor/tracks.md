@@ -15,5 +15,6 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-## [~] Track: Carbon-Aware Traffic Routing
+## [x] Track: Carbon-Aware Traffic Routing
 *Link: [./conductor/tracks/carbon_aware_20251225/](./conductor/tracks/carbon_aware_20251225/)*
+

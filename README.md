@@ -9,6 +9,7 @@
 [![CI](https://github.com/YatogamiRaito/Aegis-Flow/actions/workflows/ci.yml/badge.svg)](https://github.com/YatogamiRaito/Aegis-Flow/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/YatogamiRaito/Aegis-Flow/graph/badge.svg?token=YOUR_TOKEN)](https://codecov.io/gh/YatogamiRaito/Aegis-Flow)
 [![Tests](https://img.shields.io/badge/tests-56%20passing-brightgreen.svg)]()
+[![Version](https://img.shields.io/badge/version-0.4.0-blue.svg)]()
 
 </div>
 
@@ -19,22 +20,24 @@ Aegis-Flow is a high-performance service mesh data plane written in Rust, featur
 - **🔐 Post-Quantum Cryptography**: Hybrid Kyber-768 + X25519 key exchange
 - **🛡️ TEE Support**: Runs in SGX/TDX enclaves via Gramine
 - **🌐 HTTP/2 Proxy**: High-performance reverse proxy with Hyper
-- **📊 Observability**: Built-in metrics, tracing, and health endpoints
+- **🌱 Carbon-Aware Routing**: Route traffic based on grid carbon intensity
+- **⏰ Green-Wait Scheduling**: Defer jobs to low-carbon time windows
+- **📊 Energy Telemetry**: Per-request energy and carbon metrics
 - **🔒 End-to-End Encryption**: AES-256-GCM with HKDF key derivation
 
 ## 📦 Architecture
 
 ```
-┌─────────────────────────────────────────────────┐
-│                  Aegis-Flow                      │
-├─────────────────────────────────────────────────┤
-│  ┌─────────────┐  ┌─────────────┐  ┌──────────┐ │
-│  │ aegis-proxy │  │aegis-crypto │  │  common  │ │
-│  │  (HTTP/2)   │  │ (PQC + AES) │  │ (Types)  │ │
-│  └─────────────┘  └─────────────┘  └──────────┘ │
-├─────────────────────────────────────────────────┤
-│        Tokio Runtime + Hyper + Tower            │
-└─────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                        Aegis-Flow v0.4.0                      │
+├──────────────────────────────────────────────────────────────┤
+│  ┌─────────────┐  ┌─────────────┐  ┌──────────┐  ┌─────────┐ │
+│  │ aegis-proxy │  │aegis-crypto │  │  common  │  │ energy  │ │
+│  │  (HTTP/2)   │  │ (PQC + AES) │  │ (Types)  │  │(Carbon) │ │
+│  └─────────────┘  └─────────────┘  └──────────┘  └─────────┘ │
+├──────────────────────────────────────────────────────────────┤
+│            Tokio Runtime + Hyper + Tower + Metrics            │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 ## 🚀 Quick Start
@@ -75,6 +78,7 @@ cp config/default.toml config/local.toml
 | Full PQC Handshake | ~85µs |
 | Key Derivation | ~7.6ns |
 | AES-256-GCM Encrypt/Decrypt | <1µs |
+| Carbon Router Decision | <5ms |
 
 ## 🔐 Security Features
 
@@ -90,6 +94,28 @@ cp config/default.toml config/local.toml
 - Docker container for deployment
 - Remote attestation (DCAP) ready
 
+## 🌱 Carbon-Aware Features
+
+### Spatial Arbitrage
+Route traffic to regions with lowest carbon intensity using real-time data from:
+- WattTime API
+- Electricity Maps API
+
+### Temporal Shifting (Green-Wait)
+Defer non-urgent jobs to time windows with cleaner energy:
+- **Critical**: Execute immediately
+- **High**: Wait up to 5 minutes
+- **Normal**: Wait up to 30 minutes
+- **Low**: Wait up to 2 hours
+- **Background**: Wait indefinitely
+
+### Energy Telemetry
+Prometheus metrics for carbon monitoring:
+- `aegis_carbon_intensity_g_kwh` - Current carbon intensity per region
+- `aegis_estimated_energy_joules_total` - Energy consumed
+- `aegis_estimated_carbon_grams_total` - Carbon emissions
+- `aegis_deferred_jobs_current` - Jobs in Green-Wait queue
+
 ## 📁 Project Structure
 
 ```
@@ -97,27 +123,43 @@ aegis-flow/
 ├── crates/
 │   ├── common/          # Shared types and errors
 │   ├── crypto/          # PQC, cipher, TLS integration
-│   └── proxy/           # HTTP/2 proxy, PQC server
+│   ├── energy/          # Carbon API clients and cache
+│   └── proxy/           # HTTP/2 proxy, carbon router, green-wait
 ├── config/              # Configuration files
 ├── docs/rfcs/           # Design documents
+├── grafana/             # Dashboard templates
 ├── gramine/             # TEE deployment
 └── .github/workflows/   # CI/CD pipelines
 ```
 
 ## 📈 Development Status
 
-### ✅ Track 1: Core TEE-Native PQC Data Plane (v0.1.0-mvp)
+### ✅ Track 1: Core TEE-Native PQC Data Plane (v0.1.0)
 - [x] Rust workspace setup
 - [x] Hybrid PQC key exchange
 - [x] Basic proxy with TLS integration
 - [x] TEE (Gramine) deployment
 - [x] CI/CD with SLSA L3
 
-### 🔄 Track 2: Secure Data Plane with Encryption (v0.2.0)
+### ✅ Track 2: Secure Data Plane with Encryption (v0.2.0)
 - [x] AES-256-GCM encryption layer
 - [x] HTTP/2 reverse proxy
-- [ ] mTLS with PQC
+- [x] Encrypted streaming transport
 - [x] Configuration system
+
+### ✅ Track 3: Cloud Native Integration (v0.3.0)
+- [x] Prometheus metrics
+- [x] Service discovery
+- [x] Health endpoints
+- [x] Kubernetes deployment manifests
+
+### ✅ Track 4: Carbon-Aware Traffic Routing (v0.4.0)
+- [x] WattTime/Electricity Maps API integration
+- [x] Carbon intensity caching
+- [x] Spatial arbitrage routing
+- [x] Green-Wait temporal shifting
+- [x] Energy telemetry metrics
+- [x] Grafana dashboard
 
 ## 📜 License
 

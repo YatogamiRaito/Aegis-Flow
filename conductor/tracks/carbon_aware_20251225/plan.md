@@ -29,7 +29,8 @@
 - [x] Task: Conductor Verification 'Energy Telemetry'
 
 ## Phase 5: Release v0.4.0
-- [ ] Task: Documentation update
-- [ ] Task: Performance benchmarks
-- [ ] Task: Release v0.4.0
-- [ ] Task: Conductor Verification 'Release v0.4.0'
+- [x] Task: Documentation update
+- [x] Task: Performance benchmarks
+- [x] Task: Release v0.4.0
+- [x] Task: Conductor Verification 'Release v0.4.0'
+
