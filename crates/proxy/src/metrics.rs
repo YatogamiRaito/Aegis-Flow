@@ -131,7 +131,8 @@ pub fn update_carbon_intensity(region: &str, intensity: f64) {
 /// Record estimated energy and carbon
 pub fn record_energy_impact(joules: f64, carbon_grams: f64, region: &str) {
     counter!(names::ESTIMATED_ENERGY, "region" => region.to_string()).increment(joules as u64);
-    counter!(names::ESTIMATED_CARBON, "region" => region.to_string()).increment(carbon_grams as u64);
+    counter!(names::ESTIMATED_CARBON, "region" => region.to_string())
+        .increment(carbon_grams as u64);
 }
 
 /// Update deferred jobs count

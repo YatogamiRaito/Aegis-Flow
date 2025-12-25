@@ -3,8 +3,8 @@
 //! Defers non-urgent jobs to time periods with lower carbon intensity.
 //! Uses energy forecasts to schedule jobs during "green" windows.
 
-use aegis_energy::{CarbonIntensityCache, EnergyApiClient, Region};
 use crate::metrics;
+use aegis_energy::{CarbonIntensityCache, EnergyApiClient, Region};
 use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
