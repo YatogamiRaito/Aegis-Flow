@@ -29,9 +29,11 @@
 //! assert_eq!(client_secret.as_bytes(), server_secret.as_bytes());
 //! ```
 
+pub mod cipher;
 pub mod hybrid_kex;
 pub mod tls;
 pub mod traits;
 
+pub use cipher::{Cipher, CipherAlgorithm, EncryptionKey};
 pub use hybrid_kex::{HybridCiphertext, HybridKeyExchange, HybridPublicKey, HybridSharedSecret};
 pub use traits::KeyExchange;

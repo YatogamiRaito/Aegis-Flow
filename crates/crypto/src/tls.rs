@@ -42,10 +42,9 @@ pub enum PqcAlgorithm {
 }
 
 /// A secure channel established after PQC handshake
-#[derive(Debug)]
 pub struct SecureChannel {
-    /// Derived encryption key (32 bytes)
-    encryption_key: [u8; 32],
+    /// Cipher for encryption/decryption
+    cipher: crate::cipher::Cipher,
     /// Channel identifier
     channel_id: u64,
     /// Algorithm used
@@ -53,9 +52,33 @@ pub struct SecureChannel {
 }
 
 impl SecureChannel {
-    /// Get the encryption key for this channel
-    pub fn encryption_key(&self) -> &[u8; 32] {
-        &self.encryption_key
+    /// Create a new secure channel with encryption key
+    pub(crate) fn new(
+        encryption_key: [u8; 32],
+        channel_id: u64,
+        algorithm: PqcAlgorithm,
+    ) -> Self {
+        let key = crate::cipher::EncryptionKey::from_raw(
+            encryption_key,
+            crate::cipher::CipherAlgorithm::Aes256Gcm,
+        );
+        let cipher = crate::cipher::Cipher::new(key);
+
+        Self {
+            cipher,
+            channel_id,
+            algorithm,
+        }
+    }
+
+    /// Encrypt data for transmission
+    pub fn encrypt(&self, plaintext: &[u8]) -> aegis_common::Result<Vec<u8>> {
+        self.cipher.encrypt(plaintext)
+    }
+
+    /// Decrypt received data
+    pub fn decrypt(&self, ciphertext: &[u8]) -> aegis_common::Result<Vec<u8>> {
+        self.cipher.decrypt(ciphertext)
     }
 
     /// Get the channel identifier
@@ -69,10 +92,12 @@ impl SecureChannel {
     }
 }
 
-impl Drop for SecureChannel {
-    fn drop(&mut self) {
-        // Zeroize encryption key on drop
-        self.encryption_key.iter_mut().for_each(|b| *b = 0);
+impl std::fmt::Debug for SecureChannel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SecureChannel")
+            .field("channel_id", &self.channel_id)
+            .field("algorithm", &self.algorithm)
+            .finish()
     }
 }
 
@@ -125,11 +150,7 @@ impl PqcHandshake {
             .channel_counter
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
 
-        let channel = SecureChannel {
-            encryption_key,
-            channel_id,
-            algorithm: self.config.algorithm,
-        };
+        let channel = SecureChannel::new(encryption_key, channel_id, self.config.algorithm);
 
         info!("Client handshake complete, channel_id={}", channel_id);
         Ok((ciphertext, channel))
@@ -150,11 +171,7 @@ impl PqcHandshake {
             .channel_counter
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
 
-        let channel = SecureChannel {
-            encryption_key,
-            channel_id,
-            algorithm: state.algorithm,
-        };
+        let channel = SecureChannel::new(encryption_key, channel_id, state.algorithm);
 
         info!("Server handshake complete, channel_id={}", channel_id);
         Ok(channel)
@@ -197,11 +214,17 @@ mod tests {
             .server_complete(&ciphertext, server_state)
             .unwrap();
 
-        // Both should have the same encryption key
-        assert_eq!(
-            client_channel.encryption_key(),
-            server_channel.encryption_key()
-        );
+        // Both should be able to encrypt/decrypt each other's messages
+        let plaintext = b"Hello, PQC encrypted world!";
+        let encrypted = client_channel.encrypt(plaintext).unwrap();
+        let decrypted = server_channel.decrypt(&encrypted).unwrap();
+        assert_eq!(&decrypted, plaintext);
+
+        // And vice versa
+        let server_encrypted = server_channel.encrypt(b"Server response").unwrap();
+        let server_decrypted = client_channel.decrypt(&server_encrypted).unwrap();
+        assert_eq!(&server_decrypted, b"Server response");
+
         assert_eq!(client_channel.algorithm(), server_channel.algorithm());
     }
 
