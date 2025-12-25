@@ -1,0 +1,111 @@
+//! Prometheus Metrics Module
+//!
+//! Provides metrics collection and export for observability.
+
+use metrics::{counter, gauge, histogram, describe_counter, describe_gauge, describe_histogram};
+use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
+use std::sync::OnceLock;
+use tracing::info;
+
+/// Global metrics handle
+static METRICS_HANDLE: OnceLock<PrometheusHandle> = OnceLock::new();
+
+/// Metric names
+pub mod names {
+    pub const REQUESTS_TOTAL: &str = "aegis_requests_total";
+    pub const REQUEST_DURATION: &str = "aegis_request_duration_seconds";
+    pub const CONNECTIONS_ACTIVE: &str = "aegis_connections_active";
+    pub const HANDSHAKES_TOTAL: &str = "aegis_pqc_handshakes_total";
+    pub const HANDSHAKE_DURATION: &str = "aegis_pqc_handshake_duration_seconds";
+    pub const BYTES_SENT: &str = "aegis_bytes_sent_total";
+    pub const BYTES_RECEIVED: &str = "aegis_bytes_received_total";
+    pub const ENCRYPTION_OPERATIONS: &str = "aegis_encryption_operations_total";
+    pub const ERRORS_TOTAL: &str = "aegis_errors_total";
+}
+
+/// Initialize the metrics system
+pub fn init_metrics() -> PrometheusHandle {
+    let handle = PrometheusBuilder::new()
+        .install_recorder()
+        .expect("Failed to install Prometheus recorder");
+
+    // Describe metrics
+    describe_counter!(names::REQUESTS_TOTAL, "Total number of requests processed");
+    describe_histogram!(names::REQUEST_DURATION, "Request duration in seconds");
+    describe_gauge!(names::CONNECTIONS_ACTIVE, "Number of active connections");
+    describe_counter!(names::HANDSHAKES_TOTAL, "Total PQC handshakes completed");
+    describe_histogram!(names::HANDSHAKE_DURATION, "PQC handshake duration in seconds");
+    describe_counter!(names::BYTES_SENT, "Total bytes sent");
+    describe_counter!(names::BYTES_RECEIVED, "Total bytes received");
+    describe_counter!(names::ENCRYPTION_OPERATIONS, "Total encryption/decryption operations");
+    describe_counter!(names::ERRORS_TOTAL, "Total errors");
+
+    info!("📊 Metrics system initialized");
+    
+    METRICS_HANDLE.set(handle.clone()).ok();
+    handle
+}
+
+/// Get the global metrics handle
+pub fn get_metrics_handle() -> Option<&'static PrometheusHandle> {
+    METRICS_HANDLE.get()
+}
+
+/// Record a request
+pub fn record_request(method: &str, path: &str, status: u16, duration_secs: f64) {
+    counter!(names::REQUESTS_TOTAL, "method" => method.to_string(), "path" => path.to_string(), "status" => status.to_string()).increment(1);
+    histogram!(names::REQUEST_DURATION, "method" => method.to_string()).record(duration_secs);
+}
+
+/// Record a PQC handshake
+pub fn record_handshake(algorithm: &str, duration_secs: f64, success: bool) {
+    counter!(names::HANDSHAKES_TOTAL, "algorithm" => algorithm.to_string(), "success" => success.to_string()).increment(1);
+    if success {
+        histogram!(names::HANDSHAKE_DURATION, "algorithm" => algorithm.to_string()).record(duration_secs);
+    }
+}
+
+/// Update active connections gauge
+pub fn set_active_connections(count: f64) {
+    gauge!(names::CONNECTIONS_ACTIVE).set(count);
+}
+
+/// Increment active connections
+pub fn increment_connections() {
+    gauge!(names::CONNECTIONS_ACTIVE).increment(1.0);
+}
+
+/// Decrement active connections
+pub fn decrement_connections() {
+    gauge!(names::CONNECTIONS_ACTIVE).decrement(1.0);
+}
+
+/// Record bytes transferred
+pub fn record_bytes(sent: u64, received: u64) {
+    counter!(names::BYTES_SENT).increment(sent);
+    counter!(names::BYTES_RECEIVED).increment(received);
+}
+
+/// Record encryption operation
+pub fn record_encryption(operation: &str) {
+    counter!(names::ENCRYPTION_OPERATIONS, "operation" => operation.to_string()).increment(1);
+}
+
+/// Record an error
+pub fn record_error(error_type: &str) {
+    counter!(names::ERRORS_TOTAL, "type" => error_type.to_string()).increment(1);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_metric_names() {
+        assert!(names::REQUESTS_TOTAL.starts_with("aegis_"));
+        assert!(names::HANDSHAKE_DURATION.contains("duration"));
+    }
+
+    // Note: Full metrics tests require integration testing
+    // as the recorder can only be installed once per process
+}

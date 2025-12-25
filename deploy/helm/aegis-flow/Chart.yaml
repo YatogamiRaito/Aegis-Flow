@@ -1,0 +1,18 @@
+apiVersion: v2
+name: aegis-flow
+description: Post-Quantum Secure, Carbon-Aware Service Mesh Data Plane
+type: application
+version: 0.3.0
+appVersion: "0.2.0"
+keywords:
+  - service-mesh
+  - post-quantum
+  - cryptography
+  - proxy
+  - security
+home: https://github.com/aegis-flow/aegis-flow
+sources:
+  - https://github.com/aegis-flow/aegis-flow
+maintainers:
+  - name: Aegis-Flow Team
+    email: maintainers@aegis-flow.io

@@ -8,6 +8,7 @@ use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
 mod config;
 mod http_proxy;
+pub mod metrics;
 mod pqc_server;
 mod server;
 
