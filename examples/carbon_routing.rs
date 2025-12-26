@@ -4,8 +4,6 @@
 //!
 //! Run with: cargo run --example carbon_routing
 
-
-
 fn main() {
     println!("🌱 Aegis-Flow Carbon-Aware Routing Demo\n");
 

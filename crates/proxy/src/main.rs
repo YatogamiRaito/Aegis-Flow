@@ -23,20 +23,22 @@ async fn main() -> Result<()> {
 
     // Initialize lifecycle manager
     let lifecycle = std::sync::Arc::new(aegis_proxy::LifecycleManager::new());
-    
+
     let config = ProxyConfig::default();
-    
+
     // Spawn health server
     let health_config = config.health.clone();
     let health_lifecycle = lifecycle.clone();
     let health_metrics = Some(metrics_handle.clone());
-    
+
     tokio::spawn(async move {
         if let Err(e) = aegis_proxy::health_server::run_health_server(
-            health_config, 
-            health_lifecycle, 
-            health_metrics
-        ).await {
+            health_config,
+            health_lifecycle,
+            health_metrics,
+        )
+        .await
+        {
             tracing::error!("Health server failed: {}", e);
         }
     });

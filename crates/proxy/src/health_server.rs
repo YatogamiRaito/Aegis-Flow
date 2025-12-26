@@ -42,7 +42,10 @@ pub async fn run_health_server(
                         )
                         .await
                     {
-                        warn!("Error serving health connection from {}: {}", peer_addr, err);
+                        warn!(
+                            "Error serving health connection from {}: {}",
+                            peer_addr, err
+                        );
                     }
                 });
             }
