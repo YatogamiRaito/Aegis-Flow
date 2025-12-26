@@ -1,0 +1,24 @@
+[package]
+name = "aegis-examples"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[[example]]
+name = "pqc_handshake"
+path = "pqc_handshake.rs"
+
+[[example]]
+name = "config_demo"
+path = "config_demo.rs"
+
+[[example]]
+name = "carbon_routing"
+path = "carbon_routing.rs"
+
+[dependencies]
+aegis-crypto = { path = "../crates/crypto" }
+aegis-proxy = { path = "../crates/proxy" }
+aegis-energy = { path = "../crates/energy" }
+chrono = "0.4"
+tempfile = "3"

@@ -8,6 +8,7 @@ members = [
     "crates/plugins",
     "crates/proxy",
     "crates/telemetry",
+    "examples",
 ]
 
 [workspace.package]
