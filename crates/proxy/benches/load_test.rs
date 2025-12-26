@@ -3,7 +3,8 @@
 //! High-concurrency stress test for measuring RPS (Requests Per Second).
 
 use aegis_proxy::{Http3Config, Http3Handler, Http3Request, Http3Response};
-use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
+use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
+use std::hint::black_box;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};

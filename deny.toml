@@ -32,6 +32,7 @@ allow = [
     "OpenSSL",  # aws-lc-sys uses this
     "CDLA-Permissive-2.0",  # webpki-roots uses this
     "BSL-1.0",  # xxhash-rust uses Boost Software License
+    "MPL-2.0",  # wasmtime/im-rc uses this
 ]
 confidence-threshold = 0.8
 
@@ -55,8 +56,8 @@ deny = [
 
 # Skip duplicate version warnings for these crates (used by polars/arrow ecosystem)
 skip = [
-    { name = "bitflags", version = "1.3" },
-    { name = "hashbrown", version = "0.14" },
+    # { name = "bitflags", version = "1.3" }, # Removed: Unmatched skip
+    # { name = "hashbrown", version = "0.14" }, # Removed: Unmatched skip
 ]
 skip-tree = []
 
