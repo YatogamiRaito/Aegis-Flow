@@ -33,7 +33,7 @@ pub trait EnergyApiClient: Send + Sync {
 }
 
 /// WattTime API client
-/// API Documentation: https://docs.watttime.org/
+/// API Documentation: <https://docs.watttime.org/>
 pub struct WattTimeClient {
     client: Client,
     base_url: String,
@@ -204,7 +204,7 @@ impl EnergyApiClient for WattTimeClient {
 }
 
 /// Electricity Maps API client
-/// API Documentation: https://static.electricitymaps.com/api/docs/index.html
+/// API Documentation: <https://static.electricitymaps.com/api/docs/index.html>
 pub struct ElectricityMapsClient {
     client: Client,
     base_url: String,
