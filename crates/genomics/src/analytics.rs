@@ -92,8 +92,8 @@ impl VariantAnalytics {
         // We'll check length of ref vs alt
         
         let df = self.df.clone();
-        let refs = df.column("reference")?.str()?;
-        let alts = df.column("alternate")?.str()?;
+        let refs = df.column("ref")?.str()?;
+        let alts = df.column("alt")?.str()?;
         
         let mut snps = 0;
         let mut indels = 0;
@@ -212,5 +212,33 @@ mod tests {
         assert!((stats.mean - 63.5).abs() < 0.1); // (99+50+75+30)/4 = 63.5
         assert_eq!(stats.min, 30.0);
         assert_eq!(stats.max, 99.0);
+    }
+    #[test]
+    fn test_empty_analytics() {
+        let builder = VariantBatchBuilder::new();
+        let analytics = VariantAnalytics::from_builder(&builder).unwrap();
+        
+        assert_eq!(analytics.count(), 0);
+        assert_eq!(analytics.count_by_chromosome().unwrap().len(), 0);
+        assert_eq!(analytics.quality_stats().unwrap().count, 0);
+    }
+
+    #[test]
+    fn test_null_qualities() {
+        let mut builder = VariantBatchBuilder::new();
+        // Variant without quality (None)
+        let mut record = VariantRecord::new("chr1", 100, "A", "T");
+        record.qual = None;
+        builder.push(record);
+
+        // Variant with quality
+        builder.push(VariantRecord::new("chr1", 200, "G", "C").with_qual(50.0));
+
+        let analytics = VariantAnalytics::from_builder(&builder).unwrap();
+        let stats = analytics.quality_stats().unwrap();
+
+        assert_eq!(stats.count, 1); // Only 1 valid quality
+        assert_eq!(stats.min, 50.0);
+        assert_eq!(stats.max, 50.0);
     }
 }
