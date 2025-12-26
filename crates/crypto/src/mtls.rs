@@ -2,14 +2,14 @@
 //!
 //! Provides certificate-based authentication with Post-Quantum cryptography.
 
-use crate::certmanager::{CertManager, CertType, ParsedCert};
+use crate::certmanager::{CertManager, ParsedCert};
 use crate::tls::{PqcHandshake, PqcTlsConfig, SecureChannel};
 use aegis_common::{AegisError, Result};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 
 /// mTLS Configuration
 #[derive(Debug, Clone)]

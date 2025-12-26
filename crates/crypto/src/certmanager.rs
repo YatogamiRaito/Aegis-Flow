@@ -306,10 +306,10 @@ impl CertManager {
             }
         }
 
-        if let Some(ref cert) = self.server_cert {
-            if cert.is_expiring_soon() {
-                expiring.push(cert);
-            }
+        if let Some(ref cert) = self.server_cert
+            && cert.is_expiring_soon()
+        {
+            expiring.push(cert);
         }
 
         expiring
