@@ -3,7 +3,8 @@
 //! Measures HTTP/3 request handling performance.
 
 use aegis_proxy::{Http3Config, Http3Handler, Http3Request};
-use criterion::{Criterion, Throughput, black_box, criterion_group, criterion_main};
+use criterion::{Criterion, Throughput, criterion_group, criterion_main};
+use std::hint::black_box;
 use tokio::runtime::Runtime;
 
 /// Benchmark HTTP/3 request creation

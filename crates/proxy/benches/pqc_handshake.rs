@@ -3,7 +3,8 @@
 //! Measures the performance of ML-KEM-768 + X25519 hybrid key exchange.
 
 use aegis_crypto::HybridKeyExchange;
-use criterion::{Criterion, Throughput, black_box, criterion_group, criterion_main};
+use criterion::{Criterion, Throughput, criterion_group, criterion_main};
+use std::hint::black_box;
 
 /// Benchmark ML-KEM-768 key generation
 fn bench_keypair_generation(c: &mut Criterion) {

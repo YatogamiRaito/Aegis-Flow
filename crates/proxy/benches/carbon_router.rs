@@ -3,7 +3,8 @@
 //! Measures carbon-aware routing decision performance.
 
 use aegis_proxy::{CarbonRouterConfig, RegionScore};
-use criterion::{Criterion, Throughput, black_box, criterion_group, criterion_main};
+use criterion::{Criterion, Throughput, criterion_group, criterion_main};
+use std::hint::black_box;
 
 /// Benchmark router config creation
 fn bench_router_config(c: &mut Criterion) {

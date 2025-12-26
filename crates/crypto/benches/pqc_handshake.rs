@@ -1,7 +1,8 @@
 //! Benchmark for PQC hybrid key exchange
 
 use aegis_crypto::HybridKeyExchange;
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use criterion::{Criterion, criterion_group, criterion_main};
+use std::hint::black_box;
 
 fn benchmark_keypair_generation(c: &mut Criterion) {
     let kex = HybridKeyExchange::new();
