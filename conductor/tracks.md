@@ -44,5 +44,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-## [ ] Track: PQC Migration & Security Hardening
+## [x] Track: PQC Migration & Security Hardening
 *Link: [./conductor/tracks/pqc_migration_20251226/](./conductor/tracks/pqc_migration_20251226/)*
