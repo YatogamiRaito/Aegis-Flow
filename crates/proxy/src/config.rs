@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 use std::time::SystemTime;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 /// Configuration file format
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -223,33 +223,33 @@ impl ProxyConfig {
             debug!("Overriding host from AEGIS_HOST: {}", host);
             self.host = host;
         }
-        if let Ok(port) = std::env::var("AEGIS_PORT") {
-            if let Ok(p) = port.parse() {
-                debug!("Overriding port from AEGIS_PORT: {}", p);
-                self.port = p;
-            }
+        if let Ok(port) = std::env::var("AEGIS_PORT")
+            && let Ok(p) = port.parse()
+        {
+            debug!("Overriding port from AEGIS_PORT: {}", p);
+            self.port = p;
         }
         if let Ok(upstream) = std::env::var("AEGIS_UPSTREAM") {
             debug!("Overriding upstream from AEGIS_UPSTREAM: {}", upstream);
             self.upstream_addr = upstream;
         }
-        if let Ok(val) = std::env::var("AEGIS_TLS_ENABLED") {
-            if let Ok(enabled) = val.parse() {
-                debug!("Overriding tls_enabled from AEGIS_TLS_ENABLED: {}", enabled);
-                self.tls_enabled = enabled;
-            }
+        if let Ok(val) = std::env::var("AEGIS_TLS_ENABLED")
+            && let Ok(enabled) = val.parse()
+        {
+            debug!("Overriding tls_enabled from AEGIS_TLS_ENABLED: {}", enabled);
+            self.tls_enabled = enabled;
         }
-        if let Ok(val) = std::env::var("AEGIS_PQC_ENABLED") {
-            if let Ok(enabled) = val.parse() {
-                debug!("Overriding pqc_enabled from AEGIS_PQC_ENABLED: {}", enabled);
-                self.pqc_enabled = enabled;
-            }
+        if let Ok(val) = std::env::var("AEGIS_PQC_ENABLED")
+            && let Ok(enabled) = val.parse()
+        {
+            debug!("Overriding pqc_enabled from AEGIS_PQC_ENABLED: {}", enabled);
+            self.pqc_enabled = enabled;
         }
-        if let Ok(workers) = std::env::var("AEGIS_WORKER_THREADS") {
-            if let Ok(w) = workers.parse() {
-                debug!("Overriding worker_threads from AEGIS_WORKER_THREADS: {}", w);
-                self.worker_threads = w;
-            }
+        if let Ok(workers) = std::env::var("AEGIS_WORKER_THREADS")
+            && let Ok(w) = workers.parse()
+        {
+            debug!("Overriding worker_threads from AEGIS_WORKER_THREADS: {}", w);
+            self.worker_threads = w;
         }
         if let Ok(level) = std::env::var("AEGIS_LOG_LEVEL") {
             debug!("Overriding log level from AEGIS_LOG_LEVEL: {}", level);

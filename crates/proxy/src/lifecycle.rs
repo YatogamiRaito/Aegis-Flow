@@ -10,8 +10,8 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
-use tokio::sync::{broadcast, watch};
-use tracing::{debug, error, info, warn};
+use tokio::sync::broadcast;
+use tracing::{debug, info, warn};
 
 /// Shutdown signal receiver type
 pub type ShutdownReceiver = broadcast::Receiver<()>;
@@ -404,10 +404,10 @@ mod tests {
         assert_eq!(manager.active_connections(), 1);
 
         // Get a receiver before shutdown
-        let mut receiver = manager.shutdown_receiver();
+        let _receiver = manager.shutdown_receiver();
 
         // Spawn shutdown in background (it will wait for connections)
-        let manager_clone = Arc::clone(&manager);
+        let _manager_clone = Arc::clone(&manager);
         let shutdown_handle = tokio::spawn(async move {
             // Use a short timeout for testing
             let manager = LifecycleManager::new().with_drain_timeout(Duration::from_millis(100));
