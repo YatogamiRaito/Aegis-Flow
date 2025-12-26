@@ -3,7 +3,7 @@ name: aegis-flow
 description: Post-Quantum Secure, Carbon-Aware Service Mesh Data Plane
 type: application
 version: 0.3.0
-appVersion: "0.2.0"
+appVersion: "0.10.0"
 keywords:
   - service-mesh
   - post-quantum

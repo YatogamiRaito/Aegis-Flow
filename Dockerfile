@@ -2,7 +2,7 @@
 # Multi-stage build for minimal final image
 
 # Stage 1: Build
-FROM rust:1.92-slim-bookworm AS builder
+FROM rust:1.83-slim-bookworm AS builder
 
 WORKDIR /app
 
