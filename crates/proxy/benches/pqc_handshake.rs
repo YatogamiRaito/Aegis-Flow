@@ -1,11 +1,11 @@
 //! PQC Handshake Benchmark
 //!
-//! Measures the performance of Kyber-768 + X25519 hybrid key exchange.
+//! Measures the performance of ML-KEM-768 + X25519 hybrid key exchange.
 
 use aegis_crypto::HybridKeyExchange;
 use criterion::{Criterion, Throughput, black_box, criterion_group, criterion_main};
 
-/// Benchmark Kyber-768 key generation
+/// Benchmark ML-KEM-768 key generation
 fn bench_keypair_generation(c: &mut Criterion) {
     let kex = HybridKeyExchange::new();
 

@@ -27,7 +27,7 @@ pub struct QuicConfig {
     pub max_streams: u32,
     /// Connection idle timeout in seconds
     pub idle_timeout_secs: u64,
-    /// Enable Post-Quantum Cryptography (Kyber+X25519 hybrid)
+    /// Enable Post-Quantum Cryptography (ML-KEM+X25519 hybrid)
     pub pqc_enabled: bool,
 }
 
@@ -135,7 +135,7 @@ impl QuicServer {
         info!(
             "🛡️ Post-Quantum Cryptography: {}",
             if self.config.pqc_enabled {
-                "enabled (Kyber+X25519)"
+                "enabled (ML-KEM+X25519)"
             } else {
                 "disabled"
             }

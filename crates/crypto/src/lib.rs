@@ -1,11 +1,11 @@
 //! Aegis-Crypto: Post-Quantum Cryptography module for Aegis-Flow
 //!
-//! This crate provides hybrid key exchange (Kyber + X25519) and
+//! This crate provides hybrid key exchange (ML-KEM + X25519) and
 //! digital signature capabilities using NIST-standardized PQC algorithms.
 //!
 //! # Features
 //!
-//! - **Hybrid Key Exchange**: X25519 + Kyber-768 for quantum resistance
+//! - **Hybrid Key Exchange**: X25519 + ML-KEM-768 for quantum resistance
 //! - **TLS Integration**: Custom crypto provider for rustls (coming soon)
 //! - **Formal Verification**: Designed for Kani/Verus verification
 //!

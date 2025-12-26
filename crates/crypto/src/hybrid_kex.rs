@@ -58,7 +58,7 @@ pub struct HybridSharedSecret {
 }
 
 impl HybridSharedSecret {
-    /// Create a new hybrid shared secret from X25519 and Kyber secrets
+    /// Create a new hybrid shared secret from X25519 and ML-KEM secrets
     pub fn combine(x25519_secret: &[u8; 32], mlkem_secret: &[u8]) -> Self {
         let mut inner = [0u8; 64];
         inner[..32].copy_from_slice(x25519_secret);

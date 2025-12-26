@@ -17,7 +17,7 @@ async fn main() -> Result<()> {
 
     info!("🚀 Aegis-Flow Proxy starting...");
     info!("📦 Version: {}", env!("CARGO_PKG_VERSION"));
-    info!("🔐 Post-Quantum Cryptography: Enabled (Kyber-768 + X25519)");
+    info!("🔐 Post-Quantum Cryptography: Enabled (ML-KEM-768 + X25519)");
 
     // Initialize and run the server
     let config = ProxyConfig::default();

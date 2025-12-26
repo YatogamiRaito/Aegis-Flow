@@ -31,7 +31,7 @@ impl PqcProxyServer {
         let listener = TcpListener::bind(&addr).await?;
 
         info!("🎯 Aegis-Flow PQC proxy is ready to accept connections");
-        info!("🔒 Using algorithm: X25519-Kyber768-Hybrid");
+        info!("🔒 Using algorithm: X25519-MLKEM768-Hybrid");
 
         loop {
             match listener.accept().await {

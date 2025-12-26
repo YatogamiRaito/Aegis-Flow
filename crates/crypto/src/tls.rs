@@ -23,7 +23,7 @@ impl Default for PqcTlsConfig {
         Self {
             pqc_enabled: true,
             mtls_required: false,
-            algorithm: PqcAlgorithm::HybridKyber768,
+            algorithm: PqcAlgorithm::HybridMlKem768,
         }
     }
 }
@@ -33,11 +33,20 @@ impl Default for PqcTlsConfig {
 pub enum PqcAlgorithm {
     /// X25519 only (classical)
     X25519Only,
-    /// Kyber-768 only (PQC)
+    /// ML-KEM-768 only (NIST FIPS 203)
+    MlKem768Only,
+    /// Hybrid X25519 + ML-KEM-768 (recommended)
+    HybridMlKem768,
+    /// Hybrid X25519 + ML-KEM-1024 (highest security)
+    HybridMlKem1024,
+    /// Legacy: Kyber-768 only (deprecated)
+    #[deprecated(since = "0.10.0", note = "Use MlKem768Only instead")]
     Kyber768Only,
-    /// Hybrid X25519 + Kyber-768 (recommended)
+    /// Legacy: Hybrid X25519 + Kyber-768 (deprecated)
+    #[deprecated(since = "0.10.0", note = "Use HybridMlKem768 instead")]
     HybridKyber768,
-    /// Hybrid X25519 + Kyber-1024 (highest security)
+    /// Legacy: Hybrid X25519 + Kyber-1024 (deprecated)
+    #[deprecated(since = "0.10.0", note = "Use HybridMlKem1024 instead")]
     HybridKyber1024,
 }
 
@@ -234,7 +243,7 @@ mod tests {
         let config = PqcTlsConfig::default();
         assert!(config.pqc_enabled);
         assert!(!config.mtls_required);
-        assert_eq!(config.algorithm, PqcAlgorithm::HybridKyber768);
+        assert_eq!(config.algorithm, PqcAlgorithm::HybridMlKem768);
     }
 
     #[test]

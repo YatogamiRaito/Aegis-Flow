@@ -7,14 +7,26 @@ use serde::{Deserialize, Serialize};
 pub enum KeyExchangeType {
     /// Classical X25519 key exchange
     X25519,
-    /// Post-Quantum Kyber key exchange
-    Kyber768,
-    /// Post-Quantum Kyber-1024 key exchange
-    Kyber1024,
-    /// Hybrid: X25519 + Kyber (recommended)
+    /// Post-Quantum ML-KEM-768 (NIST FIPS 203)
+    MlKem768,
+    /// Post-Quantum ML-KEM-1024 (NIST FIPS 203)
+    MlKem1024,
+    /// Hybrid: X25519 + ML-KEM-768 (recommended, NIST compliant)
     #[default]
+    HybridX25519MlKem768,
+    /// Hybrid: X25519 + ML-KEM-1024 (highest security)
+    HybridX25519MlKem1024,
+    /// Legacy: Kyber-768 (deprecated, use MlKem768)
+    #[deprecated(since = "0.10.0", note = "Use MlKem768 instead")]
+    Kyber768,
+    /// Legacy: Kyber-1024 (deprecated, use MlKem1024)
+    #[deprecated(since = "0.10.0", note = "Use MlKem1024 instead")]
+    Kyber1024,
+    /// Legacy: Hybrid X25519 + Kyber-768 (deprecated)
+    #[deprecated(since = "0.10.0", note = "Use HybridX25519MlKem768 instead")]
     HybridX25519Kyber768,
-    /// Hybrid: X25519 + Kyber-1024
+    /// Legacy: Hybrid X25519 + Kyber-1024 (deprecated)
+    #[deprecated(since = "0.10.0", note = "Use HybridX25519MlKem1024 instead")]
     HybridX25519Kyber1024,
 }
 
@@ -51,7 +63,7 @@ mod tests {
     fn test_default_key_exchange() {
         assert_eq!(
             KeyExchangeType::default(),
-            KeyExchangeType::HybridX25519Kyber768
+            KeyExchangeType::HybridX25519MlKem768
         );
     }
 
@@ -62,7 +74,7 @@ mod tests {
 
     #[test]
     fn test_key_exchange_serialization() {
-        let ke = KeyExchangeType::HybridX25519Kyber1024;
+        let ke = KeyExchangeType::HybridX25519MlKem1024;
         let json = serde_json::to_string(&ke).unwrap();
         let parsed: KeyExchangeType = serde_json::from_str(&json).unwrap();
         assert_eq!(ke, parsed);
