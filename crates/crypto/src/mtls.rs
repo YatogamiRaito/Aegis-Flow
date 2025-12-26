@@ -5,11 +5,11 @@
 use crate::certmanager::{CertManager, ParsedCert};
 use crate::tls::{PqcHandshake, PqcTlsConfig, SecureChannel};
 use aegis_common::{AegisError, Result};
+use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::path::Path;
-use parking_lot::RwLock;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use tracing::{debug, error, info};
 
 /// mTLS Configuration

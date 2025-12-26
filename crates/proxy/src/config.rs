@@ -3,10 +3,10 @@
 //! Provides configuration loading from YAML/TOML files with environment variable overrides
 //! and hot reload support.
 
+use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use serde_norway::{self as yaml};
 use std::path::{Path, PathBuf};
-use parking_lot::RwLock;
 use std::sync::Arc;
 use std::time::SystemTime;
 use tracing::{debug, info, warn};

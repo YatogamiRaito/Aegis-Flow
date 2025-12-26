@@ -3,10 +3,10 @@
 //! Collects and aggregates metrics from eBPF programs.
 
 use crate::energy::{EnergyBreakdown, EnergyMetrics};
-use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
 use parking_lot::RwLock;
+use std::collections::HashMap;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use tracing::debug;
 

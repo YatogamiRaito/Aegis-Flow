@@ -4,10 +4,10 @@
 
 use crate::variant::VariantBatchBuilder;
 
-use polars::prelude::*;
-use std::io::Cursor;
 use arrow::ipc::writer::FileWriter;
 use polars::io::SerReader;
+use polars::prelude::*;
+use std::io::Cursor;
 
 /// Variant analytics using Polars
 #[derive(Default)]
@@ -19,7 +19,7 @@ impl VariantAnalytics {
     /// Create from VariantBatchBuilder
     pub fn from_builder(builder: &VariantBatchBuilder) -> crate::Result<Self> {
         let batch = builder.build()?;
-        
+
         // Convert Arrow RecordBatch to Polars DataFrame via IPC to handle version mismatches
         let mut buf = Vec::new();
         {
@@ -27,10 +27,10 @@ impl VariantAnalytics {
             writer.write(&batch)?;
             writer.finish()?;
         }
-        
+
         let cursor = Cursor::new(buf);
         let df = IpcReader::new(cursor).finish()?;
-             
+
         Ok(Self { df })
     }
 
@@ -41,12 +41,16 @@ impl VariantAnalytics {
 
     /// Count variants per chromosome
     pub fn count_by_chromosome(&self) -> crate::Result<Vec<(String, usize)>> {
-        let counts = self.df
+        let counts = self
+            .df
             .clone()
             .lazy()
             .group_by([col("chrom")])
             .agg([len().alias("count")])
-            .sort(["count"], SortMultipleOptions::default().with_order_descending(true))
+            .sort(
+                ["count"],
+                SortMultipleOptions::default().with_order_descending(true),
+            )
             .collect()?;
 
         let chroms = counts.column("chrom")?.str()?;
@@ -63,10 +67,7 @@ impl VariantAnalytics {
 
     /// Filter by quality threshold
     pub fn filter_by_quality(&self, min_qual: f64) -> crate::Result<usize> {
-        let mask = self.df
-            .column("qual")?
-            .f64()?
-            .gt_eq(min_qual);
+        let mask = self.df.column("qual")?.f64()?.gt_eq(min_qual);
 
         Ok(self.df.filter(&mask)?.height())
     }
@@ -74,15 +75,16 @@ impl VariantAnalytics {
     /// Get variants in a region
     pub fn filter_by_region(&self, chrom: &str, start: i64, end: i64) -> crate::Result<usize> {
         let ctx = self.df.clone().lazy();
-        
+
         let filtered = ctx
             .filter(
-                col("chrom").eq(lit(chrom))
-                .and(col("pos").gt_eq(lit(start)))
-                .and(col("pos").lt_eq(lit(end)))
+                col("chrom")
+                    .eq(lit(chrom))
+                    .and(col("pos").gt_eq(lit(start)))
+                    .and(col("pos").lt_eq(lit(end))),
             )
             .collect()?;
-            
+
         Ok(filtered.height())
     }
 
@@ -90,14 +92,14 @@ impl VariantAnalytics {
     pub fn variant_type_counts(&self) -> crate::Result<(usize, usize)> {
         // This is a simplified check - real VCF analysis would be more complex
         // We'll check length of ref vs alt
-        
+
         let df = self.df.clone();
         let refs = df.column("ref")?.str()?;
         let alts = df.column("alt")?.str()?;
-        
+
         let mut snps = 0;
         let mut indels = 0;
-        
+
         for (r, a) in refs.into_iter().zip(alts.into_iter()) {
             if let (Some(r_val), Some(a_val)) = (r, a) {
                 if r_val.len() == 1 && a_val.len() == 1 {
@@ -107,14 +109,14 @@ impl VariantAnalytics {
                 }
             }
         }
-        
+
         Ok((snps, indels))
     }
 
     /// Get quality statistics
     pub fn quality_stats(&self) -> crate::Result<QualityStats> {
         let qual_col = self.df.column("qual")?.f64()?;
-            
+
         let mean = qual_col.mean().unwrap_or(0.0);
         let min = qual_col.min().unwrap_or(0.0);
         let max = qual_col.max().unwrap_or(0.0);
@@ -146,7 +148,7 @@ pub struct QualityStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::variant::{VariantRecord, VariantBatchBuilder};
+    use crate::variant::{VariantBatchBuilder, VariantRecord};
 
     fn create_test_analytics() -> VariantAnalytics {
         let mut builder = VariantBatchBuilder::new();
@@ -154,7 +156,7 @@ mod tests {
         builder.push(VariantRecord::new("chr1", 200, "G", "C").with_qual(50.0));
         builder.push(VariantRecord::new("chr2", 300, "AT", "A").with_qual(75.0)); // deletion
         builder.push(VariantRecord::new("chr2", 400, "C", "G").with_qual(30.0));
-        
+
         VariantAnalytics::from_builder(&builder).expect("Failed to create analytics")
     }
 
@@ -217,7 +219,7 @@ mod tests {
     fn test_empty_analytics() {
         let builder = VariantBatchBuilder::new();
         let analytics = VariantAnalytics::from_builder(&builder).unwrap();
-        
+
         assert_eq!(analytics.count(), 0);
         assert_eq!(analytics.count_by_chromosome().unwrap().len(), 0);
         assert_eq!(analytics.quality_stats().unwrap().count, 0);
