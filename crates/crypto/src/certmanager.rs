@@ -258,14 +258,17 @@ impl CertManager {
             .distinguished_name
             .push(DnType::OrganizationName, "Aegis-Flow");
 
-        // Add SANs
+        // Add SANs (skip invalid entries instead of panicking)
         params.subject_alt_names = sans
             .iter()
-            .map(|s| {
-                if s.parse::<std::net::IpAddr>().is_ok() {
-                    SanType::IpAddress(s.parse().expect("Valid IP"))
+            .filter_map(|s| {
+                if let Ok(ip) = s.parse::<std::net::IpAddr>() {
+                    Some(SanType::IpAddress(ip))
+                } else if let Ok(dns) = s.clone().try_into() {
+                    Some(SanType::DnsName(dns))
                 } else {
-                    SanType::DnsName(s.clone().try_into().expect("Valid DNS name"))
+                    tracing::warn!("Skipping invalid SAN: {}", s);
+                    None
                 }
             })
             .collect();
