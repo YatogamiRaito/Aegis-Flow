@@ -21,7 +21,10 @@ fn main() {
     println!("\n2. Client encapsulating...");
     let (ciphertext, client_secret) = kex.encapsulate(&server_pk).expect("Failed to encapsulate");
     println!("   ✅ Ciphertext generated (X25519 + ML-KEM-768 hybrid)");
-    println!("   ✅ Shared secret size: {} bytes", client_secret.as_bytes().len());
+    println!(
+        "   ✅ Shared secret size: {} bytes",
+        client_secret.as_bytes().len()
+    );
 
     // Step 3: Server decapsulates (recovers shared secret)
     println!("\n3. Server decapsulating...");

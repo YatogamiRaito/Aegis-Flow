@@ -54,13 +54,14 @@ securityContext:
 # Configuration
 config:
   pqcEnabled: true
-  algorithm: HybridKyber768
+  algorithm: HybridMlKem768
   logLevel: info
   logFormat: json
+  upstreamAddr: "localhost:9000"
 
 # TLS configuration
 tls:
-  enabled: true
+  enabled: false
   secretName: aegis-flow-tls
 
 # Service account

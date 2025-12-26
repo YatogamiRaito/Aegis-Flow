@@ -12,14 +12,17 @@ fn main() {
 
     // Create regions with mock carbon intensity data
     let regions = vec![
-        ("us-west-2", "US West (Oregon)", 45.0),      // Very green (hydro)
-        ("eu-west-1", "EU West (Ireland)", 120.0),    // Moderate (wind mix)
-        ("us-east-1", "US East (Virginia)", 350.0),   // High carbon (coal mix)
+        ("us-west-2", "US West (Oregon)", 45.0), // Very green (hydro)
+        ("eu-west-1", "EU West (Ireland)", 120.0), // Moderate (wind mix)
+        ("us-east-1", "US East (Virginia)", 350.0), // High carbon (coal mix)
         ("ap-south-1", "Asia Pacific (Mumbai)", 600.0), // Very high carbon
     ];
 
     println!("1. Current Carbon Intensity by Region:\n");
-    println!("   {:<12} {:<25} {:>10} {:>12}", "Region", "Name", "gCO2/kWh", "Rating");
+    println!(
+        "   {:<12} {:<25} {:>10} {:>12}",
+        "Region", "Name", "gCO2/kWh", "Rating"
+    );
     println!("   {}", "-".repeat(60));
 
     for (id, name, intensity) in &regions {
@@ -30,7 +33,10 @@ fn main() {
             301..=500 => "🔴 High",
             _ => "⚫ Very High",
         };
-        println!("   {:<12} {:<25} {:>10.1} {:>12}", id, name, intensity, rating);
+        println!(
+            "   {:<12} {:<25} {:>10.1} {:>12}",
+            id, name, intensity, rating
+        );
     }
 
     // Select greenest region
@@ -39,7 +45,10 @@ fn main() {
         .iter()
         .min_by(|a, b| a.2.partial_cmp(&b.2).unwrap())
         .unwrap();
-    println!("   ✅ Selected: {} ({:.1} gCO2/kWh)", greenest.1, greenest.2);
+    println!(
+        "   ✅ Selected: {} ({:.1} gCO2/kWh)",
+        greenest.1, greenest.2
+    );
     println!("   📍 Region ID: {}", greenest.0);
 
     // Calculate routing weights
@@ -56,15 +65,18 @@ fn main() {
     let requests_per_hour = 10_000;
     let joules_per_request = 0.5;
     let high_carbon = 350.0; // If we used us-east-1
-    let low_carbon = 45.0;   // Using us-west-2
-    
+    let low_carbon = 45.0; // Using us-west-2
+
     let kwh = (requests_per_hour as f64 * joules_per_request) / 3_600_000.0;
     let saved_grams = kwh * (high_carbon - low_carbon);
-    
+
     println!("   Requests/hour: {}", requests_per_hour);
     println!("   Energy/hour: {:.4} kWh", kwh);
     println!("   Carbon saved: {:.2} gCO2/hour", saved_grams);
-    println!("   Monthly savings: {:.2} kgCO2", saved_grams * 24.0 * 30.0 / 1000.0);
+    println!(
+        "   Monthly savings: {:.2} kgCO2",
+        saved_grams * 24.0 * 30.0 / 1000.0
+    );
 
     println!("\n🎉 Carbon-aware routing demo complete!");
 }

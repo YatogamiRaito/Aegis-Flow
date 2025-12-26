@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "aegis-flow.fullname" . }}-config
+  labels:
+    {{- include "aegis-flow.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    host: "0.0.0.0"
+    port: {{ .Values.service.port }}
+    pqc_enabled: {{ .Values.config.pqcEnabled }}
+    upstream_addr: "{{ .Values.config.upstreamAddr }}"
+    
+    logging:
+      level: "{{ .Values.config.logLevel }}"
+      format: "json"
+    
+    tls:
+      enabled: {{ .Values.tls.enabled }}
+      {{- if .Values.tls.enabled }}
+      cert_path: "/etc/aegis/certs/tls.crt"
+      key_path: "/etc/aegis/certs/tls.key"
+      {{- end }}
