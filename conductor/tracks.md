@@ -41,3 +41,8 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ## [x] Track: WebAssembly Plugin System
 *Link: [./conductor/tracks/wasm_plugins_20251226/](./conductor/tracks/wasm_plugins_20251226/)*
+
+---
+
+## [ ] Track: PQC Migration & Security Hardening
+*Link: [./conductor/tracks/pqc_migration_20251226/](./conductor/tracks/pqc_migration_20251226/)*

@@ -37,9 +37,9 @@ s2n-quic = "1.49"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 tokio-rustls = "0.26"
 
-# Post-Quantum Cryptography
-pqcrypto-kyber = "0.8"
-pqcrypto-dilithium = "0.5"
+# Post-Quantum Cryptography (NIST ML-KEM/ML-DSA standards)
+pqcrypto-mlkem = "0.1"
+pqcrypto-dilithium = "0.5"  # TODO: Migrate to pqcrypto-mldsa when stable
 pqcrypto-traits = "0.3"
 x25519-dalek = { version = "2.0", features = ["static_secrets"] }
 
