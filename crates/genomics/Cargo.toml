@@ -10,16 +10,16 @@ description = "High-performance genomic data processing with Apache Arrow and Po
 aegis-common = { path = "../common" }
 
 # Apache Arrow
-arrow = { version = "53", features = ["prettyprint"] }
-arrow-schema = "53"
-arrow-array = "53"
-arrow-buffer = "53"
+arrow = { version = "57", features = ["prettyprint"] }
+arrow-schema = "57"
+arrow-array = "57"
+arrow-buffer = "57"
 
 # Polars DataFrame
-polars = { version = "0.46", features = ["lazy", "dtype-struct", "strings"] }
+polars = { version = "0.51", features = ["lazy", "dtype-struct", "strings"] }
 
 # Genomic formats (BAM/VCF)
-noodles = { version = "0.89", features = ["bam", "vcf", "fasta"] }
+noodles = { version = "0.104", features = ["bam", "vcf", "fasta"] }
 
 # Async Runtime
 tokio = { workspace = true, features = ["sync"] }

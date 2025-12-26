@@ -206,7 +206,7 @@ impl ProxyConfig {
     /// Parse configuration from string
     pub fn parse(content: &str, format: ConfigFormat) -> Result<Self, ConfigError> {
         let config: Self = match format {
-            ConfigFormat::Yaml => serde_yaml::from_str(content)
+            ConfigFormat::Yaml => serde_yml::from_str(content)
                 .map_err(|e| ConfigError::ParseError(format!("YAML parse error: {}", e)))?,
             ConfigFormat::Toml => toml::from_str(content)
                 .map_err(|e| ConfigError::ParseError(format!("TOML parse error: {}", e)))?,
@@ -294,7 +294,7 @@ impl ProxyConfig {
             .ok_or_else(|| ConfigError::UnsupportedFormat(path.display().to_string()))?;
 
         let content = match format {
-            ConfigFormat::Yaml => serde_yaml::to_string(self)
+            ConfigFormat::Yaml => serde_yml::to_string(self)
                 .map_err(|e| ConfigError::ParseError(format!("YAML serialize error: {}", e)))?,
             ConfigFormat::Toml => toml::to_string_pretty(self)
                 .map_err(|e| ConfigError::ParseError(format!("TOML serialize error: {}", e)))?,

@@ -22,16 +22,16 @@ categories = ["cryptography", "network-programming", "asynchronous"]
 
 [workspace.dependencies]
 # Async Runtime
-tokio = { version = "1.41", features = ["full"] }
+tokio = { version = "1.48", features = ["full"] }
 
 # Networking
-hyper = { version = "1.5", features = ["full"] }
+hyper = { version = "1.8", features = ["full"] }
 hyper-util = { version = "0.1" }
 tower = { version = "0.5", features = ["full"] }
-bytes = "1.9"
+bytes = "1.11"
 
 # HTTP/3 & QUIC
-s2n-quic = "1.49"
+s2n-quic = "1.71"
 
 # TLS
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
@@ -58,7 +58,7 @@ thiserror = "2.0"
 anyhow = "1.0"
 
 # Testing & Benchmarking
-criterion = { version = "0.5", features = ["html_reports"] }
+criterion = { version = "0.8", features = ["html_reports"] }
 
 # Development
 rand = "0.8"
@@ -70,15 +70,18 @@ hkdf = "0.12"
 sha2 = "0.10"
 
 # Configuration
-serde_yaml = "0.9"
+serde_yml = "0.0"
 toml = "0.8"
 
 # Certificate Management
 x509-parser = "0.17"
 rcgen = { version = "0.13", features = ["default"] }
 ring = "0.17"
-webpki-roots = "0.26"
+webpki-roots = "1.0"
 time = { version = "0.3", features = ["formatting", "parsing"] }
+
+# Faster sync primitives
+parking_lot = "0.12"
 
 [profile.release]
 lto = true

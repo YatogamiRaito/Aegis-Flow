@@ -72,8 +72,9 @@ impl<C: EnergyApiClient + Send + Sync> CarbonRouter<C> {
             config,
             client: Arc::new(client),
             cache: Arc::new(cache),
-            region_scores: Arc::new(RwLock::new(HashMap::new())),
-            regions: Arc::new(RwLock::new(Vec::new())),
+            // Pre-allocate for typical number of regions (5-10)
+            region_scores: Arc::new(RwLock::new(HashMap::with_capacity(10))),
+            regions: Arc::new(RwLock::new(Vec::with_capacity(10))),
         }
     }
 

@@ -76,6 +76,7 @@ impl ParsedCert {
 }
 
 /// Certificate Manager for handling X.509 certificates
+#[derive(Default)]
 pub struct CertManager {
     /// Trusted CA certificates
     trusted_cas: Vec<ParsedCert>,
@@ -88,11 +89,7 @@ pub struct CertManager {
 impl CertManager {
     /// Create a new empty certificate manager
     pub fn new() -> Self {
-        Self {
-            trusted_cas: Vec::new(),
-            server_cert: None,
-            private_key_pem: None,
-        }
+        Self::default()
     }
 
     /// Parse a PEM-encoded certificate
@@ -298,7 +295,8 @@ impl CertManager {
 
     /// Get all certificates that are expiring soon
     pub fn get_expiring_certs(&self) -> Vec<&ParsedCert> {
-        let mut expiring = Vec::new();
+        // Estimate: usually 0-2 certs expiring
+        let mut expiring = Vec::with_capacity(self.trusted_cas.len() + 1);
 
         for ca in &self.trusted_cas {
             if ca.is_expiring_soon() {
@@ -331,11 +329,7 @@ impl CertManager {
     }
 }
 
-impl Default for CertManager {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+
 
 #[cfg(test)]
 mod tests {

@@ -34,9 +34,9 @@ pub struct QuicConfig {
 impl Default for QuicConfig {
     fn default() -> Self {
         Self {
-            bind_address: "0.0.0.0:443".to_string(),
-            cert_path: "certs/server.crt".to_string(),
-            key_path: "certs/server.key".to_string(),
+            bind_address: String::from("0.0.0.0:443"),
+            cert_path: String::from("certs/server.crt"),
+            key_path: String::from("certs/server.key"),
             enable_0rtt: true,
             max_streams: 100,
             idle_timeout_secs: 30,
@@ -217,7 +217,8 @@ impl QuicServer {
         let handler = Http3Handler::new(Http3Config::default(), upstream);
 
         // Read request data
-        let mut request_data = Vec::new();
+        // Pre-allocate for typical request size
+        let mut request_data = Vec::with_capacity(4096);
 
         // Collect request bytes
         while let Ok(Some(chunk)) = recv.receive().await {

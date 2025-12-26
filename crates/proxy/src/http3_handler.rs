@@ -24,7 +24,7 @@ impl Http3Request {
         Self {
             method: method.into(),
             path: path.into(),
-            headers: Vec::new(),
+            headers: Vec::with_capacity(8), // Most requests have ~4-8 headers
             body: None,
         }
     }
@@ -58,7 +58,7 @@ impl Http3Response {
     pub fn new(status: u16) -> Self {
         Self {
             status,
-            headers: Vec::new(),
+            headers: Vec::with_capacity(4), // Most responses have ~2-4 headers
             body: Bytes::new(),
         }
     }
@@ -76,7 +76,7 @@ impl Http3Response {
     pub fn not_found() -> Self {
         Self {
             status: 404,
-            headers: Vec::new(),
+            headers: Vec::with_capacity(2),
             body: Bytes::from_static(b"Not Found"),
         }
     }
@@ -85,7 +85,7 @@ impl Http3Response {
     pub fn internal_error(message: impl Into<String>) -> Self {
         Self {
             status: 500,
-            headers: Vec::new(),
+            headers: Vec::with_capacity(2),
             body: Bytes::from(message.into()),
         }
     }

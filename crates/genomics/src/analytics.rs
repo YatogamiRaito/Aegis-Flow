@@ -5,6 +5,7 @@
 use crate::variant::VariantBatchBuilder;
 
 /// Variant analytics using Polars
+#[derive(Default)]
 pub struct VariantAnalytics {
     /// Chromosome column
     chroms: Vec<String>,
@@ -22,13 +23,7 @@ impl VariantAnalytics {
     /// Create from VariantBatchBuilder
     pub fn from_builder(_builder: &VariantBatchBuilder) -> Self {
         // Extract data from builder - for now create simple stats
-        Self {
-            chroms: Vec::new(),
-            positions: Vec::new(),
-            quals: Vec::new(),
-            refs: Vec::new(),
-            alts: Vec::new(),
-        }
+        Self::default()
     }
 
     /// Add a variant for analysis

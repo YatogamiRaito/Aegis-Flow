@@ -10,7 +10,7 @@ description = "WebAssembly plugin system for Aegis-Flow proxy"
 aegis-common = { path = "../common" }
 
 # WebAssembly Runtime
-wasmtime = "38"
+wasmtime = "40"
 
 # Async Runtime
 tokio = { workspace = true, features = ["sync", "fs"] }

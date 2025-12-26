@@ -116,7 +116,7 @@ impl HealthResponse {
 /// Lifecycle manager for graceful shutdown and health monitoring
 pub struct LifecycleManager {
     /// Current health status
-    status: Arc<std::sync::RwLock<HealthStatus>>,
+    status: Arc<tokio::sync::RwLock<HealthStatus>>,
     /// Shutdown signal sender
     shutdown_tx: broadcast::Sender<()>,
     /// Active connection count
@@ -135,7 +135,7 @@ impl LifecycleManager {
         let (shutdown_tx, _) = broadcast::channel(1);
 
         Self {
-            status: Arc::new(std::sync::RwLock::new(HealthStatus::Starting)),
+            status: Arc::new(tokio::sync::RwLock::new(HealthStatus::Starting)),
             shutdown_tx,
             active_connections: Arc::new(AtomicU64::new(0)),
             start_time: Instant::now(),
@@ -151,30 +151,28 @@ impl LifecycleManager {
     }
 
     /// Get current health status
-    pub fn health_status(&self) -> HealthStatus {
-        self.status
-            .read()
-            .map(|s| *s)
-            .unwrap_or(HealthStatus::Unhealthy)
+    pub async fn health_status(&self) -> HealthStatus {
+        *self.status.read().await
     }
 
     /// Set health status
-    pub fn set_status(&self, status: HealthStatus) {
-        if let Ok(mut s) = self.status.write() {
-            *s = status;
-            info!("Health status changed to: {}", status);
-        }
+    pub async fn set_status(&self, status: HealthStatus) {
+        let mut s = self.status.write().await;
+        *s = status;
+        info!("Health status changed to: {}", status);
     }
 
     /// Mark service as ready
-    pub fn mark_ready(&self) {
-        self.set_status(HealthStatus::Healthy);
+    pub async fn mark_ready(&self) {
+        self.set_status(HealthStatus::Healthy).await;
     }
 
     /// Mark service as unhealthy
-    pub fn mark_unhealthy(&self) {
-        self.set_status(HealthStatus::Unhealthy);
+    pub async fn mark_unhealthy(&self) {
+        self.set_status(HealthStatus::Unhealthy).await;
     }
+
+
 
     /// Get a shutdown signal receiver
     pub fn shutdown_receiver(&self) -> ShutdownReceiver {
@@ -209,8 +207,8 @@ impl LifecycleManager {
     }
 
     /// Create a health response
-    pub fn health_response(&self) -> HealthResponse {
-        HealthResponse::from_status(self.health_status())
+    pub async fn health_response(&self) -> HealthResponse {
+        HealthResponse::from_status(self.health_status().await)
             .with_uptime(self.uptime())
             .with_connections(self.active_connections())
             .with_version(env!("CARGO_PKG_VERSION"))
@@ -224,7 +222,7 @@ impl LifecycleManager {
         }
 
         info!("🛑 Initiating graceful shutdown...");
-        self.set_status(HealthStatus::Draining);
+        self.set_status(HealthStatus::Draining).await;
 
         // Send shutdown signal to all listeners
         let _ = self.shutdown_tx.send(());
@@ -332,19 +330,19 @@ mod tests {
         assert!(!HealthStatus::Unhealthy.is_alive());
     }
 
-    #[test]
-    fn test_lifecycle_manager_new() {
+    #[tokio::test]
+    async fn test_lifecycle_manager_new() {
         let manager = LifecycleManager::new();
-        assert_eq!(manager.health_status(), HealthStatus::Starting);
+        assert_eq!(manager.health_status().await, HealthStatus::Starting);
         assert_eq!(manager.active_connections(), 0);
         assert!(!manager.is_shutting_down());
     }
 
-    #[test]
-    fn test_mark_ready() {
+    #[tokio::test]
+    async fn test_mark_ready() {
         let manager = LifecycleManager::new();
-        manager.mark_ready();
-        assert_eq!(manager.health_status(), HealthStatus::Healthy);
+        manager.mark_ready().await;
+        assert_eq!(manager.health_status().await, HealthStatus::Healthy);
     }
 
     #[test]
@@ -374,12 +372,12 @@ mod tests {
         assert_eq!(manager.active_connections(), 0);
     }
 
-    #[test]
-    fn test_health_response_json() {
+    #[tokio::test]
+    async fn test_health_response_json() {
         let manager = LifecycleManager::new();
-        manager.mark_ready();
+        manager.mark_ready().await;
 
-        let response = manager.health_response();
+        let response = manager.health_response().await;
         let json = response.to_json();
 
         assert!(json.contains("\"status\":\"healthy\""));
@@ -397,7 +395,7 @@ mod tests {
     #[tokio::test]
     async fn test_graceful_shutdown() {
         let manager = Arc::new(LifecycleManager::new());
-        manager.mark_ready();
+        manager.mark_ready().await;
 
         // Simulate a connection
         let _guard = ConnectionGuard::new(Arc::clone(&manager));

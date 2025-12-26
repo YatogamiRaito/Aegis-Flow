@@ -86,9 +86,10 @@ impl ServiceRegistry {
     /// Create a new service registry
     pub fn new(strategy: LoadBalanceStrategy) -> Self {
         Self {
-            services: Arc::new(RwLock::new(HashMap::new())),
+            // Pre-allocate for typical number of services (10-20)
+            services: Arc::new(RwLock::new(HashMap::with_capacity(16))),
             strategy,
-            rr_counters: Arc::new(RwLock::new(HashMap::new())),
+            rr_counters: Arc::new(RwLock::new(HashMap::with_capacity(16))),
             health_check_interval: Duration::from_secs(10),
         }
     }
