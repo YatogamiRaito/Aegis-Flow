@@ -20,13 +20,11 @@ pub enum ConfigFormat {
 impl ConfigFormat {
     /// Detect format from file extension
     pub fn from_path(path: &Path) -> Option<Self> {
-        path.extension().and_then(|ext| {
-            match ext.to_str()? {
-                "yaml" | "yml" => Some(Self::Yaml),
-                "toml" => Some(Self::Toml),
-                "json" => Some(Self::Json),
-                _ => None,
-            }
+        path.extension().and_then(|ext| match ext.to_str()? {
+            "yaml" | "yml" => Some(Self::Yaml),
+            "toml" => Some(Self::Toml),
+            "json" => Some(Self::Json),
+            _ => None,
         })
     }
 }
@@ -50,9 +48,15 @@ pub struct TlsConfig {
     pub require_client_cert: bool,
 }
 
-fn default_true() -> bool { true }
-fn default_cert_path() -> String { "/etc/aegis/certs/server.crt".to_string() }
-fn default_key_path() -> String { "/etc/aegis/certs/server.key".to_string() }
+fn default_true() -> bool {
+    true
+}
+fn default_cert_path() -> String {
+    "/etc/aegis/certs/server.crt".to_string()
+}
+fn default_key_path() -> String {
+    "/etc/aegis/certs/server.key".to_string()
+}
 
 impl Default for TlsConfig {
     fn default() -> Self {
@@ -77,7 +81,9 @@ pub struct LogConfig {
     pub json_format: bool,
 }
 
-fn default_log_level() -> String { "info".to_string() }
+fn default_log_level() -> String {
+    "info".to_string()
+}
 
 impl Default for LogConfig {
     fn default() -> Self {
@@ -105,9 +111,15 @@ pub struct HealthConfig {
     pub readiness_path: String,
 }
 
-fn default_health_port() -> u16 { 8080 }
-fn default_liveness_path() -> String { "/healthz".to_string() }
-fn default_readiness_path() -> String { "/ready".to_string() }
+fn default_health_port() -> u16 {
+    8080
+}
+fn default_liveness_path() -> String {
+    "/healthz".to_string()
+}
+fn default_readiness_path() -> String {
+    "/ready".to_string()
+}
 
 impl Default for HealthConfig {
     fn default() -> Self {
@@ -152,9 +164,15 @@ pub struct ProxyConfig {
     pub health: HealthConfig,
 }
 
-fn default_host() -> String { "0.0.0.0".to_string() }
-fn default_port() -> u16 { 8443 }
-fn default_upstream() -> String { "127.0.0.1:8080".to_string() }
+fn default_host() -> String {
+    "0.0.0.0".to_string()
+}
+fn default_port() -> u16 {
+    8443
+}
+fn default_upstream() -> String {
+    "127.0.0.1:8080".to_string()
+}
 
 impl Default for ProxyConfig {
     fn default() -> Self {
@@ -175,8 +193,9 @@ impl Default for ProxyConfig {
 impl ProxyConfig {
     /// Load configuration from a file
     pub fn load_from_file(path: &Path) -> Result<Self, ConfigError> {
-        let content = std::fs::read_to_string(path)
-            .map_err(|e| ConfigError::IoError(format!("Failed to read {}: {}", path.display(), e)))?;
+        let content = std::fs::read_to_string(path).map_err(|e| {
+            ConfigError::IoError(format!("Failed to read {}: {}", path.display(), e))
+        })?;
 
         let format = ConfigFormat::from_path(path)
             .ok_or_else(|| ConfigError::UnsupportedFormat(path.display().to_string()))?;
@@ -244,7 +263,9 @@ impl ProxyConfig {
             return Err(ConfigError::ValidationError("Port cannot be 0".to_string()));
         }
         if self.upstream_addr.is_empty() {
-            return Err(ConfigError::ValidationError("Upstream address is required".to_string()));
+            return Err(ConfigError::ValidationError(
+                "Upstream address is required".to_string(),
+            ));
         }
         if self.tls_enabled && self.tls.enabled {
             // Check that cert paths exist when TLS is enabled
@@ -281,8 +302,9 @@ impl ProxyConfig {
                 .map_err(|e| ConfigError::ParseError(format!("JSON serialize error: {}", e)))?,
         };
 
-        std::fs::write(path, content)
-            .map_err(|e| ConfigError::IoError(format!("Failed to write {}: {}", path.display(), e)))?;
+        std::fs::write(path, content).map_err(|e| {
+            ConfigError::IoError(format!("Failed to write {}: {}", path.display(), e))
+        })?;
 
         info!("Configuration saved to {}", path.display());
         Ok(())
@@ -335,9 +357,7 @@ impl ConfigManager {
     pub fn from_file(path: impl AsRef<Path>) -> Result<Self, ConfigError> {
         let path = path.as_ref();
         let config = ProxyConfig::load(path)?;
-        let modified = std::fs::metadata(path)
-            .and_then(|m| m.modified())
-            .ok();
+        let modified = std::fs::metadata(path).and_then(|m| m.modified()).ok();
 
         Ok(Self {
             config: Arc::new(RwLock::new(config)),
@@ -362,9 +382,7 @@ impl ConfigManager {
             return false;
         };
 
-        let current_modified = std::fs::metadata(path)
-            .and_then(|m| m.modified())
-            .ok();
+        let current_modified = std::fs::metadata(path).and_then(|m| m.modified()).ok();
 
         let last = self.last_modified.read().ok().and_then(|l| *l);
 
@@ -385,21 +403,26 @@ impl ConfigManager {
             return Ok(false);
         }
 
-        info!("Configuration change detected, reloading from {}", path.display());
+        info!(
+            "Configuration change detected, reloading from {}",
+            path.display()
+        );
         let new_config = ProxyConfig::load(path)?;
 
         {
-            let mut config = self.config.write()
+            let mut config = self
+                .config
+                .write()
                 .map_err(|_| ConfigError::IoError("Lock poisoned".to_string()))?;
             *config = new_config;
         }
 
         {
-            let mut last_modified = self.last_modified.write()
+            let mut last_modified = self
+                .last_modified
+                .write()
                 .map_err(|_| ConfigError::IoError("Lock poisoned".to_string()))?;
-            *last_modified = std::fs::metadata(path)
-                .and_then(|m| m.modified())
-                .ok();
+            *last_modified = std::fs::metadata(path).and_then(|m| m.modified()).ok();
         }
 
         info!("Configuration reloaded successfully");
@@ -478,10 +501,22 @@ require_client_cert = true
 
     #[test]
     fn test_config_format_detection() {
-        assert_eq!(ConfigFormat::from_path(Path::new("config.yaml")), Some(ConfigFormat::Yaml));
-        assert_eq!(ConfigFormat::from_path(Path::new("config.yml")), Some(ConfigFormat::Yaml));
-        assert_eq!(ConfigFormat::from_path(Path::new("config.toml")), Some(ConfigFormat::Toml));
-        assert_eq!(ConfigFormat::from_path(Path::new("config.json")), Some(ConfigFormat::Json));
+        assert_eq!(
+            ConfigFormat::from_path(Path::new("config.yaml")),
+            Some(ConfigFormat::Yaml)
+        );
+        assert_eq!(
+            ConfigFormat::from_path(Path::new("config.yml")),
+            Some(ConfigFormat::Yaml)
+        );
+        assert_eq!(
+            ConfigFormat::from_path(Path::new("config.toml")),
+            Some(ConfigFormat::Toml)
+        );
+        assert_eq!(
+            ConfigFormat::from_path(Path::new("config.json")),
+            Some(ConfigFormat::Json)
+        );
         assert_eq!(ConfigFormat::from_path(Path::new("config.txt")), None);
     }
 
@@ -525,4 +560,3 @@ upstream_addr: "test:8080"
         assert_eq!(config.logging.level, "info");
     }
 }
-

@@ -137,7 +137,7 @@ impl MtlsAuthenticator {
         let server_cert = CertManager::load_from_file(Path::new(&self.config.cert_path))?;
         let key_pem = std::fs::read_to_string(&self.config.key_path)
             .map_err(|e| AegisError::Config(format!("Failed to read key: {}", e)))?;
-        
+
         self.cert_manager.set_server_cert(server_cert, key_pem)?;
 
         // Load CA certificate if configured
@@ -168,7 +168,7 @@ impl MtlsAuthenticator {
     /// Accept a new connection and start authentication
     pub fn accept_connection(&self) -> Result<(u64, crate::hybrid_kex::HybridPublicKey)> {
         let conn_id = self.connection_counter.fetch_add(1, Ordering::SeqCst);
-        
+
         // Initialize PQC handshake
         let (server_pk, _state) = self.pqc_handshake.server_init()?;
 
@@ -176,7 +176,8 @@ impl MtlsAuthenticator {
         let mut client = AuthenticatedClient::new(conn_id);
         client.state = AuthState::HandshakeInProgress;
 
-        self.clients.write()
+        self.clients
+            .write()
             .map_err(|_| AegisError::Crypto("Lock poisoned".to_string()))?
             .insert(conn_id, client);
 
@@ -191,10 +192,13 @@ impl MtlsAuthenticator {
         ciphertext: &crate::hybrid_kex::HybridCiphertext,
         client_cert_der: Option<&[u8]>,
     ) -> Result<()> {
-        let mut clients = self.clients.write()
+        let mut clients = self
+            .clients
+            .write()
             .map_err(|_| AegisError::Crypto("Lock poisoned".to_string()))?;
 
-        let client = clients.get_mut(&connection_id)
+        let client = clients
+            .get_mut(&connection_id)
             .ok_or_else(|| AegisError::Crypto("Connection not found".to_string()))?;
 
         // Parse client certificate if provided
@@ -220,26 +224,36 @@ impl MtlsAuthenticator {
                 match self.cert_manager.verify_chain(cert) {
                     Ok(true) => {
                         if !cert.is_valid_now() {
-                            client.state = AuthState::Failed("Client certificate expired".to_string());
-                            return Err(AegisError::Crypto("Client certificate expired".to_string()));
+                            client.state =
+                                AuthState::Failed("Client certificate expired".to_string());
+                            return Err(AegisError::Crypto(
+                                "Client certificate expired".to_string(),
+                            ));
                         }
                         debug!("Client certificate verified: {}", cert.subject_cn);
                     }
                     Ok(false) | Err(_) => {
-                        client.state = AuthState::Failed("Certificate verification failed".to_string());
-                        return Err(AegisError::Crypto("Client certificate verification failed".to_string()));
+                        client.state =
+                            AuthState::Failed("Certificate verification failed".to_string());
+                        return Err(AegisError::Crypto(
+                            "Client certificate verification failed".to_string(),
+                        ));
                     }
                 }
             } else {
                 client.state = AuthState::Failed("Client certificate required".to_string());
-                return Err(AegisError::Crypto("Client certificate required but not provided".to_string()));
+                return Err(AegisError::Crypto(
+                    "Client certificate required but not provided".to_string(),
+                ));
             }
         }
 
         // Re-init the handshake state for decapsulation
         // In real implementation, we'd store the server_state
         let (_, server_state) = self.pqc_handshake.server_init()?;
-        let channel = self.pqc_handshake.server_complete(ciphertext, server_state)?;
+        let channel = self
+            .pqc_handshake
+            .server_complete(ciphertext, server_state)?;
 
         // Update client state
         client.cert = client_cert;
@@ -249,7 +263,7 @@ impl MtlsAuthenticator {
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .map(|d| d.as_secs())
-                .unwrap_or(0)
+                .unwrap_or(0),
         );
 
         info!("Connection {} authenticated successfully", connection_id);
@@ -258,17 +272,22 @@ impl MtlsAuthenticator {
 
     /// Get client state
     pub fn get_client_state(&self, connection_id: u64) -> Result<AuthState> {
-        let clients = self.clients.read()
+        let clients = self
+            .clients
+            .read()
             .map_err(|_| AegisError::Crypto("Lock poisoned".to_string()))?;
 
-        clients.get(&connection_id)
+        clients
+            .get(&connection_id)
             .map(|c| c.state.clone())
             .ok_or_else(|| AegisError::Crypto("Connection not found".to_string()))
     }
 
     /// Disconnect a client
     pub fn disconnect(&self, connection_id: u64) -> Result<()> {
-        let mut clients = self.clients.write()
+        let mut clients = self
+            .clients
+            .write()
             .map_err(|_| AegisError::Crypto("Lock poisoned".to_string()))?;
 
         if clients.remove(&connection_id).is_some() {
@@ -281,8 +300,13 @@ impl MtlsAuthenticator {
 
     /// Get count of authenticated clients
     pub fn authenticated_count(&self) -> usize {
-        self.clients.read()
-            .map(|c| c.values().filter(|client| client.is_authenticated()).count())
+        self.clients
+            .read()
+            .map(|c| {
+                c.values()
+                    .filter(|client| client.is_authenticated())
+                    .count()
+            })
             .unwrap_or(0)
     }
 
@@ -458,7 +482,7 @@ mod tests {
     fn test_authenticated_client() {
         let mut client = AuthenticatedClient::new(1);
         assert!(!client.is_authenticated());
-        
+
         client.state = AuthState::Authenticated;
         assert!(client.is_authenticated());
     }
@@ -467,10 +491,10 @@ mod tests {
     fn test_accept_connection() {
         let config = MtlsConfig::default();
         let auth = MtlsAuthenticator::new(config).unwrap();
-        
+
         let (conn_id, _pk) = auth.accept_connection().unwrap();
         assert!(conn_id > 0);
-        
+
         let state = auth.get_client_state(conn_id).unwrap();
         assert_eq!(state, AuthState::HandshakeInProgress);
     }
@@ -479,10 +503,9 @@ mod tests {
     fn test_disconnect() {
         let config = MtlsConfig::default();
         let auth = MtlsAuthenticator::new(config).unwrap();
-        
+
         let (conn_id, _) = auth.accept_connection().unwrap();
         assert!(auth.disconnect(conn_id).is_ok());
         assert!(auth.get_client_state(conn_id).is_err());
     }
 }
-

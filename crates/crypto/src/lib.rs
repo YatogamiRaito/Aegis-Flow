@@ -29,16 +29,18 @@
 //! assert_eq!(client_secret.as_bytes(), server_secret.as_bytes());
 //! ```
 
-pub mod cipher;
 pub mod certmanager;
+pub mod cipher;
 pub mod hybrid_kex;
 pub mod mtls;
 pub mod stream;
 pub mod tls;
 pub mod traits;
 
-pub use cipher::{Cipher, CipherAlgorithm, EncryptionKey};
 pub use certmanager::{CertManager, CertType, ParsedCert};
+pub use cipher::{Cipher, CipherAlgorithm, EncryptionKey};
 pub use hybrid_kex::{HybridCiphertext, HybridKeyExchange, HybridPublicKey, HybridSharedSecret};
-pub use mtls::{AuthState, AuthenticatedClient, CertInfo, MtlsAuthenticator, MtlsConfig, MtlsHandler};
+pub use mtls::{
+    AuthState, AuthenticatedClient, CertInfo, MtlsAuthenticator, MtlsConfig, MtlsHandler,
+};
 pub use traits::KeyExchange;

@@ -160,10 +160,7 @@ impl CertManager {
                         GeneralName::DNSName(dns) => Some(dns.to_string()),
                         GeneralName::IPAddress(ip) => {
                             if ip.len() == 4 {
-                                Some(format!(
-                                    "{}.{}.{}.{}",
-                                    ip[0], ip[1], ip[2], ip[3]
-                                ))
+                                Some(format!("{}.{}.{}.{}", ip[0], ip[1], ip[2], ip[3]))
                             } else {
                                 None
                             }
@@ -259,7 +256,9 @@ impl CertManager {
     ) -> Result<(String, String)> {
         let mut params = CertificateParams::default();
         params.distinguished_name.push(DnType::CommonName, cn);
-        params.distinguished_name.push(DnType::OrganizationName, "Aegis-Flow");
+        params
+            .distinguished_name
+            .push(DnType::OrganizationName, "Aegis-Flow");
 
         // Add SANs
         params.subject_alt_names = sans
@@ -418,8 +417,7 @@ mod tests {
     #[test]
     fn test_self_signed_chain_verification() {
         // Generate a self-signed CA
-        let (ca_pem, _) =
-            CertManager::generate_self_signed("Aegis Test CA", &[], 365).unwrap();
+        let (ca_pem, _) = CertManager::generate_self_signed("Aegis Test CA", &[], 365).unwrap();
         let mut ca_cert = CertManager::parse_pem(ca_pem.as_bytes()).unwrap();
         // Force it to be recognized as a root CA for testing
         ca_cert.cert_type = CertType::RootCa;

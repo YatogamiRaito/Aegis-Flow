@@ -7,8 +7,8 @@
 //! - Readiness and liveness probes
 //! - Startup probes
 
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 use tokio::sync::{broadcast, watch};
 use tracing::{debug, error, info, warn};
@@ -133,7 +133,7 @@ impl LifecycleManager {
     /// Create a new lifecycle manager
     pub fn new() -> Self {
         let (shutdown_tx, _) = broadcast::channel(1);
-        
+
         Self {
             status: Arc::new(std::sync::RwLock::new(HealthStatus::Starting)),
             shutdown_tx,
@@ -152,7 +152,10 @@ impl LifecycleManager {
 
     /// Get current health status
     pub fn health_status(&self) -> HealthStatus {
-        self.status.read().map(|s| *s).unwrap_or(HealthStatus::Unhealthy)
+        self.status
+            .read()
+            .map(|s| *s)
+            .unwrap_or(HealthStatus::Unhealthy)
     }
 
     /// Set health status
@@ -245,9 +248,10 @@ impl LifecycleManager {
     /// Setup signal handlers for Unix systems
     #[cfg(unix)]
     pub async fn wait_for_shutdown_signal(&self) {
-        use tokio::signal::unix::{signal, SignalKind};
+        use tokio::signal::unix::{SignalKind, signal};
 
-        let mut sigterm = signal(SignalKind::terminate()).expect("Failed to install SIGTERM handler");
+        let mut sigterm =
+            signal(SignalKind::terminate()).expect("Failed to install SIGTERM handler");
         let mut sigint = signal(SignalKind::interrupt()).expect("Failed to install SIGINT handler");
 
         tokio::select! {
@@ -265,7 +269,9 @@ impl LifecycleManager {
     /// Setup signal handlers for non-Unix systems
     #[cfg(not(unix))]
     pub async fn wait_for_shutdown_signal(&self) {
-        tokio::signal::ctrl_c().await.expect("Failed to install Ctrl+C handler");
+        tokio::signal::ctrl_c()
+            .await
+            .expect("Failed to install Ctrl+C handler");
         info!("Received Ctrl+C");
         self.initiate_shutdown().await;
     }
@@ -320,7 +326,7 @@ mod tests {
     fn test_health_status_checks() {
         assert!(HealthStatus::Healthy.is_ready());
         assert!(!HealthStatus::Starting.is_ready());
-        
+
         assert!(HealthStatus::Healthy.is_alive());
         assert!(HealthStatus::Starting.is_alive());
         assert!(!HealthStatus::Unhealthy.is_alive());
@@ -344,13 +350,13 @@ mod tests {
     #[test]
     fn test_connection_tracking() {
         let manager = LifecycleManager::new();
-        
+
         manager.connection_started();
         assert_eq!(manager.active_connections(), 1);
-        
+
         manager.connection_started();
         assert_eq!(manager.active_connections(), 2);
-        
+
         manager.connection_finished();
         assert_eq!(manager.active_connections(), 1);
     }
@@ -359,12 +365,12 @@ mod tests {
     fn test_connection_guard() {
         let manager = Arc::new(LifecycleManager::new());
         assert_eq!(manager.active_connections(), 0);
-        
+
         {
             let _guard = ConnectionGuard::new(Arc::clone(&manager));
             assert_eq!(manager.active_connections(), 1);
         }
-        
+
         assert_eq!(manager.active_connections(), 0);
     }
 
@@ -372,10 +378,10 @@ mod tests {
     fn test_health_response_json() {
         let manager = LifecycleManager::new();
         manager.mark_ready();
-        
+
         let response = manager.health_response();
         let json = response.to_json();
-        
+
         assert!(json.contains("\"status\":\"healthy\""));
         assert!(json.contains("\"ready\":true"));
         assert!(json.contains("\"alive\":true"));
@@ -392,14 +398,14 @@ mod tests {
     async fn test_graceful_shutdown() {
         let manager = Arc::new(LifecycleManager::new());
         manager.mark_ready();
-        
+
         // Simulate a connection
         let _guard = ConnectionGuard::new(Arc::clone(&manager));
         assert_eq!(manager.active_connections(), 1);
-        
+
         // Get a receiver before shutdown
         let mut receiver = manager.shutdown_receiver();
-        
+
         // Spawn shutdown in background (it will wait for connections)
         let manager_clone = Arc::clone(&manager);
         let shutdown_handle = tokio::spawn(async move {
@@ -407,10 +413,10 @@ mod tests {
             let manager = LifecycleManager::new().with_drain_timeout(Duration::from_millis(100));
             manager.initiate_shutdown().await;
         });
-        
+
         // Verify shutdown signal is sent
         tokio::time::sleep(Duration::from_millis(50)).await;
-        
+
         // Let the shutdown complete
         let _ = shutdown_handle.await;
     }
