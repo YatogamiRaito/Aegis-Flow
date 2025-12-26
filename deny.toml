@@ -10,11 +10,12 @@ no-default-features = false
 [advisories]
 version = 2
 db-path = "~/.cargo/advisory-db"
-# All security advisories resolved! ✅
-# - pqcrypto-kyber migrated to pqcrypto-mlkem
-# - pqcrypto-dilithium migrated to pqcrypto-mldsa
-# - wasmtime upgraded to 38.0.4
-ignore = []
+# Transitive dependencies we cannot control
+ignore = [
+    # paste is used by pqcrypto-mldsa - we cannot update this ourselves
+    # When pqcrypto-mldsa updates to use pastey, this can be removed
+    "RUSTSEC-2024-0436",  # paste unmaintained
+]
 
 [licenses]
 version = 2
