@@ -5,6 +5,32 @@ All notable changes to Aegis-Flow will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2025-12-26
+
+### Added
+- **PQC Migration & Security Hardening (Track 10)**
+  - Migrate from pqcrypto-kyber to pqcrypto-mlkem (NIST FIPS 203)
+  - Add ML-KEM variants to KeyExchangeType and PqcAlgorithm enums
+  - New hybrid key exchange: X25519-MLKEM768-Hybrid
+
+### Changed
+- **wasmtime** upgraded from 27 to 38.0.4
+  - Fixes RUSTSEC-2025-0046 (fd_renumber vulnerability)
+  - Fixes RUSTSEC-2025-0118 (shared memory vulnerability)
+  - Fixes RUSTSEC-2025-0057 (fxhash unmaintained)
+  - Fixes RUSTSEC-2024-0436 (paste unmaintained)
+- Default PQC algorithm changed to HybridMlKem768
+
+### Deprecated
+- `KeyExchangeType::Kyber768` - Use `MlKem768` instead
+- `KeyExchangeType::HybridX25519Kyber768` - Use `HybridX25519MlKem768` instead
+- `PqcAlgorithm::Kyber768Only` - Use `MlKem768Only` instead
+- `PqcAlgorithm::HybridKyber768` - Use `HybridMlKem768` instead
+
+### Security
+- Resolved 5 security advisories (RUSTSEC-2024-0381, RUSTSEC-2025-*)
+- Only 1 remaining: RUSTSEC-2024-0380 (pqcrypto-dilithium, future migration planned)
+
 ## [0.9.0] - 2025-12-26
 
 ### Added
