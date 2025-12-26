@@ -29,6 +29,7 @@ pub struct HttpProxyConfig {
     pub initial_window_size: u32,
 }
 
+#[allow(clippy::unwrap_used)] // Static address string always parses
 impl Default for HttpProxyConfig {
     fn default() -> Self {
         Self {
@@ -85,8 +86,7 @@ impl HttpProxy {
 
 /// Handle incoming HTTP request
 #[instrument(skip(req))]
-/// Handle incoming HTTP request
-#[instrument(skip(req))]
+#[allow(clippy::unwrap_used)] // Response::builder only fails on invalid headers (not possible here)
 pub(crate) async fn handle_request(
     req: Request<Incoming>,
     _upstream: &str,

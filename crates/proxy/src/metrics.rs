@@ -28,6 +28,7 @@ pub mod names {
 }
 
 /// Initialize the metrics system
+#[allow(clippy::expect_used)] // Panicking is acceptable during initialization
 pub fn init_metrics() -> PrometheusHandle {
     let handle = PrometheusBuilder::new()
         .install_recorder()
