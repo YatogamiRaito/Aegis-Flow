@@ -2,7 +2,8 @@
 //!
 //! This crate provides hybrid key exchange (ML-KEM + X25519) and
 //! digital signature capabilities using NIST-standardized PQC algorithms.
-//!
+
+#![warn(clippy::unwrap_used, clippy::expect_used)]
 //! # Features
 //!
 //! - **Hybrid Key Exchange**: X25519 + ML-KEM-768 for quantum resistance

@@ -3,6 +3,7 @@
 //! High-performance PQC-enabled proxy server for Aegis-Flow.
 //! This is the library crate that provides all public APIs.
 
+#![warn(clippy::unwrap_used, clippy::expect_used)]
 pub mod carbon_router;
 pub mod config;
 pub mod discovery;
