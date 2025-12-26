@@ -243,7 +243,6 @@ impl LifecycleManager {
 
     /// Setup signal handlers for Unix systems
     #[cfg(unix)]
-    #[allow(clippy::expect_used)] // Signal handler setup failure is unrecoverable
     pub async fn wait_for_shutdown_signal(&self) {
         use tokio::signal::unix::{SignalKind, signal};
 
@@ -265,7 +264,6 @@ impl LifecycleManager {
 
     /// Setup signal handlers for non-Unix systems
     #[cfg(not(unix))]
-    #[allow(clippy::expect_used)] // Signal handler setup failure is unrecoverable
     pub async fn wait_for_shutdown_signal(&self) {
         tokio::signal::ctrl_c()
             .await
