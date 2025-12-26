@@ -12,6 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Migrate from pqcrypto-kyber to pqcrypto-mlkem (NIST FIPS 203)
   - Add ML-KEM variants to KeyExchangeType and PqcAlgorithm enums
   - New hybrid key exchange: X25519-MLKEM768-Hybrid
+- **Test Coverage Expansion**
+  - New integration tests for `proxy` config hot-reload and env overrides
+  - Edge case tests for `genomics` analytics (empty data, null qualities)
+- **CI/CD Improvements**
+  - Docker build & push job to GitHub Container Registry
+  - Buildx cache for faster builds
+  - Fixed Dockerfile Rust version (1.83)
+  - Synced Helm chart `appVersion` to 0.10.0
 
 ### Changed
 - **wasmtime** upgraded from 27 to 38.0.4
@@ -20,6 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Fixes RUSTSEC-2025-0057 (fxhash unmaintained)
   - Fixes RUSTSEC-2024-0436 (paste unmaintained)
 - Default PQC algorithm changed to HybridMlKem768
+- Release profile: added `opt-level = 3` for maximum performance
+- `certmanager.rs`: Improved SAN parsing with graceful error handling
 
 ### Deprecated
 - `KeyExchangeType::Kyber768` - Use `MlKem768` instead
