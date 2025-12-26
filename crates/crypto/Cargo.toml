@@ -38,6 +38,13 @@ chacha20poly1305.workspace = true
 hkdf.workspace = true
 sha2.workspace = true
 
+# Certificate Management
+x509-parser.workspace = true
+rcgen.workspace = true
+time.workspace = true
+hex = "0.4"
+pem = "3.0"
+
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread"] }
 criterion.workspace = true

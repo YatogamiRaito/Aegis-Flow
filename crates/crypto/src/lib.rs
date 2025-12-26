@@ -30,6 +30,7 @@
 //! ```
 
 pub mod cipher;
+pub mod certmanager;
 pub mod hybrid_kex;
 pub mod mtls;
 pub mod stream;
@@ -37,6 +38,7 @@ pub mod tls;
 pub mod traits;
 
 pub use cipher::{Cipher, CipherAlgorithm, EncryptionKey};
+pub use certmanager::{CertManager, CertType, ParsedCert};
 pub use hybrid_kex::{HybridCiphertext, HybridKeyExchange, HybridPublicKey, HybridSharedSecret};
-pub use mtls::{CertInfo, MtlsConfig, MtlsHandler};
+pub use mtls::{AuthState, AuthenticatedClient, CertInfo, MtlsAuthenticator, MtlsConfig, MtlsHandler};
 pub use traits::KeyExchange;
