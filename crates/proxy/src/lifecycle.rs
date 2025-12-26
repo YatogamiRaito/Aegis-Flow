@@ -172,8 +172,6 @@ impl LifecycleManager {
         self.set_status(HealthStatus::Unhealthy).await;
     }
 
-
-
     /// Get a shutdown signal receiver
     pub fn shutdown_receiver(&self) -> ShutdownReceiver {
         self.shutdown_tx.subscribe()

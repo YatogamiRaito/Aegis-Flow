@@ -14,7 +14,8 @@ use tracing::{debug, info, warn};
 use x509_parser::prelude::*;
 
 // Re-import time crate with explicit path to avoid conflict with x509_parser::time
-extern crate time as time_crate;
+// Re-import time crate with explicit path to avoid conflict with x509_parser::time
+use ::time as time_crate;
 
 /// Certificate type classification
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -328,8 +329,6 @@ impl CertManager {
         self.trusted_cas.len()
     }
 }
-
-
 
 #[cfg(test)]
 mod tests {
