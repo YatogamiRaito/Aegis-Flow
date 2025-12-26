@@ -10,12 +10,11 @@ no-default-features = false
 [advisories]
 version = 2
 db-path = "~/.cargo/advisory-db"
-# Ignore unmaintained advisories for planned migrations
-ignore = [
-    "RUSTSEC-2024-0380",  # pqcrypto-dilithium -> pqcrypto-mldsa (TODO: migrate when stable)
-    # Note: pqcrypto-kyber migrated to pqcrypto-mlkem ✅
-    # Note: wasmtime upgraded to 38 - vulnerabilities fixed ✅
-]
+# All security advisories resolved! ✅
+# - pqcrypto-kyber migrated to pqcrypto-mlkem
+# - pqcrypto-dilithium migrated to pqcrypto-mldsa
+# - wasmtime upgraded to 38.0.4
+ignore = []
 
 [licenses]
 version = 2

@@ -1,10 +1,5 @@
 # cargo-audit configuration for Aegis-Flow
-# Ignore known vulnerabilities with planned fixes
+# All security advisories resolved! ✅
 
 [advisories]
-ignore = [
-    # PQC crates - migration to ML-DSA planned
-    "RUSTSEC-2024-0380",  # pqcrypto-dilithium -> pqcrypto-mldsa
-    # Note: pqcrypto-kyber migrated to pqcrypto-mlkem ✅
-    # Note: wasmtime upgraded to 38 - vulnerabilities fixed ✅
-]
+ignore = []

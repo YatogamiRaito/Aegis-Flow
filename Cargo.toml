@@ -39,7 +39,7 @@ tokio-rustls = "0.26"
 
 # Post-Quantum Cryptography (NIST ML-KEM/ML-DSA standards)
 pqcrypto-mlkem = "0.1"
-pqcrypto-dilithium = "0.5"  # TODO: Migrate to pqcrypto-mldsa when stable
+pqcrypto-mldsa = "0.1"  # NIST ML-DSA (FIPS 204)
 pqcrypto-traits = "0.3"
 x25519-dalek = { version = "2.0", features = ["static_secrets"] }
 

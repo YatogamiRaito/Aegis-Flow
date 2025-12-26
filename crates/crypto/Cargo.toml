@@ -11,7 +11,7 @@ aegis-common = { path = "../common" }
 
 # Post-Quantum Cryptography (NIST ML-KEM standard)
 pqcrypto-mlkem.workspace = true
-pqcrypto-dilithium.workspace = true
+pqcrypto-mldsa.workspace = true
 pqcrypto-traits.workspace = true
 x25519-dalek.workspace = true
 
