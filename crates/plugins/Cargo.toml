@@ -1,0 +1,31 @@
+[package]
+name = "aegis-plugins"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "WebAssembly plugin system for Aegis-Flow proxy"
+
+[dependencies]
+aegis-common = { path = "../common" }
+
+# WebAssembly Runtime
+wasmtime = "27"
+
+# Async Runtime
+tokio = { workspace = true, features = ["sync", "fs"] }
+
+# Observability
+tracing.workspace = true
+
+# Error handling
+thiserror.workspace = true
+anyhow.workspace = true
+
+# Serialization (for plugin data exchange)
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full", "test-util"] }
+wat = "1"

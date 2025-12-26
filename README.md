@@ -8,8 +8,8 @@
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![CI](https://github.com/YatogamiRaito/Aegis-Flow/actions/workflows/ci.yml/badge.svg)](https://github.com/YatogamiRaito/Aegis-Flow/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/YatogamiRaito/Aegis-Flow/graph/badge.svg?token=YOUR_TOKEN)](https://codecov.io/gh/YatogamiRaito/Aegis-Flow)
-[![Tests](https://img.shields.io/badge/tests-143%20passing-brightgreen.svg)]()
-[![Version](https://img.shields.io/badge/version-0.8.0-blue.svg)]()
+[![Tests](https://img.shields.io/badge/tests-155%20passing-brightgreen.svg)]()
+[![Version](https://img.shields.io/badge/version-0.9.0-blue.svg)]()
 
 </div>
 

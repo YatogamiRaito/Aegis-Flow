@@ -37,3 +37,7 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ## [x] Track: Genomic Data Processing
 *Link: [./conductor/tracks/genomics_20251226/](./conductor/tracks/genomics_20251226/)*
+---
+
+## [x] Track: WebAssembly Plugin System
+*Link: [./conductor/tracks/wasm_plugins_20251226/](./conductor/tracks/wasm_plugins_20251226/)*
