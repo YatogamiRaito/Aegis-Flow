@@ -4,8 +4,7 @@
 //!
 //! Run with: cargo run --example carbon_routing
 
-use aegis_energy::{CarbonIntensity, CarbonIntensityCache, Region};
-use chrono::Utc;
+
 
 fn main() {
     println!("🌱 Aegis-Flow Carbon-Aware Routing Demo\n");

@@ -4,9 +4,8 @@
 //!
 //! Run with: cargo run --example config_demo
 
-use aegis_proxy::config::{ConfigManager, ProxyConfig};
+use aegis_proxy::config::ConfigManager;
 use std::io::Write;
-use tempfile::NamedTempFile;
 
 fn main() {
     println!("⚙️  Aegis-Flow Configuration Demo\n");

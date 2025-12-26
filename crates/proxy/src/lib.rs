@@ -9,6 +9,7 @@ pub mod discovery;
 pub mod dual_stack_server;
 pub mod green_wait;
 pub mod http3_handler;
+pub mod health_server;
 mod http_proxy;
 pub mod lifecycle;
 pub mod metrics;

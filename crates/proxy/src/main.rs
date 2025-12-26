@@ -17,11 +17,32 @@ async fn main() -> Result<()> {
 
     info!("🚀 Aegis-Flow Proxy starting...");
     info!("📦 Version: {}", env!("CARGO_PKG_VERSION"));
-    info!("🔐 Post-Quantum Cryptography: Enabled (ML-KEM-768 + X25519)");
 
-    // Initialize and run the server
+    // Initialize metrics
+    let metrics_handle = aegis_proxy::metrics::init_metrics();
+
+    // Initialize lifecycle manager
+    let lifecycle = std::sync::Arc::new(aegis_proxy::LifecycleManager::new());
+    
     let config = ProxyConfig::default();
+    
+    // Spawn health server
+    let health_config = config.health.clone();
+    let health_lifecycle = lifecycle.clone();
+    let health_metrics = Some(metrics_handle.clone());
+    
+    tokio::spawn(async move {
+        if let Err(e) = aegis_proxy::health_server::run_health_server(
+            health_config, 
+            health_lifecycle, 
+            health_metrics
+        ).await {
+            tracing::error!("Health server failed: {}", e);
+        }
+    });
+
     info!("🌐 Listening on {}:{}", config.host, config.port);
+    info!("🔐 Post-Quantum Cryptography: Enabled (ML-KEM-768 + X25519)");
 
     if config.pqc_enabled {
         info!("🛡️ PQC mode enabled - using hybrid key exchange");

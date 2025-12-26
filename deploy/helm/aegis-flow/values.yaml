@@ -14,7 +14,7 @@ replicaCount: 2
 service:
   type: ClusterIP
   port: 8443
-  metricsPort: 9090
+  metricsPort: 8080
 
 # Resource limits
 resources:
@@ -91,13 +91,13 @@ affinity:
 livenessProbe:
   httpGet:
     path: /health
-    port: http
+    port: metrics
   initialDelaySeconds: 5
   periodSeconds: 10
 
 readinessProbe:
   httpGet:
     path: /ready
-    port: http
+    port: metrics
   initialDelaySeconds: 5
   periodSeconds: 5
