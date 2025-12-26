@@ -6,7 +6,8 @@
 use serde::{Deserialize, Serialize};
 use serde_norway::{self as yaml};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, RwLock};
+use parking_lot::RwLock;
+use std::sync::Arc;
 use std::time::SystemTime;
 use tracing::{debug, info, warn};
 
@@ -369,7 +370,7 @@ impl ConfigManager {
 
     /// Get current configuration (clone)
     pub fn get(&self) -> ProxyConfig {
-        self.config.read().map(|c| c.clone()).unwrap_or_default()
+        self.config.read().clone()
     }
 
     /// Get configuration reference
@@ -385,7 +386,7 @@ impl ConfigManager {
 
         let current_modified = std::fs::metadata(path).and_then(|m| m.modified()).ok();
 
-        let last = self.last_modified.read().ok().and_then(|l| *l);
+        let last = *self.last_modified.read();
 
         match (current_modified, last) {
             (Some(current), Some(last)) => current > last,
@@ -411,18 +412,12 @@ impl ConfigManager {
         let new_config = ProxyConfig::load(path)?;
 
         {
-            let mut config = self
-                .config
-                .write()
-                .map_err(|_| ConfigError::IoError("Lock poisoned".to_string()))?;
+            let mut config = self.config.write();
             *config = new_config;
         }
 
         {
-            let mut last_modified = self
-                .last_modified
-                .write()
-                .map_err(|_| ConfigError::IoError("Lock poisoned".to_string()))?;
+            let mut last_modified = self.last_modified.write();
             *last_modified = std::fs::metadata(path).and_then(|m| m.modified()).ok();
         }
 

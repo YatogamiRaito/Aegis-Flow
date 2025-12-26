@@ -7,8 +7,9 @@ use crate::tls::{PqcHandshake, PqcTlsConfig, SecureChannel};
 use aegis_common::{AegisError, Result};
 use std::collections::HashMap;
 use std::path::Path;
+use parking_lot::RwLock;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use tracing::{debug, error, info};
 
 /// mTLS Configuration
@@ -176,10 +177,7 @@ impl MtlsAuthenticator {
         let mut client = AuthenticatedClient::new(conn_id);
         client.state = AuthState::HandshakeInProgress;
 
-        self.clients
-            .write()
-            .map_err(|_| AegisError::Crypto("Lock poisoned".to_string()))?
-            .insert(conn_id, client);
+        self.clients.write().insert(conn_id, client);
 
         debug!("Accepted connection {}, starting PQC handshake", conn_id);
         Ok((conn_id, server_pk))
@@ -192,10 +190,9 @@ impl MtlsAuthenticator {
         ciphertext: &crate::hybrid_kex::HybridCiphertext,
         client_cert_der: Option<&[u8]>,
     ) -> Result<()> {
-        let mut clients = self
-            .clients
-            .write()
-            .map_err(|_| AegisError::Crypto("Lock poisoned".to_string()))?;
+        // Scope for the write lock to get the client
+        // We need to keep the lock while modifying
+        let mut clients = self.clients.write();
 
         let client = clients
             .get_mut(&connection_id)
@@ -272,10 +269,7 @@ impl MtlsAuthenticator {
 
     /// Get client state
     pub fn get_client_state(&self, connection_id: u64) -> Result<AuthState> {
-        let clients = self
-            .clients
-            .read()
-            .map_err(|_| AegisError::Crypto("Lock poisoned".to_string()))?;
+        let clients = self.clients.read();
 
         clients
             .get(&connection_id)
@@ -285,10 +279,7 @@ impl MtlsAuthenticator {
 
     /// Disconnect a client
     pub fn disconnect(&self, connection_id: u64) -> Result<()> {
-        let mut clients = self
-            .clients
-            .write()
-            .map_err(|_| AegisError::Crypto("Lock poisoned".to_string()))?;
+        let mut clients = self.clients.write();
 
         if clients.remove(&connection_id).is_some() {
             debug!("Disconnected client {}", connection_id);
@@ -302,12 +293,9 @@ impl MtlsAuthenticator {
     pub fn authenticated_count(&self) -> usize {
         self.clients
             .read()
-            .map(|c| {
-                c.values()
-                    .filter(|client| client.is_authenticated())
-                    .count()
-            })
-            .unwrap_or(0)
+            .values()
+            .filter(|client| client.is_authenticated())
+            .count()
     }
 
     /// Check if PQC is enabled

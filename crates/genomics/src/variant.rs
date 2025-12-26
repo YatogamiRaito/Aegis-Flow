@@ -78,7 +78,21 @@ pub struct VariantBatchBuilder {
 impl VariantBatchBuilder {
     /// Create a new builder
     pub fn new() -> Self {
-        Self::default()
+        Self::with_capacity(1024)
+    }
+
+    /// Create a new builder with capacity
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            chroms: Vec::with_capacity(capacity),
+            positions: Vec::with_capacity(capacity),
+            ids: Vec::with_capacity(capacity),
+            refs: Vec::with_capacity(capacity),
+            alts: Vec::with_capacity(capacity),
+            quals: Vec::with_capacity(capacity),
+            filters: Vec::with_capacity(capacity),
+            infos: Vec::with_capacity(capacity),
+        }
     }
 
     /// Add a variant record

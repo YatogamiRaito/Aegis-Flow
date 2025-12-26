@@ -100,7 +100,24 @@ pub struct AlignmentBatchBuilder {
 impl AlignmentBatchBuilder {
     /// Create a new builder
     pub fn new() -> Self {
-        Self::default()
+        Self::with_capacity(1024)
+    }
+
+    /// Create a new builder with capacity
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            qnames: Vec::with_capacity(capacity),
+            flags: Vec::with_capacity(capacity),
+            rnames: Vec::with_capacity(capacity),
+            positions: Vec::with_capacity(capacity),
+            mapqs: Vec::with_capacity(capacity),
+            cigars: Vec::with_capacity(capacity),
+            rnexts: Vec::with_capacity(capacity),
+            pnexts: Vec::with_capacity(capacity),
+            tlens: Vec::with_capacity(capacity),
+            seqs: Vec::with_capacity(capacity),
+            quals: Vec::with_capacity(capacity),
+        }
     }
 
     /// Add an alignment record

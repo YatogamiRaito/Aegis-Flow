@@ -5,7 +5,8 @@
 use crate::energy::{EnergyBreakdown, EnergyMetrics};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, RwLock};
+use parking_lot::RwLock;
+use std::sync::Arc;
 use std::time::Duration;
 use tracing::debug;
 
@@ -98,30 +99,26 @@ impl EbpfMetrics {
 
     /// Start tracking a request
     pub fn start_request(&self, request_id: &str) {
-        let mut data = self.request_data.write().unwrap();
+        let mut data = self.request_data.write();
         data.insert(request_id.to_string(), EbpfRequestData::default());
         debug!("Started eBPF tracking for request: {}", request_id);
     }
 
     /// Record CPU cycles for a request
-    #[allow(clippy::collapsible_if)]
     pub fn record_cpu_cycles(&self, request_id: &str, cycles: u64) {
-        if let Ok(mut data) = self.request_data.write() {
-            if let Some(req_data) = data.get_mut(request_id) {
-                req_data.cpu_cycles += cycles;
-            }
+        let mut data = self.request_data.write();
+        if let Some(req_data) = data.get_mut(request_id) {
+            req_data.cpu_cycles += cycles;
         }
         self.total_cpu_cycles.fetch_add(cycles, Ordering::Relaxed);
     }
 
     /// Record network bytes for a request
-    #[allow(clippy::collapsible_if)]
     pub fn record_network(&self, request_id: &str, tx_bytes: u64, rx_bytes: u64) {
-        if let Ok(mut data) = self.request_data.write() {
-            if let Some(req_data) = data.get_mut(request_id) {
-                req_data.network_tx_bytes += tx_bytes;
-                req_data.network_rx_bytes += rx_bytes;
-            }
+        let mut data = self.request_data.write();
+        if let Some(req_data) = data.get_mut(request_id) {
+            req_data.network_tx_bytes += tx_bytes;
+            req_data.network_rx_bytes += rx_bytes;
         }
         self.total_network_bytes
             .fetch_add(tx_bytes + rx_bytes, Ordering::Relaxed);
@@ -136,7 +133,7 @@ impl EbpfMetrics {
         duration: Duration,
     ) -> Option<EnergyMetrics> {
         let data = {
-            let mut map = self.request_data.write().ok()?;
+            let mut map = self.request_data.write();
             map.remove(request_id)
         }?;
 
@@ -183,9 +180,7 @@ impl EbpfMetrics {
     pub fn reset(&self) {
         self.total_cpu_cycles.store(0, Ordering::Relaxed);
         self.total_network_bytes.store(0, Ordering::Relaxed);
-        if let Ok(mut data) = self.request_data.write() {
-            data.clear();
-        }
+        self.request_data.write().clear();
     }
 }
 

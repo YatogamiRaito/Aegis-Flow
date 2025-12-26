@@ -41,6 +41,9 @@ pub enum GenomicsError {
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
 
+    #[error("Polars error: {0}")]
+    PolarsError(#[from] polars::error::PolarsError),
+
     #[error("Invalid format: {0}")]
     InvalidFormat(String),
 }

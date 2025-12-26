@@ -4,9 +4,10 @@
 
 use crate::engine::WasmEngine;
 use crate::{PluginError, Result};
+use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use tracing::{info, warn};
 use wasmtime::Module;
 
@@ -71,7 +72,8 @@ impl PluginRegistry {
 
         let loaded = LoadedPlugin { info, module };
 
-        if let Ok(mut plugins) = self.plugins.write() {
+        {
+            let mut plugins = self.plugins.write();
             plugins.insert(name.to_string(), loaded);
             info!("📦 Loaded plugin: {}", name);
         }
@@ -91,7 +93,8 @@ impl PluginRegistry {
         self.load_plugin_bytes(name, &wasm_bytes)?;
 
         // Update path in plugin info
-        if let Ok(mut plugins) = self.plugins.write() {
+        {
+            let mut plugins = self.plugins.write();
             if let Some(plugin) = plugins.get_mut(name) {
                 plugin.info.path = path.to_path_buf();
             }
@@ -102,25 +105,19 @@ impl PluginRegistry {
 
     /// Unload a plugin
     pub fn unload_plugin(&self, name: &str) -> Result<()> {
-        if let Ok(mut plugins) = self.plugins.write() {
-            if plugins.remove(name).is_some() {
-                info!("🗑️ Unloaded plugin: {}", name);
-                Ok(())
-            } else {
-                Err(PluginError::NotFound(name.to_string()))
-            }
+        let mut plugins = self.plugins.write();
+        if plugins.remove(name).is_some() {
+            info!("🗑️ Unloaded plugin: {}", name);
+            Ok(())
         } else {
-            Err(PluginError::ExecutionError("Lock error".to_string()))
+            Err(PluginError::NotFound(name.to_string()))
         }
     }
 
     /// Reload a plugin
     pub fn reload_plugin(&self, name: &str) -> Result<()> {
         let path = {
-            let plugins = self
-                .plugins
-                .read()
-                .map_err(|_| PluginError::ExecutionError("Lock error".to_string()))?;
+            let plugins = self.plugins.read();
 
             plugins
                 .get(name)
@@ -144,21 +141,19 @@ impl PluginRegistry {
     pub fn list_plugins(&self) -> Vec<PluginInfo> {
         self.plugins
             .read()
-            .map(|p| p.values().map(|lp| lp.info.clone()).collect())
-            .unwrap_or_default()
+            .values()
+            .map(|lp| lp.info.clone())
+            .collect()
     }
 
     /// Check if a plugin is loaded
     pub fn has_plugin(&self, name: &str) -> bool {
-        self.plugins
-            .read()
-            .map(|p| p.contains_key(name))
-            .unwrap_or(false)
+        self.plugins.read().contains_key(name)
     }
 
     /// Get plugin count
     pub fn plugin_count(&self) -> usize {
-        self.plugins.read().map(|p| p.len()).unwrap_or(0)
+        self.plugins.read().len()
     }
 
     /// Load all plugins from the plugin directory

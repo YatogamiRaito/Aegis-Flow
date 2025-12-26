@@ -4,121 +4,129 @@
 
 use crate::variant::VariantBatchBuilder;
 
+use polars::prelude::*;
+use std::io::Cursor;
+use arrow::ipc::writer::FileWriter;
+use polars::io::SerReader;
+
 /// Variant analytics using Polars
 #[derive(Default)]
 pub struct VariantAnalytics {
-    /// Chromosome column
-    chroms: Vec<String>,
-    /// Position column
-    positions: Vec<i64>,
-    /// Quality scores
-    quals: Vec<Option<f64>>,
-    /// Reference alleles
-    refs: Vec<String>,
-    /// Alternate alleles
-    alts: Vec<String>,
+    df: DataFrame,
 }
 
 impl VariantAnalytics {
     /// Create from VariantBatchBuilder
-    pub fn from_builder(_builder: &VariantBatchBuilder) -> Self {
-        // Extract data from builder - for now create simple stats
-        Self::default()
-    }
-
-    /// Add a variant for analysis
-    pub fn add_variant(
-        &mut self,
-        chrom: &str,
-        pos: i64,
-        reference: &str,
-        alt: &str,
-        qual: Option<f64>,
-    ) {
-        self.chroms.push(chrom.to_string());
-        self.positions.push(pos);
-        self.refs.push(reference.to_string());
-        self.alts.push(alt.to_string());
-        self.quals.push(qual);
+    pub fn from_builder(builder: &VariantBatchBuilder) -> crate::Result<Self> {
+        let batch = builder.build()?;
+        
+        // Convert Arrow RecordBatch to Polars DataFrame via IPC to handle version mismatches
+        let mut buf = Vec::new();
+        {
+            let mut writer = FileWriter::try_new(&mut buf, &batch.schema())?;
+            writer.write(&batch)?;
+            writer.finish()?;
+        }
+        
+        let cursor = Cursor::new(buf);
+        let df = IpcReader::new(cursor).finish()?;
+             
+        Ok(Self { df })
     }
 
     /// Get total variant count
     pub fn count(&self) -> usize {
-        self.chroms.len()
+        self.df.height()
     }
 
     /// Count variants per chromosome
-    pub fn count_by_chromosome(&self) -> Vec<(String, usize)> {
-        let mut counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
-        for chrom in &self.chroms {
-            *counts.entry(chrom.clone()).or_insert(0) += 1;
+    pub fn count_by_chromosome(&self) -> crate::Result<Vec<(String, usize)>> {
+        let counts = self.df
+            .clone()
+            .lazy()
+            .group_by([col("chrom")])
+            .agg([len().alias("count")])
+            .sort(["count"], SortMultipleOptions::default().with_order_descending(true))
+            .collect()?;
+
+        let chroms = counts.column("chrom")?.str()?;
+        let counts_col = counts.column("count")?.u32()?;
+
+        let mut result = Vec::with_capacity(chroms.len());
+        for (chrom, count) in chroms.into_iter().zip(counts_col.into_iter()) {
+            if let (Some(c), Some(n)) = (chrom, count) {
+                result.push((c.to_string(), n as usize));
+            }
         }
-        let mut result: Vec<_> = counts.into_iter().collect();
-        result.sort_by(|a, b| b.1.cmp(&a.1));
-        result
+        Ok(result)
     }
 
     /// Filter by quality threshold
-    pub fn filter_by_quality(&self, min_qual: f64) -> Vec<usize> {
-        self.quals
-            .iter()
-            .enumerate()
-            .filter_map(|(i, q)| q.filter(|qual| *qual >= min_qual).map(|_| i))
-            .collect()
+    pub fn filter_by_quality(&self, min_qual: f64) -> crate::Result<usize> {
+        let mask = self.df
+            .column("qual")?
+            .f64()?
+            .gt_eq(min_qual);
+
+        Ok(self.df.filter(&mask)?.height())
     }
 
     /// Get variants in a region
-    pub fn filter_by_region(&self, chrom: &str, start: i64, end: i64) -> Vec<usize> {
-        self.chroms
-            .iter()
-            .zip(self.positions.iter())
-            .enumerate()
-            .filter_map(|(i, (c, p))| {
-                if c == chrom && *p >= start && *p <= end {
-                    Some(i)
-                } else {
-                    None
-                }
-            })
-            .collect()
+    pub fn filter_by_region(&self, chrom: &str, start: i64, end: i64) -> crate::Result<usize> {
+        let ctx = self.df.clone().lazy();
+        
+        let filtered = ctx
+            .filter(
+                col("chrom").eq(lit(chrom))
+                .and(col("pos").gt_eq(lit(start)))
+                .and(col("pos").lt_eq(lit(end)))
+            )
+            .collect()?;
+            
+        Ok(filtered.height())
     }
 
     /// Count SNPs vs INDELs
-    pub fn variant_type_counts(&self) -> (usize, usize) {
+    pub fn variant_type_counts(&self) -> crate::Result<(usize, usize)> {
+        // This is a simplified check - real VCF analysis would be more complex
+        // We'll check length of ref vs alt
+        
+        let df = self.df.clone();
+        let refs = df.column("reference")?.str()?;
+        let alts = df.column("alternate")?.str()?;
+        
         let mut snps = 0;
         let mut indels = 0;
-        for (r, a) in self.refs.iter().zip(self.alts.iter()) {
-            if r.len() == 1 && a.len() == 1 {
-                snps += 1;
-            } else {
-                indels += 1;
+        
+        for (r, a) in refs.into_iter().zip(alts.into_iter()) {
+            if let (Some(r_val), Some(a_val)) = (r, a) {
+                if r_val.len() == 1 && a_val.len() == 1 {
+                    snps += 1;
+                } else {
+                    indels += 1;
+                }
             }
         }
-        (snps, indels)
+        
+        Ok((snps, indels))
     }
 
     /// Get quality statistics
-    pub fn quality_stats(&self) -> QualityStats {
-        let valid_quals: Vec<f64> = self.quals.iter().filter_map(|q| *q).collect();
-        if valid_quals.is_empty() {
-            return QualityStats::default();
-        }
+    pub fn quality_stats(&self) -> crate::Result<QualityStats> {
+        let qual_col = self.df.column("qual")?.f64()?;
+            
+        let mean = qual_col.mean().unwrap_or(0.0);
+        let min = qual_col.min().unwrap_or(0.0);
+        let max = qual_col.max().unwrap_or(0.0);
+        // non-null count is len() - null_count() on ChunkedArray
+        let count = qual_col.len() - qual_col.null_count();
 
-        let sum: f64 = valid_quals.iter().sum();
-        let count = valid_quals.len();
-        let mean = sum / count as f64;
-        let min = valid_quals.iter().cloned().fold(f64::INFINITY, f64::min);
-        let max = valid_quals
-            .iter()
-            .cloned()
-            .fold(f64::NEG_INFINITY, f64::max);
-
-        QualityStats {
+        Ok(QualityStats {
             count,
             mean,
             min,
             max,
-        }
+        })
     }
 }
 
@@ -138,14 +146,16 @@ pub struct QualityStats {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::variant::{VariantRecord, VariantBatchBuilder};
 
     fn create_test_analytics() -> VariantAnalytics {
-        let mut analytics = VariantAnalytics::from_builder(&crate::VariantBatchBuilder::new());
-        analytics.add_variant("chr1", 100, "A", "T", Some(99.0));
-        analytics.add_variant("chr1", 200, "G", "C", Some(50.0));
-        analytics.add_variant("chr2", 300, "AT", "A", Some(75.0)); // deletion
-        analytics.add_variant("chr2", 400, "C", "G", Some(30.0));
-        analytics
+        let mut builder = VariantBatchBuilder::new();
+        builder.push(VariantRecord::new("chr1", 100, "A", "T").with_qual(99.0));
+        builder.push(VariantRecord::new("chr1", 200, "G", "C").with_qual(50.0));
+        builder.push(VariantRecord::new("chr2", 300, "AT", "A").with_qual(75.0)); // deletion
+        builder.push(VariantRecord::new("chr2", 400, "C", "G").with_qual(30.0));
+        
+        VariantAnalytics::from_builder(&builder).expect("Failed to create analytics")
     }
 
     #[test]
@@ -157,33 +167,37 @@ mod tests {
     #[test]
     fn test_count_by_chromosome() {
         let analytics = create_test_analytics();
-        let counts = analytics.count_by_chromosome();
+        let counts = analytics.count_by_chromosome().unwrap();
 
         assert_eq!(counts.len(), 2);
         // Both chr1 and chr2 have 2 variants each
-        assert!(counts.iter().all(|(_, c)| *c == 2));
+        // Polars group_by output order isn't guaranteed without sort, but we sorted desc
+        // so it should be stable enough or we check content
+        let count_map: std::collections::HashMap<_, _> = counts.into_iter().collect();
+        assert_eq!(count_map.get("chr1"), Some(&2));
+        assert_eq!(count_map.get("chr2"), Some(&2));
     }
 
     #[test]
     fn test_filter_by_quality() {
         let analytics = create_test_analytics();
-        let filtered = analytics.filter_by_quality(60.0);
+        let count = analytics.filter_by_quality(60.0).unwrap();
 
-        assert_eq!(filtered.len(), 2); // quals 99 and 75
+        assert_eq!(count, 2); // quals 99 and 75
     }
 
     #[test]
     fn test_filter_by_region() {
         let analytics = create_test_analytics();
-        let region = analytics.filter_by_region("chr1", 0, 250);
+        let count = analytics.filter_by_region("chr1", 0, 250).unwrap();
 
-        assert_eq!(region.len(), 2); // chr1:100 and chr1:200
+        assert_eq!(count, 2); // chr1:100 and chr1:200
     }
 
     #[test]
     fn test_variant_type_counts() {
         let analytics = create_test_analytics();
-        let (snps, indels) = analytics.variant_type_counts();
+        let (snps, indels) = analytics.variant_type_counts().unwrap();
 
         assert_eq!(snps, 3); // A>T, G>C, C>G
         assert_eq!(indels, 1); // AT>A
@@ -192,7 +206,7 @@ mod tests {
     #[test]
     fn test_quality_stats() {
         let analytics = create_test_analytics();
-        let stats = analytics.quality_stats();
+        let stats = analytics.quality_stats().unwrap();
 
         assert_eq!(stats.count, 4);
         assert!((stats.mean - 63.5).abs() < 0.1); // (99+50+75+30)/4 = 63.5
