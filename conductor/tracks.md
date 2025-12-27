@@ -46,3 +46,23 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ## [x] Track: PQC Migration & Security Hardening
 *Link: [./conductor/tracks/pqc_migration_20251226/](./conductor/tracks/pqc_migration_20251226/)*
+
+---
+
+## [ ] Track: Advanced TEE Integration with Remote Attestation
+*Link: [./conductor/tracks/tee_attestation_20251228/](./conductor/tracks/tee_attestation_20251228/)*
+
+---
+
+## [ ] Track: Prometheus/Grafana Dashboard Expansion
+*Link: [./conductor/tracks/observability_dashboards_20251228/](./conductor/tracks/observability_dashboards_20251228/)*
+
+---
+
+## [ ] Track: Production-Ready Deployment with Helm Chart Improvements
+*Link: [./conductor/tracks/production_deployment_20251228/](./conductor/tracks/production_deployment_20251228/)*
+
+---
+
+## [ ] Track: ML-DSA (Dilithium) Full Migration for Digital Signatures
+*Link: [./conductor/tracks/mldsa_signing_20251228/](./conductor/tracks/mldsa_signing_20251228/)*

@@ -39,7 +39,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 - Resolved 5 security advisories (RUSTSEC-2024-0381, RUSTSEC-2025-*)
-- Only 1 remaining: RUSTSEC-2024-0380 (pqcrypto-dilithium, future migration planned)
+- RUSTSEC-2024-0380 (pqcrypto-dilithium) resolved - dependency removed
+- Only unmaintained warning: RUSTSEC-2024-0436 (paste, ignored - transitive dep from pqcrypto-mldsa)
 
 ## [0.9.0] - 2025-12-26
 
