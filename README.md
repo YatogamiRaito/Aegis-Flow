@@ -168,6 +168,60 @@ aegis-flow/
 - [x] Alt-Svc header for HTTP/3 discovery
 - [x] PQC integration with QUIC TLS
 
+### ✅ Track 6: Performance Benchmark Suite (v0.6.0)
+- [x] PQC handshake benchmark (230µs)
+- [x] HTTP/3 throughput benchmark
+- [x] Carbon router benchmark
+- [x] Load testing (43M elem/s @ 500 workers)
+
+### ✅ Track 7: eBPF Energy Telemetry (v0.7.0)
+- [x] Per-request energy measurement
+- [x] EnergyEstimator with software-based estimation
+- [x] EbpfLoader and EbpfMetrics
+- [x] Prometheus export for energy metrics
+
+### ✅ Track 8: Genomic Data Processing (v0.8.0)
+- [x] Apache Arrow and Polars integration
+- [x] VCF/BAM parser implementation
+- [x] VariantAnalytics for genomic queries
+- [x] Arrow Flight protocol support
+
+### ✅ Track 9: WebAssembly Plugin System (v0.9.0)
+- [x] Wasmtime 38 integration
+- [x] Plugin Registry with hot reload
+- [x] Fuel metering for resource limits
+- [x] Host function bindings
+
+### ✅ Track 10: PQC Migration & Security Hardening (v0.10.0)
+- [x] Migrate from Kyber to ML-KEM (FIPS 203)
+- [x] Wasmtime upgrade (27 → 38)
+- [x] Security advisory resolution
+- [x] cargo audit & cargo deny clean
+
+### 🔜 Track 11: Advanced TEE Integration (Planned)
+- [ ] Intel SGX/TDX Remote Attestation
+- [ ] AMD SEV-SNP support
+- [ ] DCAP quote generation/verification
+- [ ] Enclave identity validation
+
+### 🔜 Track 12: Observability Dashboard Expansion (Planned)
+- [ ] Security metrics dashboard
+- [ ] Performance dashboard
+- [ ] Energy & carbon dashboard
+- [ ] Alerting rules
+
+### 🔜 Track 13: Production-Ready Deployment (Planned)
+- [ ] HPA and PDB configuration
+- [ ] Network Policies
+- [ ] Secret management via External Secrets
+- [ ] Multi-cloud testing (EKS, GKE, AKS)
+
+### 🔜 Track 14: ML-DSA Digital Signatures (Planned)
+- [ ] ML-DSA-44/65/87 implementation
+- [ ] Hybrid signing (ML-DSA + Ed25519)
+- [ ] Certificate signing with PQC
+- [ ] WASM plugin signature verification
+
 ## 📜 License
 
 Apache-2.0 - See [LICENSE](LICENSE) for details.
