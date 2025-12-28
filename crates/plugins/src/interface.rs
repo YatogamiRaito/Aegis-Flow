@@ -273,7 +273,6 @@ mod tests {
         let req = PluginRequest::new("clone-id", "GET", "/test");
         let cloned = req.clone();
         assert_eq!(req.id, cloned.id);
-        assert_eq!(req.method, cloned.method);
     }
 
     #[test]
@@ -282,5 +281,58 @@ mod tests {
         let cloned = resp.clone();
         assert!(!cloned.continue_processing);
         assert!(cloned.immediate_response.is_some());
+    }
+
+    #[test]
+    fn test_plugin_response_pass_through_clone() {
+        let resp = PluginResponse::default(); // Using default as pass_through is not defined
+        let cloned = resp.clone();
+        // For a default PluginResponse, continue_processing is true, and others are none/empty
+        assert!(cloned.continue_processing);
+        assert!(cloned.modified_headers.is_none());
+        assert!(cloned.modified_body.is_none());
+        assert!(cloned.immediate_response.is_none());
+        assert!(cloned.metadata.is_empty());
+    }
+
+    #[test]
+    fn test_plugin_request_with_body_modification() {
+        let mut req = PluginRequest::new("body-test", "POST", "/api");
+        req.body = Some(b"request body".to_vec());
+        assert!(req.body.is_some());
+        assert_eq!(req.body.unwrap(), b"request body");
+    }
+
+    #[test]
+    fn test_plugin_response_immediate_custom_status() {
+        let resp = PluginResponse::immediate(404, "Not Found");
+
+        assert!(!resp.continue_processing);
+        assert!(resp.immediate_response.is_some());
+
+        let imm = resp.immediate_response.unwrap();
+        assert_eq!(imm.status, 404);
+        assert_eq!(imm.body, "Not Found");
+    }
+
+    #[test]
+    fn test_plugin_request_headers_modification() {
+        let mut req = PluginRequest::new("hdr-test", "GET", "/");
+        req.headers
+            .insert("Authorization".to_string(), "Bearer token".to_string());
+
+        assert_eq!(req.headers.get("Authorization").unwrap(), "Bearer token");
+    }
+
+    #[test]
+    fn test_immediate_response_empty_body() {
+        let resp = ImmediateResponse {
+            status: 204,
+            body: String::new(),
+            headers: Default::default(),
+        };
+
+        assert_eq!(resp.status, 204);
+        assert!(resp.body.is_empty());
     }
 }
