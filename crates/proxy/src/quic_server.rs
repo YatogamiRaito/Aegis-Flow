@@ -103,6 +103,11 @@ impl QuicServer {
     /// Run the QUIC server
     #[instrument(skip(self))]
     pub async fn run(&self) -> Result<()> {
+        self.run_with_shutdown(std::future::pending()).await
+    }
+
+    /// Run the QUIC server with a shutdown signal
+    pub async fn run_with_shutdown(&self, shutdown: impl std::future::Future<Output = ()>) -> Result<()> {
         // Verify certificates exist
         self.check_certificates()?;
 
@@ -142,37 +147,52 @@ impl QuicServer {
         );
 
         // Accept connections
-        self.accept_connections(server).await
+        self.accept_connections_with_shutdown(server, shutdown).await
     }
 
     /// Accept and handle QUIC connections
-    async fn accept_connections(&self, mut server: Server) -> Result<()> {
-        while let Some(connection) = server.accept().await {
-            let stats = Arc::clone(&self.stats);
-            let upstream = self.proxy_config.upstream_addr.clone();
+    async fn accept_connections_with_shutdown(&self, mut server: Server, shutdown: impl std::future::Future<Output = ()>) -> Result<()> {
+        tokio::pin!(shutdown);
+        
+        loop {
+            tokio::select! {
+                accept_result = server.accept() => {
+                    if let Some(connection) = accept_result {
+                        let stats = Arc::clone(&self.stats);
+                        let upstream = self.proxy_config.upstream_addr.clone();
 
-            // Update stats
-            {
-                let mut s = stats.write().await;
-                s.connections_accepted += 1;
-                s.active_connections += 1;
-            }
+                        // Update stats
+                        {
+                            let mut s = stats.write().await;
+                            s.connections_accepted += 1;
+                            s.active_connections += 1;
+                        }
 
-            let peer_addr = connection.remote_addr();
-            info!("📥 QUIC connection from {:?}", peer_addr);
+                        let peer_addr = connection.remote_addr();
+                        info!("📥 QUIC connection from {:?}", peer_addr);
 
-            // Spawn connection handler
-            tokio::spawn(async move {
-                if let Err(e) =
-                    Self::handle_connection(connection, upstream, Arc::clone(&stats)).await
-                {
-                    error!("❌ Connection error: {}", e);
+                        // Spawn connection handler
+                        tokio::spawn(async move {
+                            if let Err(e) =
+                                Self::handle_connection(connection, upstream, Arc::clone(&stats)).await
+                            {
+                                error!("❌ Connection error: {}", e);
+                            }
+
+                            // Decrement active connections
+                            let mut s = stats.write().await;
+                            s.active_connections = s.active_connections.saturating_sub(1);
+                        });
+                    } else {
+                        // None means server closed
+                        break;
+                    }
                 }
-
-                // Decrement active connections
-                let mut s = stats.write().await;
-                s.active_connections = s.active_connections.saturating_sub(1);
-            });
+                _ = &mut shutdown => {
+                    info!("🛑 Shutting down QUIC server");
+                    break;
+                }
+            }
         }
 
         Ok(())
@@ -316,5 +336,57 @@ mod tests {
         let stats = server.stats().await;
 
         assert_eq!(stats.connections_accepted, 0);
+    }
+
+    #[tokio::test]
+    async fn test_quic_server_lifecycle() {
+        use rcgen::generate_simple_self_signed;
+        use std::fs;
+        use tokio::time::{timeout, Duration};
+
+        // Generate certs
+        let subject_alt_names = vec!["localhost".to_string()];
+        let certified_key = generate_simple_self_signed(subject_alt_names).unwrap();
+        let cert_pem = certified_key.cert.pem();
+        let key_pem = certified_key.key_pair.serialize_pem();
+
+        let cert_path = "test_quic_server.crt";
+        let key_path = "test_quic_server.key";
+        
+        fs::write(cert_path, &cert_pem).unwrap();
+        fs::write(key_path, &key_pem).unwrap();
+
+        let mut config = QuicConfig::default();
+        config.bind_address = "127.0.0.1:0".to_string(); // Random port
+        config.cert_path = cert_path.to_string();
+        config.key_path = key_path.to_string();
+        
+        let proxy_config = ProxyConfig::default();
+        let server = QuicServer::new(config, proxy_config);
+        
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        
+        // Run server with shutdown signal
+        let server_task = tokio::spawn(async move {
+            server.run_with_shutdown(async {
+                rx.await.ok();
+            }).await
+        });
+        
+        // Let it start
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        
+        // Trigger shutdown
+        tx.send(()).unwrap();
+        
+        // Wait for finish
+        let result = timeout(Duration::from_secs(2), server_task).await;
+        
+        // Cleanup
+        let _ = fs::remove_file(cert_path);
+        let _ = fs::remove_file(key_path);
+        
+        assert!(result.is_ok(), "Server shutdown timed out");
+        assert!(result.unwrap().unwrap().is_ok(), "Server run failed");
     }
 }

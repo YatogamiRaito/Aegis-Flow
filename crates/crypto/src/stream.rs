@@ -265,3 +265,112 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for EncryptedStream<S> {
         Pin::new(&mut me.stream).poll_shutdown(cx)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    #[tokio::test]
+    async fn test_stream_roundtrip() {
+        let key = [0x42u8; 32];
+        let payload = b"Hello, Aegis-Flow Secure Stream!";
+
+        // Use an in-memory buffer as the "network"
+        let mut network_buffer = Vec::new();
+        let mut cursor = std::io::Cursor::new(&mut network_buffer);
+
+        // 1. Write encrypted data to buffer
+        {
+            let mut writer = EncryptedStream::new(&mut cursor, &key);
+            writer.write_all(payload).await.unwrap();
+            writer.flush().await.unwrap();
+        }
+
+        // 2. Read back from buffer
+        let mut read_cursor = std::io::Cursor::new(&network_buffer);
+        let mut reader = EncryptedStream::new(&mut read_cursor, &key);
+        
+        let mut decrypted = vec![0u8; payload.len()];
+        reader.read_exact(&mut decrypted).await.unwrap();
+
+        assert_eq!(&decrypted, payload);
+    }
+
+    #[tokio::test]
+    async fn test_large_payload_chunking() {
+        let key = [0x11u8; 32];
+        // Create payload covering multiple internal buffer states
+        let payload = vec![0xAAu8; 5000]; 
+
+        let mut network_buffer = Vec::new();
+        let mut cursor = std::io::Cursor::new(&mut network_buffer);
+
+        {
+            let mut writer = EncryptedStream::new(&mut cursor, &key);
+            writer.write_all(&payload).await.unwrap();
+            writer.flush().await.unwrap();
+        }
+
+        let mut read_cursor = std::io::Cursor::new(&network_buffer);
+        let mut reader = EncryptedStream::new(&mut read_cursor, &key);
+        
+        let mut decrypted = Vec::new();
+        reader.read_to_end(&mut decrypted).await.unwrap();
+
+        assert_eq!(decrypted, payload);
+    }
+    
+    #[tokio::test]
+    async fn test_multiple_writes() {
+        let key = [0x22u8; 32];
+        let p1 = b"Part 1";
+        let p2 = b"Part 2";
+
+        let mut network_buffer = Vec::new();
+        let mut cursor = std::io::Cursor::new(&mut network_buffer);
+
+        {
+            let mut writer = EncryptedStream::new(&mut cursor, &key);
+            writer.write_all(p1).await.unwrap();
+            writer.write_all(p2).await.unwrap();
+            writer.flush().await.unwrap();
+        }
+
+        let mut read_cursor = std::io::Cursor::new(&network_buffer);
+        let mut reader = EncryptedStream::new(&mut read_cursor, &key);
+        
+        let mut buf = vec![0u8; p1.len() + p2.len()];
+        reader.read_exact(&mut buf).await.unwrap();
+
+        assert_eq!(&buf[..p1.len()], p1);
+        assert_eq!(&buf[p1.len()..], p2);
+    }
+
+    #[tokio::test]
+    async fn test_detect_tampering() {
+        let key = [0x33u8; 32];
+        let payload = b"Secret Data";
+
+        let mut network_buffer = Vec::new();
+        let mut cursor = std::io::Cursor::new(&mut network_buffer);
+
+        {
+            let mut writer = EncryptedStream::new(&mut cursor, &key);
+            writer.write_all(payload).await.unwrap();
+            writer.flush().await.unwrap();
+        }
+
+        // Tamper with the ciphertext (last byte)
+        let len = network_buffer.len();
+        network_buffer[len - 1] ^= 0xFF;
+
+        let mut read_cursor = std::io::Cursor::new(&network_buffer);
+        let mut reader = EncryptedStream::new(&mut read_cursor, &key);
+        
+        let mut buf = vec![0u8; payload.len()];
+        let result = reader.read_exact(&mut buf).await;
+        
+        assert!(result.is_err());
+    }
+}

@@ -57,6 +57,7 @@ async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
 num_cpus = "1.16"
 tempfile = "3.15"
+rcgen.workspace = true
 
 [[bin]]
 name = "aegis-proxy"

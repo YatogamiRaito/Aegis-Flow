@@ -25,39 +25,59 @@ pub async fn run_health_server(
 
     info!("🏥 Health server listening on http://{}", addr);
 
-    loop {
-        match listener.accept().await {
-            Ok((stream, peer_addr)) => {
-                let io = TokioIo::new(stream);
-                let lifecycle = lifecycle.clone();
-                let metrics_handle = metrics_handle.clone();
+    run_health_server_with_listener(listener, lifecycle, metrics_handle, std::future::pending()).await
+}
 
-                tokio::task::spawn(async move {
-                    if let Err(err) = http1::Builder::new()
-                        .serve_connection(
-                            io,
-                            service_fn(move |req| {
-                                handle_request(req, lifecycle.clone(), metrics_handle.clone())
-                            }),
-                        )
-                        .await
-                    {
-                        warn!(
-                            "Error serving health connection from {}: {}",
-                            peer_addr, err
-                        );
+pub async fn run_health_server_with_listener(
+    listener: TcpListener,
+    lifecycle: Arc<LifecycleManager>,
+    metrics_handle: Option<PrometheusHandle>,
+    shutdown: impl std::future::Future<Output = ()>,
+) -> Result<()> {
+    tokio::pin!(shutdown);
+
+    loop {
+        tokio::select! {
+            accept_result = listener.accept() => {
+                match accept_result {
+                    Ok((stream, peer_addr)) => {
+                        let io = TokioIo::new(stream);
+                        let lifecycle = lifecycle.clone();
+                        let metrics_handle = metrics_handle.clone();
+
+                        tokio::task::spawn(async move {
+                            if let Err(err) = http1::Builder::new()
+                                .serve_connection(
+                                    io,
+                                    service_fn(move |req| {
+                                        handle_request(req, lifecycle.clone(), metrics_handle.clone())
+                                    }),
+                                )
+                                .await
+                            {
+                                warn!(
+                                    "Error serving health connection from {}: {}",
+                                    peer_addr, err
+                                );
+                            }
+                        });
                     }
-                });
+                    Err(e) => {
+                        error!("Health server accept error: {}", e);
+                    }
+                }
             }
-            Err(e) => {
-                error!("Health server accept error: {}", e);
+            _ = &mut shutdown => {
+                info!("🛑 Shutting down health server");
+                break;
             }
         }
     }
+    Ok(())
 }
 
-async fn handle_request(
-    req: Request<hyper::body::Incoming>,
+async fn handle_request<B>(
+    req: Request<B>,
     lifecycle: Arc<LifecycleManager>,
     metrics_handle: Option<PrometheusHandle>,
 ) -> Result<Response<Full<Bytes>>, Infallible> {
@@ -204,5 +224,57 @@ mod tests {
         // Uptime should be zero or positive
         let uptime = lifecycle.uptime();
         assert!(uptime.as_secs() < 5); // Should be nearly zero
+    }
+
+    #[tokio::test]
+    async fn test_handle_request_health() {
+        let lifecycle = create_test_lifecycle();
+        let req = Request::builder()
+            .uri("/health")
+            .method(Method::GET)
+            .body(http_body_util::Empty::<Bytes>::new())
+            .unwrap();
+
+        let resp = handle_request(req, lifecycle, None).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.headers().get("Content-Type").unwrap(), "application/json");
+    }
+
+    #[tokio::test]
+    async fn test_handle_request_ready() {
+        let lifecycle = create_test_lifecycle();
+        
+        // Not ready initially
+        let req = Request::builder()
+            .uri("/ready")
+            .method(Method::GET)
+            .body(http_body_util::Empty::<Bytes>::new())
+            .unwrap();
+        let resp = handle_request(req, lifecycle.clone(), None).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
+
+        // Mark ready
+        lifecycle.mark_ready().await;
+        
+        let req = Request::builder()
+            .uri("/ready")
+            .method(Method::GET)
+            .body(http_body_util::Empty::<Bytes>::new())
+            .unwrap();
+        let resp = handle_request(req, lifecycle, None).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_handle_request_404() {
+        let lifecycle = create_test_lifecycle();
+        let req = Request::builder()
+            .uri("/unknown")
+            .method(Method::GET)
+            .body(http_body_util::Empty::<Bytes>::new())
+            .unwrap();
+
+        let resp = handle_request(req, lifecycle, None).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 }
