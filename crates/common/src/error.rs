@@ -117,7 +117,7 @@ mod tests {
     #[test]
     fn test_error_source() {
         use std::error::Error;
-        let io_err = std::io::Error::new(std::io::ErrorKind::Other, "test");
+        let io_err = std::io::Error::other("test");
         let aegis_err: AegisError = io_err.into();
         assert!(aegis_err.source().is_some());
 

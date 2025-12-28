@@ -17,6 +17,7 @@ mod pqc_server;
 pub mod quic_server;
 pub mod server;
 pub mod tracing_otel;
+pub mod bootstrap;
 
 pub use carbon_router::{CarbonRouter, CarbonRouterConfig, RegionScore};
 pub use config::{

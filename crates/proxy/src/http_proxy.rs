@@ -589,6 +589,6 @@ mod tests {
     async fn test_run_with_custom_executor() {
         // Just cover the TokioExecutor clone/debug if any
         let exec = TokioExecutor;
-        let _ = exec.clone();
+        let _ = exec;
     }
 }
