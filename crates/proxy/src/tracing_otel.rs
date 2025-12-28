@@ -275,4 +275,20 @@ mod tests {
         let header = ctx.to_traceparent();
         assert!(header.ends_with("-00"));
     }
+
+    #[test]
+    fn test_parse_traceparent_invalid_format() {
+        // Too few parts
+        assert!(TraceContext::parse_traceparent("00-abc-def").is_none());
+        // Too many parts
+        assert!(TraceContext::parse_traceparent("00-a-b-c-d-e").is_none());
+    }
+
+    #[test]
+    fn test_parse_traceparent_unknown_version() {
+        // Version 01 instead of 00 - should still parse but log debug
+        let header = "01-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01";
+        let ctx = TraceContext::parse_traceparent(header).unwrap();
+        assert_eq!(ctx.trace_id, "0af7651916cd43dd8448eb211c80319c");
+    }
 }

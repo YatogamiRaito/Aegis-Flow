@@ -292,7 +292,7 @@ mod tests {
         // Compile twice - no caching should happen
         let _ = engine.compile_module("no_cache", &wasm_bytes).unwrap();
         let _ = engine.compile_module("no_cache", &wasm_bytes).unwrap();
-        
+
         // Cache should remain empty
         assert_eq!(engine.cache_size(), 0);
     }
@@ -300,7 +300,7 @@ mod tests {
     #[test]
     fn test_load_module_success() {
         let engine = WasmEngine::new().unwrap();
-        
+
         // Create a temporary wasm file
         let temp_dir = std::env::temp_dir().join(format!(
             "aegis-engine-test-{}",
@@ -317,7 +317,7 @@ mod tests {
         // Load the module
         let module = engine.load_module(&wasm_path).unwrap();
         assert!(module.exports().count() == 0);
-        
+
         // Cleanup
         let _ = std::fs::remove_dir_all(temp_dir);
     }

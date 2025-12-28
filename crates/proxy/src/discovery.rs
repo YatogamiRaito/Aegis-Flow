@@ -478,4 +478,42 @@ mod tests {
         let ep = registry.get_endpoint("weighted").await.unwrap();
         assert!(ep == ep1 || ep == ep2);
     }
+
+    #[tokio::test]
+    async fn test_weighted_round_robin_zero_weight_fallback() {
+        let registry = ServiceRegistry::new(LoadBalanceStrategy::WeightedRoundRobin);
+        let ep1: SocketAddr = "127.0.0.1:8080".parse().unwrap();
+
+        registry.register("zero-weight", vec![ep1]).await;
+
+        // Mark failed 3 times to set weight to 0
+        for _ in 0..3 {
+            registry.mark_failed("zero-weight", ep1).await;
+        }
+
+        // Re-register with a fresh endpoint to simulate zero weight scenario
+        registry.mark_healthy("zero-weight", ep1).await;
+
+        // Should still return an endpoint
+        let ep = registry.get_endpoint("zero-weight").await;
+        assert!(ep.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_register_multiple_endpoints() {
+        let registry = ServiceRegistry::new(LoadBalanceStrategy::RoundRobin);
+        let eps: Vec<SocketAddr> = vec![
+            "127.0.0.1:8080".parse().unwrap(),
+            "127.0.0.1:8081".parse().unwrap(),
+            "127.0.0.1:8082".parse().unwrap(),
+        ];
+
+        registry.register("multi-ep", eps.clone()).await;
+
+        // Verify all endpoints are accessible via round-robin
+        for _ in 0..3 {
+            let ep = registry.get_endpoint("multi-ep").await.unwrap();
+            assert!(eps.contains(&ep));
+        }
+    }
 }
