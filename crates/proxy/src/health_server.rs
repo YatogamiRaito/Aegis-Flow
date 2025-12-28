@@ -294,4 +294,38 @@ mod tests {
         let resp = handle_request(req, lifecycle, None).await.unwrap();
         assert_eq!(resp.status(), StatusCode::NOT_IMPLEMENTED);
     }
+
+    #[tokio::test]
+    async fn test_health_server_run_and_shutdown() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let lifecycle = Arc::new(LifecycleManager::new());
+        let (tx, rx) = tokio::sync::oneshot::channel();
+
+        let server_handle = tokio::spawn(async move {
+            run_health_server_with_listener(listener, lifecycle, None, async {
+                rx.await.ok();
+            })
+            .await
+        });
+
+        // Give it a moment to start accept loop
+        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+
+        // Make a request to prove it's running
+        let client = hyper_util::client::legacy::Client::builder(hyper_util::rt::TokioExecutor::new())
+            .build_http::<http_body_util::Full<bytes::Bytes>>();
+        
+        let uri = format!("http://{}/health", addr).parse().unwrap();
+        let resp = client.get(uri).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // Shutdown
+        tx.send(()).unwrap();
+        
+        // Wait for server to finish
+        let result = tokio::time::timeout(tokio::time::Duration::from_secs(2), server_handle).await;
+        assert!(result.is_ok(), "Server did not shut down in time");
+        assert!(result.unwrap().is_ok()); // Task finished successfully
+    }
 }
