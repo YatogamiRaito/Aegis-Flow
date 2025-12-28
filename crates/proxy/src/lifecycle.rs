@@ -592,7 +592,7 @@ mod tests {
     #[tokio::test]
     async fn test_lifecycle_shutdown_initiated() {
         let manager = Arc::new(LifecycleManager::new());
-        manager.initiate_shutdown();
+        manager.initiate_shutdown().await;
         assert!(manager.is_shutting_down());
     }
 }
