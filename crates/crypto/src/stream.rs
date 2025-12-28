@@ -503,4 +503,116 @@ mod tests {
         assert_eq!(err.kind(), io::ErrorKind::UnexpectedEof);
         assert!(err.to_string().contains("Partial frame length"));
     }
+    struct FailingWriter {
+        fail_after_bytes: usize,
+        written: usize,
+        fail_mode_write_zero: bool,
+    }
+    
+    impl Unpin for FailingWriter {}
+
+    impl tokio::io::AsyncWrite for FailingWriter {
+        fn poll_write(
+            mut self: Pin<&mut Self>,
+            _cx: &mut Context<'_>,
+            buf: &[u8],
+        ) -> Poll<io::Result<usize>> {
+            if self.written >= self.fail_after_bytes {
+                if self.fail_mode_write_zero {
+                    return Poll::Ready(Ok(0)); 
+                } else {
+                    return Poll::Ready(Err(io::Error::new(io::ErrorKind::BrokenPipe, "Synthetic Error")));
+                }
+            }
+            let n = std::cmp::min(buf.len(), self.fail_after_bytes - self.written);
+            // Simulate accepting valid bytes up to limit
+            // But if fail_after_bytes is small, we might write 0?
+            // If fail_after_bytes > written, n > 0 (assuming buf > 0)
+            
+            if n == 0 && buf.len() > 0 {
+                 if self.fail_mode_write_zero {
+                    return Poll::Ready(Ok(0)); 
+                } else {
+                    return Poll::Ready(Err(io::Error::new(io::ErrorKind::BrokenPipe, "Synthetic Error")));
+                }
+            }
+            
+            self.written += n;
+            Poll::Ready(Ok(n))
+        }
+
+        fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+            Poll::Ready(Ok(()))
+        }
+
+        fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+            Poll::Ready(Ok(()))
+        }
+    }
+    
+    // Stub AsyncRead for FailingWriter to satisfy bounds if needed (EncryptedStream wraps S: AsyncRead+AsyncWrite)
+    impl tokio::io::AsyncRead for FailingWriter {
+        fn poll_read(
+            self: Pin<&mut Self>,
+            _cx: &mut Context<'_>,
+            _buf: &mut tokio::io::ReadBuf<'_>,
+        ) -> Poll<io::Result<()>> {
+            Poll::Ready(Ok(()))
+        }
+    }
+
+    #[tokio::test]
+    async fn test_write_zero_error() {
+        let key = [0xAAu8; 32];
+        let payload = b"Some data to write";
+        
+        // Write buffer logic:
+        // EncryptedStream writes header (4+12=16 bytes) + ciphertext (len+16)
+        // We want it to fail partway through.
+        
+        let writer = FailingWriter {
+            fail_after_bytes: 10, // Fail after 10 bytes (during header write)
+            written: 0,
+            fail_mode_write_zero: true,
+        };
+        
+        let mut stream = EncryptedStream::new(writer, &key);
+        
+        // This should fail when flushing or writing
+        let result = stream.write_all(payload).await;
+        
+        // If write_all succeeds (buffering), flush must fail
+        if result.is_ok() {
+             let flush_res = stream.flush().await;
+             assert!(flush_res.is_err());
+             assert_eq!(flush_res.unwrap_err().kind(), io::ErrorKind::WriteZero);
+        } else {
+             assert!(result.is_err());
+             // Could be WriteZero or other if propagated
+        }
+    }
+    
+    #[tokio::test]
+    async fn test_io_error_propagation() {
+        let key = [0xBBu8; 32];
+        let payload = b"More data";
+        
+        let writer = FailingWriter {
+            fail_after_bytes: 5, 
+            written: 0,
+            fail_mode_write_zero: false, // BrokenPipe
+        };
+        
+        let mut stream = EncryptedStream::new(writer, &key);
+        let result = stream.write_all(payload).await;
+        
+        if result.is_ok() {
+            let flush_res = stream.flush().await;
+            assert!(flush_res.is_err());
+            assert_eq!(flush_res.unwrap_err().kind(), io::ErrorKind::BrokenPipe);
+        } else {
+            assert!(result.is_err());
+            assert_eq!(result.unwrap_err().kind(), io::ErrorKind::BrokenPipe);
+        }
+    }
 }

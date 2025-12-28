@@ -626,4 +626,45 @@ upstream_addr: "test:8080"
     fn test_config_format_no_extension() {
         assert_eq!(ConfigFormat::from_path(Path::new("config")), None);
     }
+
+    #[test]
+    fn test_load_nonexistent_file() {
+        let path = Path::new("/nonexistent/config.yaml");
+        let result = ProxyConfig::load_from_file(path);
+        match result {
+            Err(ConfigError::IoError(_)) => {}
+            _ => panic!("Expected IoError"),
+        }
+    }
+
+    #[test]
+    fn test_load_unsupported_format() {
+        let file = NamedTempFile::with_suffix(".txt").unwrap();
+        let result = ProxyConfig::load_from_file(file.path());
+        match result {
+            Err(ConfigError::UnsupportedFormat(_)) => {}
+            _ => panic!("Expected UnsupportedFormat error"),
+        }
+    }
+
+    #[test]
+    fn test_parse_invalid_yaml() {
+        // Invalid YAML syntax
+        let content = "key: : value";
+        let result = ProxyConfig::parse(content, ConfigFormat::Yaml);
+        match result {
+            Err(ConfigError::ParseError(msg)) => assert!(msg.contains("YAML")),
+            _ => panic!("Expected ParseError"),
+        }
+    }
+
+    #[test]
+    fn test_parse_invalid_json() {
+        let content = "{ key: value }"; // Missing quotes
+        let result = ProxyConfig::parse(content, ConfigFormat::Json);
+        match result {
+            Err(ConfigError::ParseError(msg)) => assert!(msg.contains("JSON")),
+            _ => panic!("Expected ParseError"),
+        }
+    }
 }
