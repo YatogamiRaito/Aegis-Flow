@@ -219,4 +219,52 @@ mod tests {
         assert_eq!(imm.status, 200);
         assert_eq!(imm.body, "OK");
     }
+
+    #[test]
+    fn test_plugin_request_serialization() {
+        let req = PluginRequest::new("req-serialize", "POST", "/api/v1/test")
+            .with_header("Authorization", "Bearer token");
+
+        let json = serde_json::to_string(&req).unwrap();
+        let parsed: PluginRequest = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(parsed.id, "req-serialize");
+        assert_eq!(parsed.method, "POST");
+        assert_eq!(parsed.path, "/api/v1/test");
+    }
+
+    #[test]
+    fn test_plugin_response_serialization() {
+        let resp = PluginResponse::immediate(401, "Unauthorized");
+
+        let json = serde_json::to_string(&resp).unwrap();
+        let parsed: PluginResponse = serde_json::from_str(&json).unwrap();
+
+        assert!(!parsed.continue_processing);
+        assert!(parsed.immediate_response.is_some());
+    }
+
+    #[test]
+    fn test_plugin_response_default() {
+        let resp = PluginResponse::default();
+        assert!(resp.continue_processing);
+        assert!(resp.modified_headers.is_none());
+        assert!(resp.modified_body.is_none());
+        assert!(resp.immediate_response.is_none());
+        assert!(resp.metadata.is_empty());
+    }
+
+    #[test]
+    fn test_immediate_response_with_headers() {
+        let mut headers = HashMap::new();
+        headers.insert("X-Custom".to_string(), "Value".to_string());
+
+        let imm = ImmediateResponse {
+            status: 201,
+            body: "Created".to_string(),
+            headers,
+        };
+
+        assert_eq!(imm.headers.get("X-Custom").unwrap(), "Value");
+    }
 }

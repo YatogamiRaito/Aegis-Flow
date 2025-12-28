@@ -242,4 +242,27 @@ mod tests {
         let result = engine.compile_module("bad", invalid);
         assert!(result.is_err());
     }
+
+    #[test]
+    fn test_wasm_engine_config_default() {
+        let config = WasmEngineConfig::default();
+        assert!(config.cache_modules);
+        assert_eq!(config.max_memory_bytes, 64 * 1024 * 1024);
+        assert!(config.enable_fuel);
+        assert_eq!(config.initial_fuel, 1_000_000);
+    }
+
+    #[test]
+    fn test_create_store() {
+        let engine = WasmEngine::new().unwrap();
+        let store = engine.create_store::<()>();
+        // Just verify it doesn't panic
+        drop(store);
+    }
+
+    #[test]
+    fn test_engine_accessor() {
+        let engine = WasmEngine::new().unwrap();
+        let _ = engine.engine(); // Just verify it returns without panic
+    }
 }
