@@ -839,4 +839,46 @@ mod tests {
         assert!(config.require_client_cert);
         assert!(!config.pqc_enabled);
     }
+
+    #[test]
+    fn test_auth_state_is_authenticated() {
+        assert!(AuthState::Authenticated.is_authenticated());
+        assert!(!AuthState::Unauthenticated.is_authenticated());
+        assert!(!AuthState::Failed("error".to_string()).is_authenticated());
+    }
+
+    #[test]
+    fn test_verification_result_success() {
+        let result = VerificationResult {
+            valid: true,
+            message: "Certificate valid".to_string(),
+        };
+
+        assert!(result.valid);
+        assert!(result.message.contains("valid"));
+    }
+
+    #[test]
+    fn test_verification_result_failure() {
+        let result = VerificationResult {
+            valid: false,
+            message: "Expired certificate".to_string(),
+        };
+
+        assert!(!result.valid);
+        assert!(result.message.contains("Expired"));
+    }
+
+    #[test]
+    fn test_authenticated_client_id() {
+        let client = AuthenticatedClient::new(12345);
+        assert_eq!(client.id(), 12345);
+    }
+
+    #[test]
+    fn test_mtls_config_defaults() {
+        let config = MtlsConfig::default();
+        assert!(config.require_client_cert);
+        assert!(config.pqc_enabled);
+    }
 }
