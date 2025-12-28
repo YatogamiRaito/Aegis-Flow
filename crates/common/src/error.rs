@@ -120,7 +120,7 @@ mod tests {
         let io_err = std::io::Error::new(std::io::ErrorKind::Other, "test");
         let aegis_err: AegisError = io_err.into();
         assert!(aegis_err.source().is_some());
-        
+
         let crypto_err = AegisError::Crypto("test".to_string());
         assert!(crypto_err.source().is_none());
     }

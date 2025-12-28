@@ -122,9 +122,33 @@ mod tests {
     }
 
     #[test]
-    fn test_key_exchange_type_variants() {
-        assert_eq!(KeyExchangeType::X25519, KeyExchangeType::X25519);
-        assert_eq!(KeyExchangeType::MlKem768, KeyExchangeType::MlKem768);
-        assert_eq!(KeyExchangeType::MlKem1024, KeyExchangeType::MlKem1024);
+    #[allow(deprecated)]
+    fn test_legacy_key_exchange_variants() {
+        // Ensure legacy variants can be constructed and compared
+        assert_eq!(KeyExchangeType::Kyber768, KeyExchangeType::Kyber768);
+        assert_eq!(KeyExchangeType::Kyber1024, KeyExchangeType::Kyber1024);
+        assert_eq!(
+            KeyExchangeType::HybridX25519Kyber768,
+            KeyExchangeType::HybridX25519Kyber768
+        );
+        assert_eq!(
+            KeyExchangeType::HybridX25519Kyber1024,
+            KeyExchangeType::HybridX25519Kyber1024
+        );
+
+        assert_ne!(KeyExchangeType::Kyber768, KeyExchangeType::Kyber1024);
+    }
+
+    #[test]
+    fn test_attestation_token_debug() {
+        let token = AttestationToken {
+            version: 1,
+            measurement: vec![0x11],
+            signature: vec![0x22],
+            claims: None,
+        };
+        let debug = format!("{:?}", token);
+        assert!(debug.contains("AttestationToken"));
+        assert!(debug.contains("version: 1"));
     }
 }

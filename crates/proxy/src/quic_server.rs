@@ -759,6 +759,33 @@ mod tests {
         assert_eq!(config.idle_timeout_secs, 3600);
     }
 
+    #[tokio::test]
+    async fn test_process_stream_read_error() {
+        use std::io::{Error, ErrorKind};
+        use std::pin::Pin;
+        use std::task::{Context, Poll};
+
+        struct FailReader;
+        impl tokio::io::AsyncRead for FailReader {
+            fn poll_read(
+                self: Pin<&mut Self>,
+                _cx: &mut Context<'_>,
+                _buf: &mut tokio::io::ReadBuf<'_>,
+            ) -> Poll<Result<(), Error>> {
+                Poll::Ready(Err(Error::new(
+                    ErrorKind::ConnectionReset,
+                    "simulated read error",
+                )))
+            }
+        }
+
+        let mut recv = FailReader;
+        let mut send = Vec::new();
+
+        let result = QuicServer::process_stream(&mut recv, &mut send, "backend".to_string()).await;
+        assert!(result.is_err());
+    }
+
     #[test]
     fn test_quic_stats_debug() {
         let stats = QuicStats::default();

@@ -877,4 +877,59 @@ mod tests {
         assert!(!config.require_client_cert);
         assert!(config.pqc_enabled);
     }
+
+    #[test]
+    fn test_complete_handshake_bad_der() {
+        let config = MtlsConfig {
+            require_client_cert: true,
+            pqc_enabled: false,
+            ..Default::default()
+        };
+        // Use self-signed to setup
+        let mut auth = MtlsAuthenticator::new(config).unwrap();
+        auth.init_self_signed("test.server").unwrap();
+
+        let (conn_id, _) = auth.accept_connection().unwrap();
+
+        let dummy_ct = crate::hybrid_kex::HybridCiphertext {
+            x25519_ephemeral: [0u8; 32],
+            mlkem_ciphertext: vec![0u8; 10],
+        };
+
+        let bad_der = vec![0x00, 0x01, 0x02]; // malformed
+
+        let result = auth.complete_handshake(conn_id, &dummy_ct, Some(&bad_der));
+        assert!(result.is_err());
+        // Verify state is Failed
+        if let Ok(state) = auth.get_client_state(conn_id) {
+            assert!(matches!(state, AuthState::Failed(_)));
+        }
+    }
+
+    #[test]
+    fn test_complete_handshake_verify_failed() {
+        let config = MtlsConfig {
+            require_client_cert: true,
+            pqc_enabled: false,
+            ..Default::default()
+        };
+        let mut auth = MtlsAuthenticator::new(config).unwrap();
+        auth.init_self_signed("server").unwrap();
+
+        // Generate a client cert that is NOT trusted by the server (server only trusts itself/configured CAs)
+        // Since we didn't add the client's key to trust store, it should fail verification.
+        let client_cert_params =
+            rcgen::generate_simple_self_signed(vec!["client".to_string()]).unwrap();
+        let client_der = client_cert_params.cert.der().to_vec();
+
+        let (conn_id, _) = auth.accept_connection().unwrap();
+
+        let dummy_ct = crate::hybrid_kex::HybridCiphertext {
+            x25519_ephemeral: [0u8; 32],
+            mlkem_ciphertext: vec![0u8; 10],
+        };
+
+        let result = auth.complete_handshake(conn_id, &dummy_ct, Some(&client_der));
+        assert!(result.is_err());
+    }
 }

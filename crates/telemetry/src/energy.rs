@@ -245,4 +245,28 @@ mod tests {
         let carbon = metrics.carbon_grams(0.0);
         assert_eq!(carbon, 0.0);
     }
+
+    #[test]
+    fn test_energy_source_variants() {
+        // Ensure all variants are usable and distinct if needed
+        let s1 = EnergySource::Software;
+        let s2 = EnergySource::Ebpf;
+        let s3 = EnergySource::Rapl;
+        let s4 = EnergySource::Hybrid;
+
+        assert_eq!(s1, EnergySource::Software);
+        assert_ne!(s1, s2);
+        assert_ne!(s2, s3);
+        assert_ne!(s3, s4);
+
+        // Test Copy
+        let s1_copy = s1;
+        assert_eq!(s1, s1_copy);
+    }
+
+    #[test]
+    fn test_metrics_request_id() {
+        let metrics = EnergyMetrics::new("/api", "GET").with_request_id("req-1");
+        assert_eq!(metrics.request_id, Some("req-1".to_string()));
+    }
 }

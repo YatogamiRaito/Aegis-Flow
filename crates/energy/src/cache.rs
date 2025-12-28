@@ -276,12 +276,12 @@ mod tests {
     async fn test_cache_get_expired_entry() {
         let cache = CarbonIntensityCache::new(60);
         let mut intensity = create_test_intensity("EXPIRED", 100.0);
-        
+
         // Manually set timestamp to past
         intensity.timestamp = chrono::Utc::now() - chrono::Duration::seconds(400); // > 300s default validity
 
         cache.put(intensity.clone()).await;
-        
+
         // Should be auto-invalidated
         let result = cache.get(&intensity.region).await;
         assert!(result.is_none());

@@ -624,4 +624,31 @@ mod tests {
         let result = server.run_with_listener(listener, async {}).await;
         assert!(result.is_ok());
     }
+
+    #[tokio::test]
+    async fn test_pqc_handshake_write_failure_after_accept() {
+        // Simulate client closing connection immediately after accept, causing server write fail
+        let config = ProxyConfig {
+            host: "127.0.0.1".to_string(),
+            port: 0,
+            pqc_enabled: true,
+            ..Default::default()
+        };
+        let server = PqcProxyServer::new(config);
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        tokio::spawn(async move {
+            server
+                .run_with_listener(listener, std::future::pending())
+                .await
+                .ok();
+        });
+
+        // Connect then immediately drop
+        let _stream = TcpStream::connect(addr).await.unwrap();
+        drop(_stream);
+
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
 }

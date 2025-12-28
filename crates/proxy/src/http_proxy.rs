@@ -566,4 +566,29 @@ mod tests {
         let proxy = HttpProxy::new(config);
         let _ = &proxy;
     }
+
+    #[tokio::test]
+    async fn test_metrics_rendering_mock() {
+        // Direct test of metrics endpoint logic without spinning up full server
+        use http_body_util::{BodyExt, Empty}; // Added BodyExt
+        let req = Request::builder()
+            .method(Method::GET)
+            .uri("/metrics")
+            .body(Empty::<Bytes>::new())
+            .unwrap();
+
+        // This should return response even if metrics not init (returns "# metrics not initialized")
+        let resp = handle_request(req, "up").await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body_bytes = resp.into_body().collect().await.unwrap().to_bytes();
+        let body = String::from_utf8(body_bytes.to_vec()).unwrap();
+        assert!(!body.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_run_with_custom_executor() {
+        // Just cover the TokioExecutor clone/debug if any
+        let exec = TokioExecutor;
+        let _ = exec.clone();
+    }
 }

@@ -281,8 +281,7 @@ mod tests {
 
     #[test]
     fn test_alignment_record_cigar() {
-        let record = AlignmentRecord::new("read1", 0, 100, "A")
-            .with_cigar("1M");
+        let record = AlignmentRecord::new("read1", 0, 100, "A").with_cigar("1M");
         assert_eq!(record.cigar, Some("1M".to_string()));
     }
 
@@ -292,7 +291,7 @@ mod tests {
         record.rnext = Some("chr2".to_string());
         record.pnext = 200;
         record.tlen = 300;
-        
+
         assert_eq!(record.rnext, Some("chr2".to_string()));
         assert_eq!(record.pnext, 200);
         assert_eq!(record.tlen, 300);

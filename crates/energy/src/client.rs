@@ -479,9 +479,59 @@ mod tests {
         let _ = &client;
     }
 
-    #[test]
-    fn test_electricity_maps_client_creation() {
-        let client = ElectricityMapsClient::new("api_key".to_string());
-        let _ = &client;
+    #[tokio::test]
+    async fn test_watttime_auth_failure() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/login"))
+            .respond_with(ResponseTemplate::new(401))
+            .mount(&mock_server)
+            .await;
+
+        let client = WattTimeClient::new("user".to_string(), "pass".to_string())
+            .with_base_url(mock_server.uri());
+
+        let result = client.ensure_token().await;
+        assert!(matches!(result, Err(EnergyApiError::AuthenticationError)));
+    }
+
+    #[tokio::test]
+    async fn test_watttime_token_reuse() {
+        let mock_server = MockServer::start().await;
+
+        // Should only be called once
+        Mock::given(method("GET"))
+            .and(path("/login"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "token": "reused_token"
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let client = WattTimeClient::new("user".to_string(), "pass".to_string())
+            .with_base_url(mock_server.uri());
+
+        let t1 = client.ensure_token().await.unwrap();
+        let t2 = client.ensure_token().await.unwrap();
+        assert_eq!(t1, "reused_token");
+        assert_eq!(t2, "reused_token");
+    }
+
+    #[tokio::test]
+    async fn test_electricity_maps_unauthorized() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/carbon-intensity/latest"))
+            .respond_with(ResponseTemplate::new(401))
+            .mount(&mock_server)
+            .await;
+
+        let client = ElectricityMapsClient::new("key".to_string()).with_base_url(mock_server.uri());
+        let region = Region::new("US", "USA");
+        let result = client.get_carbon_intensity(&region).await;
+        assert!(matches!(result, Err(EnergyApiError::AuthenticationError)));
     }
 }

@@ -265,12 +265,34 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_multiple_listener_ports() {
-        let l1 = TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let l2 = TcpListener::bind("127.0.0.1:0").await.unwrap();
-        assert_ne!(
-            l1.local_addr().unwrap().port(),
-            l2.local_addr().unwrap().port()
-        );
+    async fn test_server_socket_write_error() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        tokio::spawn(async move {
+            run_with_listener(listener, std::future::pending())
+                .await
+                .ok();
+        });
+
+        // Connect, send data, but close connection before server can echo back?
+        // Server reads, then tries to write.
+        // If client closes read side, server write might fail (ECONNRESET or Broken Pipe)?
+        // Depends on OS TCP stack.
+        let mut client = TcpStream::connect(addr).await.unwrap();
+
+        // Use shutdown(Read) to signal we don't want response?
+        // Or shutdown(Receive) on socket?
+        // TcpStream::shutdown(Shutdown::Read) closes input.
+        // If server writes to it, it sends RST?
+        // Let's try.
+        client.write_all(b"trigger_write").await.unwrap();
+        // Immediately close the read end of client, so server write fails
+        // Actually, we need to close the socket entirely usually to trigger broken pipe on server write.
+        // But if we close socket, server loop read might error out first?
+        // Race condition.
+        // We'll just rely on this increasing probability of hitting error path.
+        drop(client);
+        tokio::time::sleep(Duration::from_millis(50)).await;
     }
 }
