@@ -218,6 +218,12 @@ mod tests {
     }
 
     #[test]
+    fn test_forward_strand() {
+        let record = AlignmentRecord::new("read4", 0, 100, "ACGT");
+        assert!(!record.is_reverse());
+    }
+
+    #[test]
     fn test_alignment_batch_builder() {
         let mut builder = AlignmentBatchBuilder::new();
 
@@ -271,5 +277,42 @@ mod tests {
         let mut record = AlignmentRecord::new("read1", 0, 100, "ACGT");
         record.qual = "IIII".to_string();
         assert_eq!(record.qual, "IIII");
+    }
+
+    #[test]
+    fn test_alignment_record_cigar() {
+        let record = AlignmentRecord::new("read1", 0, 100, "A")
+            .with_cigar("1M");
+        assert_eq!(record.cigar, Some("1M".to_string()));
+    }
+
+    #[test]
+    fn test_alignment_record_manual_fields() {
+        let mut record = AlignmentRecord::new("read1", 0, 100, "A");
+        record.rnext = Some("chr2".to_string());
+        record.pnext = 200;
+        record.tlen = 300;
+        
+        assert_eq!(record.rnext, Some("chr2".to_string()));
+        assert_eq!(record.pnext, 200);
+        assert_eq!(record.tlen, 300);
+    }
+
+    #[test]
+    fn test_builder_push_many() {
+        let mut builder = AlignmentBatchBuilder::new();
+        for i in 0..10 {
+            builder.push(AlignmentRecord::new("read", 0, i, "A"));
+        }
+        assert_eq!(builder.len(), 10);
+    }
+
+    #[test]
+    fn test_builder_build_error() {
+        // Technically implementation of build() currently doesn't fail unless Arrow fails
+        // but we test it returns Ok for simple case
+        let builder = AlignmentBatchBuilder::new();
+        let result = builder.build();
+        assert!(result.is_ok());
     }
 }

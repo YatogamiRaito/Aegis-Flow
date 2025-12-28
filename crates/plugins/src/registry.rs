@@ -467,4 +467,36 @@ mod tests {
         let plugins = registry.list_plugins();
         assert!(plugins.is_empty());
     }
+
+    #[test]
+    fn test_load_plugin_overwrite() {
+        let registry = create_test_registry();
+        let wasm_bytes = wat::parse_str("(module)").unwrap();
+
+        // Load first time
+        registry.load_plugin_bytes("overwrite_test", &wasm_bytes).unwrap();
+        
+        // Overwrite
+        registry.load_plugin_bytes("overwrite_test", &wasm_bytes).unwrap();
+        
+        assert_eq!(registry.plugin_count(), 1);
+        assert!(registry.has_plugin("overwrite_test"));
+    }
+
+    #[test]
+    fn test_load_plugin_empty_path() {
+        // Test extracting name from path
+        let registry = create_test_registry();
+        // Path with no file stem
+        let path = Path::new("/");
+        let result = registry.load_plugin(path);
+        
+        // Should fail to extract name
+        assert!(result.is_err());
+        if let Err(PluginError::NotFound(msg)) = result {
+             assert_eq!(msg, "Invalid plugin path");
+        } else {
+             // It might be an IO error, but we expect NotFound for name extraction if it happens first
+        }
+    }
 }

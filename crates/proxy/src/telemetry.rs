@@ -53,3 +53,25 @@ fn init_otlp_tracer(_service_name: &str, _endpoint: Option<String>) {
     unimplemented!("Add opentelemetry_otlp to Cargo.toml to enable OTLP tracing")
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_init_tracing_basic() {
+        // This might fail if another test already set the global subscriber
+        // So we just ensure it doesn't panic with unknown errors
+        let result = init_tracing("test-service", None);
+        if let Err(e) = result {
+            // If it failed, it should be because subscriber is already set
+            assert!(e.to_string().contains("a global default subscriber has already been set"));
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "Add opentelemetry_otlp")]
+    fn test_init_otlp_tracer_unimplemented() {
+        init_otlp_tracer("test", Some("http://localhost:4317".to_string()));
+    }
+}
+
