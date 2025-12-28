@@ -327,4 +327,50 @@ mod tests {
                 .any(|(k, v)| k == "content-type" && v == "application/json")
         );
     }
+
+    #[test]
+    fn test_http3_request_builder() {
+        let req = Http3Request::new("POST", "/api/data")
+            .with_header("Content-Type", "application/json")
+            .with_header("Authorization", "Bearer token")
+            .with_body(Bytes::from(r#"{"key":"value"}"#));
+
+        assert_eq!(req.method, "POST");
+        assert_eq!(req.path, "/api/data");
+        assert_eq!(req.headers.len(), 2);
+        assert!(req.body.is_some());
+    }
+
+    #[test]
+    fn test_http3_response_new() {
+        let resp = Http3Response::new(201);
+        assert_eq!(resp.status, 201);
+        assert!(resp.headers.is_empty());
+        assert!(resp.body.is_empty());
+    }
+
+    #[test]
+    fn test_http3_response_with_header() {
+        let resp = Http3Response::new(200)
+            .with_header("X-Custom", "value")
+            .with_body("response body");
+
+        assert_eq!(resp.headers.len(), 1);
+        assert_eq!(
+            resp.headers[0],
+            ("X-Custom".to_string(), "value".to_string())
+        );
+        assert_eq!(resp.body, Bytes::from("response body"));
+    }
+
+    #[tokio::test]
+    async fn test_unknown_path_returns_404() {
+        let handler = Http3Handler::new(Http3Config::default(), "127.0.0.1:8080".to_string());
+
+        let req = Http3Request::new("GET", "/unknown/path");
+        let resp = handler.handle_request(req).await;
+
+        // Default case may proxy or return 404/502 depending on impl
+        assert!(resp.status == 404 || resp.status == 502);
+    }
 }

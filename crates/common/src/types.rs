@@ -79,4 +79,52 @@ mod tests {
         let parsed: KeyExchangeType = serde_json::from_str(&json).unwrap();
         assert_eq!(ke, parsed);
     }
+
+    #[test]
+    fn test_security_level_serialization() {
+        let level = SecurityLevel::Confidential;
+        let json = serde_json::to_string(&level).unwrap();
+        let parsed: SecurityLevel = serde_json::from_str(&json).unwrap();
+        assert_eq!(level, parsed);
+    }
+
+    #[test]
+    fn test_all_security_levels() {
+        assert_ne!(SecurityLevel::Standard, SecurityLevel::PostQuantum);
+        assert_ne!(SecurityLevel::PostQuantum, SecurityLevel::Confidential);
+        assert_ne!(SecurityLevel::Standard, SecurityLevel::Confidential);
+    }
+
+    #[test]
+    fn test_attestation_token_creation() {
+        let token = AttestationToken {
+            version: 1,
+            measurement: vec![0xAB; 32],
+            signature: vec![0xCD; 64],
+            claims: Some(serde_json::json!({"key": "value"})),
+        };
+        assert_eq!(token.version, 1);
+        assert_eq!(token.measurement.len(), 32);
+        assert_eq!(token.signature.len(), 64);
+        assert!(token.claims.is_some());
+    }
+
+    #[test]
+    fn test_attestation_token_without_claims() {
+        let token = AttestationToken {
+            version: 2,
+            measurement: vec![0x00; 48],
+            signature: vec![0xFF; 96],
+            claims: None,
+        };
+        assert_eq!(token.version, 2);
+        assert!(token.claims.is_none());
+    }
+
+    #[test]
+    fn test_key_exchange_type_variants() {
+        assert_eq!(KeyExchangeType::X25519, KeyExchangeType::X25519);
+        assert_eq!(KeyExchangeType::MlKem768, KeyExchangeType::MlKem768);
+        assert_eq!(KeyExchangeType::MlKem1024, KeyExchangeType::MlKem1024);
+    }
 }
