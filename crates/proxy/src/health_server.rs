@@ -313,16 +313,17 @@ mod tests {
         tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
 
         // Make a request to prove it's running
-        let client = hyper_util::client::legacy::Client::builder(hyper_util::rt::TokioExecutor::new())
-            .build_http::<http_body_util::Full<bytes::Bytes>>();
-        
+        let client =
+            hyper_util::client::legacy::Client::builder(hyper_util::rt::TokioExecutor::new())
+                .build_http::<http_body_util::Full<bytes::Bytes>>();
+
         let uri = format!("http://{}/health", addr).parse().unwrap();
         let resp = client.get(uri).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
         // Shutdown
         tx.send(()).unwrap();
-        
+
         // Wait for server to finish
         let result = tokio::time::timeout(tokio::time::Duration::from_secs(2), server_handle).await;
         assert!(result.is_ok(), "Server did not shut down in time");

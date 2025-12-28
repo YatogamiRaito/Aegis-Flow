@@ -314,6 +314,9 @@ mod tests {
         let short_ct = vec![0u8; 11]; // Less than nonce size (12)
         let result = cipher.decrypt(&short_ct);
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err().to_string(), "Cryptographic error: Ciphertext too short");
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Cryptographic error: Ciphertext too short"
+        );
     }
 }

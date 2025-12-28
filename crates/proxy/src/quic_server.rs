@@ -414,20 +414,74 @@ mod tests {
     async fn test_quic_server_new() {
         let proxy_config = ProxyConfig::default();
         let server = QuicServer::with_defaults(proxy_config.clone());
-        
+
         let stats = server.stats().await;
         assert_eq!(stats.connections_accepted, 0);
         assert_eq!(stats.active_connections, 0);
     }
-    
+
     #[tokio::test]
     async fn test_check_certificates_fail() {
         // Points to non-existent files by default
         let proxy_config = ProxyConfig::default();
         let server = QuicServer::with_defaults(proxy_config);
-        
+
         // Should fail because default cert paths likely don't exist
         let result = server.check_certificates();
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_quic_server_integration() {
+        // 1. Generate self-signed cert
+        let certified_key =
+            rcgen::generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
+        let key = certified_key.key_pair.serialize_pem();
+        let cert = certified_key.cert.pem();
+
+        // 2. Write to temp directory
+        let temp_dir =
+            std::env::temp_dir().join(format!("aegis-quic-test-{}", rand::random::<u64>()));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+
+        let cert_path = temp_dir.join("server.crt");
+        let key_path = temp_dir.join("server.key");
+
+        std::fs::write(&cert_path, &cert).unwrap();
+        std::fs::write(&key_path, &key).unwrap();
+
+        // 3. Configure server
+        let mut config = QuicConfig::default();
+        config.bind_address = "127.0.0.1:0".to_string(); // Random port
+        config.cert_path = cert_path.to_str().unwrap().to_string();
+        config.key_path = key_path.to_str().unwrap().to_string();
+        config.pqc_enabled = false; // Disable PQC for simple connectivity test
+
+        let proxy_config = ProxyConfig::default();
+        let server = QuicServer::new(config, proxy_config);
+
+        // 4. Run server in background
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let server_task = tokio::spawn(async move {
+            server
+                .run_with_shutdown(async {
+                    rx.await.ok();
+                })
+                .await
+        });
+
+        // Allow server to start
+        tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+
+        // 5. Trigger shutdown
+        tx.send(()).unwrap();
+
+        let result = tokio::time::timeout(tokio::time::Duration::from_secs(2), server_task).await;
+
+        // Cleanup
+        let _ = std::fs::remove_dir_all(temp_dir);
+
+        assert!(result.is_ok(), "Server shutdown timed out");
+        assert!(result.unwrap().unwrap().is_ok(), "Server run failed");
     }
 }

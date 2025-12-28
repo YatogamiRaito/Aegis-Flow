@@ -163,7 +163,7 @@ mod tests {
         let loader = EbpfLoader::new();
         // Just verify basic property access
         let _ = loader.is_mock();
-        
+
         assert!(!loader.is_loaded());
         loader.load().unwrap();
         assert!(loader.is_loaded());

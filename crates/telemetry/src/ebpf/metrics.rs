@@ -251,7 +251,7 @@ mod tests {
         data.network_rx_bytes = 200;
         data.block_read_bytes = 50;
         data.block_write_bytes = 50;
-        
+
         assert_eq!(data.total_network_bytes(), 300);
         assert_eq!(data.total_block_bytes(), 100);
     }
@@ -259,19 +259,21 @@ mod tests {
     #[test]
     fn test_custom_coefficients() {
         let coeffs = EnergyCoefficients {
-            joules_per_cycle: 1.0, 
+            joules_per_cycle: 1.0,
             joules_per_network_byte: 1.0,
             joules_per_block_byte: 1.0,
             joules_per_memory_page: 1.0,
         };
         let metrics = EbpfMetrics::with_coefficients(coeffs);
-        
+
         metrics.start_request("ctx-1");
         metrics.record_cpu_cycles("ctx-1", 10);
         metrics.record_network("ctx-1", 10, 10); // 20 bytes total
-        
-        let report = metrics.finish_request("ctx-1", "/", "GET", Duration::from_secs(1)).unwrap();
-        
+
+        let report = metrics
+            .finish_request("ctx-1", "/", "GET", Duration::from_secs(1))
+            .unwrap();
+
         // 10 cycles * 1.0 = 10J
         // 20 bytes * 1.0 = 20J
         // Total = 30J (ignoring others)
