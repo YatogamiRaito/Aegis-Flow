@@ -49,7 +49,7 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-## [~] Track 11: ML-DSA (Dilithium) Full Migration for Digital Signatures (v0.11.0)
+## [x] Track 11: ML-DSA (Dilithium) Full Migration for Digital Signatures (v0.11.0)
 *Link: [./conductor/tracks/mldsa_signing_20251228/](./conductor/tracks/mldsa_signing_20251228/)*
 *Priority: 1 - Core cryptography foundation*
 

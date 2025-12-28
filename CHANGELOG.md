@@ -5,6 +5,29 @@ All notable changes to Aegis-Flow will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2025-12-28
+
+### Added
+- **ML-DSA Digital Signatures (Track 11)**
+  - New `signing.rs` module with NIST FIPS 204 compliant signatures
+  - `SigningKeyPair` trait for generic signing operations
+  - `MlDsa44Signer`, `MlDsa65Signer`, `MlDsa87Signer` implementations
+  - `MlDsaVerifier` for public-key only verification
+  - `HybridSigner` combining ML-DSA-65 + Ed25519 for:
+    - Quantum resistance via ML-DSA
+    - Backwards compatibility via Ed25519
+  - `HybridVerifier` for standalone hybrid verification
+  - Serialization support for signatures and public keys
+  - ML-DSA signing benchmark (`mldsa_signing.rs`)
+- **Ed25519 Support**
+  - Added `ed25519-dalek` dependency for classical signing
+
+### Fixed
+- **Docker**: Fixed invalid `rust:nightly-slim-bookworm` image tag to `rust:bookworm`
+
+### Changed
+- Workspace version bumped to 0.11.0
+
 ## [0.10.0] - 2025-12-26
 
 ### Added
