@@ -58,24 +58,18 @@ pub async fn bootstrap() -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    // use super::*; // hidden to avoid unused warning if not used yet, but we will use it now.
+    use super::*;
+    use crate::{LifecycleManager, ProxyConfig};
+    use std::sync::Arc;
 
     #[tokio::test]
     async fn test_bootstrap_components() {
-        // We can't easily run the full bootstrap() because it starts a server loop.
-        // But we can verify that the dependent initialization functions work.
-
-        // 1. Tracing init (should be idempotent due to try_init usage in bootstrap,
-        // but here we just check we can call registry)
+        // 1. Tracing init (should be idempotent due to try_init usage)
         let _subscriber = tracing_subscriber::registry();
-        assert!(std::thread::current().name().is_some()); // Just ensuring thread context exists
 
-        // 2. Metrics init
-        // We verify that calling init_metrics multiple times doesn't panic
+        // 2. Metrics init - verify idempotency
         let _handle1 = crate::metrics::init_metrics();
         let _handle2 = crate::metrics::init_metrics();
-        // Handles might be different clones, but underlying recorder should be set.
-        // This confirms idempotency safety in our metrics.rs implementation (if we add it).
 
         // 3. Verify version constant is available
         let version = env!("CARGO_PKG_VERSION");
@@ -85,7 +79,49 @@ mod tests {
     #[test]
     fn test_bootstrap_metadata() {
         let version = env!("CARGO_PKG_VERSION");
-        println!("Testing version: {}", version);
         assert!(!version.is_empty());
+    }
+
+    #[test]
+    fn test_proxy_config_defaults() {
+        let config = ProxyConfig::default();
+        assert!(!config.host.is_empty());
+        assert!(config.port > 0);
+    }
+
+    #[test]
+    fn test_lifecycle_manager_creation() {
+        let lifecycle = Arc::new(LifecycleManager::new());
+        assert_eq!(lifecycle.active_connections(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_lifecycle_ready_state() {
+        let lifecycle = Arc::new(LifecycleManager::new());
+        lifecycle.mark_ready().await;
+        assert!(lifecycle.health_status().await.is_ready());
+    }
+
+    #[test]
+    fn test_pqc_config_enabled() {
+        let config = ProxyConfig::default();
+        // Default should have PQC enabled
+        assert!(config.pqc_enabled);
+    }
+
+    #[test]
+    fn test_health_config_clone() {
+        let config = ProxyConfig::default();
+        let health_config = config.health.clone();
+        assert!(health_config.port > 0);
+    }
+
+    #[tokio::test]
+    async fn test_pqc_server_creation() {
+        let config = ProxyConfig::default();
+        if config.pqc_enabled {
+            let _server = PqcProxyServer::new(config);
+            // Just verify creation doesn't panic
+        }
     }
 }

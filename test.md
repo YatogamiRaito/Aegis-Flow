@@ -8,7 +8,7 @@
 
 ## 🎯 Coverage Durumu
 
-### ✅ 100% Coverage (Tam Kapsama)
+### ✅ 100% Coverage (Tam Kapsama) - 15 Dosya
 | Dosya | Satır |
 |-------|-------|
 | `crypto/cipher.rs` | 65/65 ✅ |
@@ -27,92 +27,64 @@
 | `telemetry/prometheus.rs` | 27/27 ✅ |
 | `telemetry/ebpf/mod.rs` | 2/2 ✅ |
 
-### � Yüksek Kapsama (>90%)
+### 🟢 Yüksek Kapsama (>90%) - 9 Dosya
 | Dosya | Satır | Eksik | Coverage |
 |-------|-------|-------|----------|
 | `crypto/tls.rs` | 52/53 | 1 | 98.1% |
-| `crypto/attestation.rs` | 208/217 | 9 | 95.9% |
 | `proxy/http3_handler.rs` | 59/61 | 2 | 96.7% |
+| `telemetry/estimator.rs` | 58/60 | 2 | 96.7% |
+| `telemetry/ebpf/metrics.rs` | 59/62 | 3 | 95.2% |
+| `crypto/attestation.rs` | 208/217 | 9 | 95.9% |
 | `proxy/config.rs` | 154/162 | 8 | 95.1% |
-| `genomics/vcf_parser.rs` | 49/52 | 3 | 94.2% |
-| `genomics/bam_parser.rs` | 86/92 | 6 | 93.5% |
 | `proxy/discovery.rs` | 67/70 | 3 | 95.7% |
+| `genomics/vcf_parser.rs` | 49/52 | 3 | 94.2% |
 | `proxy/metrics.rs` | 55/59 | 4 | 93.2% |
-| `crypto/certmanager.rs` | 129/138 | 9 | 93.5% |
 
-### 🟠 Orta Kapsama (70-90%)
+### � Orta Kapsama (70-90%) - 11 Dosya
 | Dosya | Satır | Eksik | Coverage |
 |-------|-------|-------|----------|
+| `genomics/bam_parser.rs` | 86/92 | 6 | 93.5% |
+| `crypto/certmanager.rs` | 129/138 | 9 | 93.5% |
 | `crypto/stream.rs` | 99/111 | 12 | 89.2% |
-| `proxy/lifecycle.rs` | 88/102 | 14 | 86.3% |
-| `proxy/carbon_router.rs` | 73/86 | 13 | 84.9% |
+| `telemetry/ebpf/loader.rs` | 20/23 | 3 | 87.0% |
 | `proxy/dual_stack_server.rs` | 56/64 | 8 | 87.5% |
+| `proxy/lifecycle.rs` | 88/102 | 14 | 86.3% |
 | `proxy/green_wait.rs` | 108/125 | 17 | 86.4% |
+| `proxy/carbon_router.rs` | 73/86 | 13 | 84.9% |
 | `crypto/signing.rs` | 246/296 | 50 | 83.1% |
 | `crypto/mtls.rs` | 109/135 | 26 | 80.7% |
 | `proxy/health_server.rs` | 53/67 | 14 | 79.1% |
 
-### 🔴 Düşük Kapsama (<70%)
+### 🔴 Düşük Kapsama (<70%) - 6 Dosya
 | Dosya | Satır | Eksik | Coverage |
 |-------|-------|-------|----------|
 | `proxy/server.rs` | 19/29 | 10 | 65.5% |
 | `proxy/quic_server.rs` | 70/110 | 40 | 63.6% |
 | `proxy/pqc_server.rs` | 45/77 | 32 | 58.4% |
+| `energy/client.rs` | 46/52 | 6 | 88.5% |
 | `proxy/http_proxy.rs` | 31/73 | 42 | 42.5% |
-| `telemetry/ebpf/loader.rs` | 20/23 | 3 | 87.0% |
-| `telemetry/ebpf/metrics.rs` | 59/62 | 3 | 95.2% |
-| `telemetry/estimator.rs` | 58/60 | 2 | 96.7% |
 | **`proxy/bootstrap.rs`** | **0/25** | **25** | **0%** ❌ |
 
 ---
 
-## 🎯 Öncelikli Hedefler
+## 📈 Özet
 
-### 1. Kritik: `proxy/bootstrap.rs` (0% → 100%)
-- 25 satır hiç test edilmemiş
-- Bootstrap fonksiyonu test edilmeli
-
-### 2. Yüksek: `proxy/http_proxy.rs` (42.5% → 80%+)
-- 42 satır eksik
-- Request handling testleri gerekli
-
-### 3. Yüksek: `proxy/pqc_server.rs` (58.4% → 80%+)
-- 32 satır eksik
-- Handshake error paths
-
-### 4. Orta: `proxy/quic_server.rs` (63.6% → 80%+)
-- 40 satır eksik
-- Stream processing testleri
-
-### 5. Orta: `crypto/signing.rs` (83.1% → 95%+)
-- 50 satır eksik
-- HybridVerifier ve edge cases
-
-### 6. Orta: `crypto/mtls.rs` (80.7% → 95%+)
-- 26 satır eksik
-- mTLS handshake error paths
+- **Toplam Dosya:** 41  
+- **100% Coverage:** 15 dosya  
+- **>90% Coverage:** 24 dosya  
+- **<70% Coverage:** 6 dosya
 
 ---
 
-## 📈 Hedef Coverage
+## 🔧 100% Yapılabilecek Dosyalar
 
-| Seviye | Hedef |
-|--------|-------|
-| Mevcut | 88.42% |
-| Kısa Vadeli | 92%+ |
-| Orta Vadeli | 95%+ |
-| Uzun Vadeli | 98%+ |
-
----
-
-## 🔧 Sonraki Adımlar
-
-1. **`bootstrap.rs`** - Temel testler ekle (0% → 50%+)
-2. **`http_proxy.rs`** - Request handling testleri (42% → 70%+)
-3. **`pqc_server.rs`** - Error path testleri (58% → 80%+)
-4. **`quic_server.rs`** - Stream testleri (64% → 80%+)
-5. **`signing.rs`** - HybridVerifier testleri (83% → 95%+)
+1. **`crypto/tls.rs`** (1 satır eksik) - En kolay
+2. **`proxy/http3_handler.rs`** (2 satır eksik)
+3. **`telemetry/estimator.rs`** (2 satır eksik)
+4. **`telemetry/ebpf/metrics.rs`** (3 satır eksik)
+5. **`telemetry/ebpf/loader.rs`** (3 satır eksik)
+6. **`proxy/discovery.rs`** (3 satır eksik)
 
 ---
 
-*Son Güncelleme: 29 Aralık 2025, 00:01 UTC+3*
+*Son Güncelleme: 29 Aralık 2025, 00:15 UTC+3*

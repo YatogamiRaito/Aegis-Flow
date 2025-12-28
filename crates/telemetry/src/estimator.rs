@@ -400,4 +400,14 @@ mod tests {
         let expected_total = avg * 100.0;
         assert!((total - expected_total).abs() < 1e-10);
     }
+
+    #[test]
+    fn test_measure_with_bytes_zero() {
+        let estimator = EnergyEstimator::new();
+
+        let (_, metrics) = estimator.measure_with_bytes("/test", "GET", 0, || ());
+
+        assert_eq!(metrics.bytes_transferred, 0);
+        assert!(metrics.total_joules() > 0.0); // Still has CPU energy
+    }
 }

@@ -465,4 +465,18 @@ mod tests {
         let debug = format!("{:?}", config);
         assert!(debug.contains("PqcTlsConfig"));
     }
+
+    #[test]
+    #[allow(deprecated)]
+    fn test_deprecated_algorithms() {
+        // Test deprecated algorithm variants are still constructible
+        let _k768 = PqcAlgorithm::Kyber768Only;
+        let _hk768 = PqcAlgorithm::HybridKyber768;
+        let _hk1024 = PqcAlgorithm::HybridKyber1024;
+
+        // Test debug formatting for deprecated variants
+        assert!(format!("{:?}", _k768).contains("Kyber768Only"));
+        assert!(format!("{:?}", _hk768).contains("HybridKyber768"));
+        assert!(format!("{:?}", _hk1024).contains("HybridKyber1024"));
+    }
 }
