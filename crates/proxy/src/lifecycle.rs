@@ -634,4 +634,49 @@ mod tests {
         assert!(response.ready);
         assert!(response.alive);
     }
+
+    #[tokio::test]
+    async fn test_lifecycle_manager_creation() {
+        let manager = LifecycleManager::new();
+        let status = manager.health_status().await;
+        assert_eq!(status, HealthStatus::Starting);
+    }
+
+    #[tokio::test]
+    async fn test_lifecycle_manager_mark_ready() {
+        let manager = LifecycleManager::new();
+        manager.mark_ready().await;
+        let status = manager.health_status().await;
+        assert_eq!(status, HealthStatus::Healthy);
+    }
+
+    #[tokio::test]
+    async fn test_lifecycle_manager_shutdown_receiver() {
+        let manager = LifecycleManager::new();
+        let _shutdown_rx = manager.shutdown_receiver();
+
+        // Just verify we can create the receiver
+        // Actual shutdown behavior tested in integration tests
+    }
+
+    #[tokio::test]
+    async fn test_lifecycle_connection_tracking() {
+        let manager = LifecycleManager::new();
+        manager.mark_ready().await;
+
+        // Track connections
+        manager.connection_started();
+        manager.connection_started();
+        assert_eq!(manager.active_connections(), 2);
+
+        manager.connection_finished();
+        assert_eq!(manager.active_connections(), 1);
+    }
+
+    #[test]
+    fn test_health_status_equality() {
+        assert_eq!(HealthStatus::Healthy, HealthStatus::Healthy);
+        assert_ne!(HealthStatus::Healthy, HealthStatus::Starting);
+        assert_ne!(HealthStatus::Starting, HealthStatus::Draining);
+    }
 }
