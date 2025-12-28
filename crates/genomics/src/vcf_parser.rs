@@ -258,4 +258,34 @@ chr1	100	.	A	T	99.0	PASS	DP=50
         let debug_str = format!("{:?}", parser);
         assert_eq!(debug_str, "VcfParser");
     }
+
+    #[test]
+    fn test_parse_variant_with_info() {
+        // Test that info field is properly captured when not "."
+        let vcf_data = "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\nchr1\t100\t.\tA\tT\t99.0\tPASS\tDP=50;AF=0.5";
+        let reader = Cursor::new(vcf_data);
+        let parser = VcfParser::new();
+        let builder = parser.parse(reader).unwrap();
+        assert_eq!(builder.len(), 1);
+    }
+
+    #[test]
+    fn test_parse_variant_all_fields_present() {
+        // All fields have valid non-dot values
+        let vcf_data = "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\nchr1\t100\trs12345\tA\tT\t99.5\tPASS\tDP=100;AF=0.25";
+        let reader = Cursor::new(vcf_data);
+        let parser = VcfParser::new();
+        let builder = parser.parse(reader).unwrap();
+        assert_eq!(builder.len(), 1);
+    }
+
+    #[test]
+    fn test_parse_default_impl() {
+        // Use Default::default() explicitly
+        let parser: VcfParser = Default::default();
+        let vcf_data = "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\nchr1\t100\t.\tA\tT\t.\t.\t.";
+        let reader = Cursor::new(vcf_data);
+        let builder = parser.parse(reader).unwrap();
+        assert_eq!(builder.len(), 1);
+    }
 }

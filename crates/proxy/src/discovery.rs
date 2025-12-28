@@ -742,4 +742,34 @@ mod tests {
         assert_eq!(s1, s3);
         assert!(format!("{:?}", s1).contains("LeastConnections"));
     }
+
+    #[tokio::test]
+    async fn test_mark_failed_nonexistent_endpoint() {
+        // Test marking a non-existent endpoint address in an existing service
+        let registry = ServiceRegistry::new(LoadBalanceStrategy::RoundRobin);
+        let ep1: SocketAddr = "127.0.0.1:8080".parse().unwrap();
+        let ep2: SocketAddr = "127.0.0.1:9999".parse().unwrap(); // Not registered
+
+        registry.register("test-svc", vec![ep1]).await;
+        // Should not panic when marking unknown endpoint
+        registry.mark_failed("test-svc", ep2).await;
+        registry.mark_healthy("test-svc", ep2).await;
+
+        // Original endpoint should still work
+        assert_eq!(registry.get_endpoint("test-svc").await.unwrap(), ep1);
+    }
+
+    #[tokio::test]
+    async fn test_weighted_round_robin_single_endpoint() {
+        // Edge case: single endpoint weighted selection
+        let registry = ServiceRegistry::new(LoadBalanceStrategy::WeightedRoundRobin);
+        let ep: SocketAddr = "127.0.0.1:8080".parse().unwrap();
+
+        registry.register("single", vec![ep]).await;
+
+        // Should always return the single endpoint
+        for _ in 0..5 {
+            assert_eq!(registry.get_endpoint("single").await.unwrap(), ep);
+        }
+    }
 }

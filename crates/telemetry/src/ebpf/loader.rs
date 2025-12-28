@@ -195,4 +195,43 @@ mod tests {
         let mock_after = loader.is_mock();
         assert_eq!(mock_before, mock_after);
     }
+
+    #[test]
+    fn test_unload_without_load() {
+        // Unloading without loading should be safe (no-op)
+        let loader = EbpfLoader::new();
+        assert!(!loader.is_loaded());
+        let result = loader.unload();
+        assert!(result.is_ok());
+        assert!(!loader.is_loaded());
+    }
+
+    #[test]
+    fn test_loader_full_cycle() {
+        let loader = EbpfLoader::new();
+
+        // Initial state
+        assert!(!loader.is_loaded());
+
+        // Load
+        loader.load().unwrap();
+        assert!(loader.is_loaded());
+
+        // Unload
+        loader.unload().unwrap();
+        assert!(!loader.is_loaded());
+
+        // Load again
+        loader.load().unwrap();
+        assert!(loader.is_loaded());
+    }
+
+    #[test]
+    fn test_shared_loader_operations() {
+        let shared: SharedEbpfLoader = Arc::new(EbpfLoader::new());
+        let clone = Arc::clone(&shared);
+
+        shared.load().unwrap();
+        assert!(clone.is_loaded());
+    }
 }

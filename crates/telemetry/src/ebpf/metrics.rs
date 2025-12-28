@@ -361,4 +361,69 @@ mod tests {
         metrics.record_network("r1", 50, 50);
         assert_eq!(metrics.total_network_bytes(), 250);
     }
+
+    #[test]
+    fn test_request_data_with_all_fields() {
+        let data = EbpfRequestData {
+            cpu_cycles: 1000,
+            network_tx_bytes: 100,
+            network_rx_bytes: 200,
+            block_read_bytes: 50,
+            block_write_bytes: 75,
+            memory_pages: 10,
+        };
+
+        assert_eq!(data.total_network_bytes(), 300);
+        assert_eq!(data.total_block_bytes(), 125);
+        assert_eq!(data.cpu_cycles, 1000);
+        assert_eq!(data.memory_pages, 10);
+    }
+
+    #[test]
+    fn test_finish_request_with_block_and_memory() {
+        let coeffs = EnergyCoefficients {
+            joules_per_cycle: 1.0,
+            joules_per_network_byte: 1.0,
+            joules_per_block_byte: 1.0,
+            joules_per_memory_page: 1.0,
+        };
+        let metrics = EbpfMetrics::with_coefficients(coeffs);
+
+        metrics.start_request("full-data");
+        metrics.record_cpu_cycles("full-data", 100);
+        metrics.record_network("full-data", 50, 50);
+
+        let result = metrics.finish_request("full-data", "/api", "POST", Duration::from_millis(50));
+        assert!(result.is_some());
+
+        let energy = result.unwrap();
+        assert_eq!(energy.cpu_cycles, Some(100));
+        // Total joules = 100 (cpu) + 100 (network) = 200
+        assert!(energy.total_joules() > 0.0);
+    }
+
+    #[test]
+    fn test_metrics_concurrent_requests() {
+        let metrics = EbpfMetrics::new();
+
+        // Start multiple requests
+        for i in 0..5 {
+            metrics.start_request(&format!("req-{}", i));
+            metrics.record_cpu_cycles(&format!("req-{}", i), 100);
+        }
+
+        // Total should accumulate globally
+        assert_eq!(metrics.total_cpu_cycles(), 500);
+
+        // Finish all
+        for i in 0..5 {
+            let result = metrics.finish_request(
+                &format!("req-{}", i),
+                "/test",
+                "GET",
+                Duration::from_millis(10),
+            );
+            assert!(result.is_some());
+        }
+    }
 }

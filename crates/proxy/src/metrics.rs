@@ -331,12 +331,47 @@ mod tests {
         // This means it WILL panic if global recorder is set.
         // Real-world usage: We only call main() once.
         // Test usage: Tests run in parallel.
-        // If we want to test re-init safety we should wrap that logic or assume the test runner handles isolation (it does not for globals).
-        // Let's modify init_metrics to use try_install_recorder or check if recorder is set.
+        // If we want to test re-init safety we should wrap that logic or check if recorder is set.
         // OR we just assert that get_metrics_handle returns something.
 
         // Actually, let's just checking handles are not null if initialized.
         let _ = h1;
         let _ = h2;
+    }
+
+    #[test]
+    fn test_record_handshake_success_path() {
+        // Ensure success=true path is covered
+        record_handshake("ML-KEM-768", 0.1, true);
+    }
+
+    #[test]
+    fn test_record_handshake_failure_path() {
+        // Ensure success=false path is covered (no histogram record)
+        record_handshake("ML-KEM-768", 0.1, false);
+    }
+
+    #[test]
+    fn test_carbon_intensity_different_regions() {
+        update_carbon_intensity("us-west-2", 350.0);
+        update_carbon_intensity("eu-west-1", 250.0);
+        update_carbon_intensity("ap-southeast-1", 450.0);
+    }
+
+    #[test]
+    fn test_record_energy_impact_precision() {
+        // Test with fractional values
+        record_energy_impact(0.5, 0.02, "test-region");
+        record_energy_impact(1000.99, 400.55, "high-carbon-region");
+    }
+
+    #[test]
+    fn test_update_deferred_jobs_zero() {
+        update_deferred_jobs(0);
+    }
+
+    #[test]
+    fn test_update_deferred_jobs_large() {
+        update_deferred_jobs(10000);
     }
 }
