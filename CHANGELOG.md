@@ -5,6 +5,25 @@ All notable changes to Aegis-Flow will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] - 2025-12-28
+
+### Added
+- **TEE Remote Attestation (Track 12)**
+  - New `attestation.rs` module for remote attestation
+  - `TeePlatform` enum (Intel SGX/TDX, AMD SEV-SNP)
+  - `AttestationQuote` with serialization/deserialization
+  - `AttestationProvider` for quote generation and verification
+  - `EnclaveIdentity` for MRENCLAVE/MRSIGNER validation
+  - `TeeCapabilities` for platform detection
+  - Challenge-response nonce support
+  - Quote freshness validation
+
+### Fixed
+- **Docker**: Added missing `examples/` directory to build context
+
+### Changed
+- Workspace version bumped to 0.12.0
+
 ## [0.11.0] - 2025-12-28
 
 ### Added

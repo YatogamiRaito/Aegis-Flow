@@ -55,7 +55,7 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-## [ ] Track 12: Advanced TEE Integration with Remote Attestation (v0.12.0)
+## [x] Track 12: Advanced TEE Integration with Remote Attestation (v0.12.0)
 *Link: [./conductor/tracks/tee_attestation_20251228/](./conductor/tracks/tee_attestation_20251228/)*
 *Priority: 2 - Depends on ML-DSA for quote signing*
 

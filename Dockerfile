@@ -17,6 +17,7 @@ RUN apt-get update && apt-get install -y \
 # Copy source code
 COPY Cargo.toml Cargo.lock ./
 COPY crates/ crates/
+COPY examples/ examples/
 
 # Build release binary
 RUN cargo build --release --workspace
