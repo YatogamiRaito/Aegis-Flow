@@ -266,4 +266,28 @@ mod tests {
         let header = BamHeader::from_sam_text(header_text).unwrap();
         assert_eq!(header.references.len(), 0);
     }
+
+    #[test]
+    fn test_parse_header_unknown_attributes() {
+        // Just test the internal logic by feeding text directly (since BamParser::parse_header creates magic+size logic)
+        // We can simulate the text parsing part via from_sam_text which uses the same internal helpers
+
+        let text = "@HD\tVN:1.6\tSO:coordinate\t\n\
+                    @SQ\tSN:chr1\tLN:1000\tX1:unknown\n\
+                    @RG\tID:rg1\tX2:unknown\n";
+
+        let header = BamHeader::from_sam_text(text).unwrap();
+
+        assert_eq!(header.version, Some("1.6".to_string()));
+        assert_eq!(header.references.len(), 1);
+        assert_eq!(
+            header.references[0]
+                .attributes
+                .get("X1")
+                .map(|s| s.as_str()),
+            Some("unknown")
+        );
+
+        assert_eq!(header.read_groups.len(), 1);
+    }
 }

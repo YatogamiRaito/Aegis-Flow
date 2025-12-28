@@ -468,4 +468,39 @@ mod tests {
         let err = reader.read_to_end(&mut buf).await.unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::UnexpectedEof);
     }
+
+    #[tokio::test]
+    async fn test_frame_too_large() {
+        let key = [0x88u8; 32];
+        let mut network_buffer = Vec::new();
+
+        // Write invalid length (too large)
+        // MAX_FRAME_SIZE (1MB) + 100
+        let too_large_len = 1_000_000 + 100 + 100; // Large enough
+        network_buffer.extend_from_slice(&(too_large_len as u32).to_be_bytes());
+        network_buffer.extend_from_slice(&[0u8; 10]); // some junk
+
+        let cursor = std::io::Cursor::new(network_buffer);
+        let mut reader = EncryptedStream::new(cursor, &key);
+
+        let mut buf = [0u8; 32];
+        let err = reader.read(&mut buf).await.unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+        assert!(err.to_string().contains("Frame too large"));
+    }
+
+    #[tokio::test]
+    async fn test_partial_frame_header() {
+        let key = [0x99u8; 32];
+        // Only write 2 bytes of the length prefix
+        let network_buffer = vec![0x00, 0x00];
+
+        let cursor = std::io::Cursor::new(network_buffer);
+        let mut reader = EncryptedStream::new(cursor, &key);
+
+        let mut buf = [0u8; 32];
+        let err = reader.read(&mut buf).await.unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::UnexpectedEof);
+        assert!(err.to_string().contains("Partial frame length"));
+    }
 }

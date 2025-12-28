@@ -286,4 +286,37 @@ mod tests {
 
         assert_eq!(decrypted, plaintext);
     }
+
+    #[test]
+    fn test_cipher_debug_and_accessors() {
+        let key = EncryptionKey::from_raw([0x42; 32], CipherAlgorithm::Aes256Gcm);
+        let cipher = Cipher::new(key.clone());
+
+        // Test debug
+        let debug_str = format!("{:?}", cipher);
+        assert!(debug_str.contains("Cipher"));
+        assert!(debug_str.contains("Aes256Gcm"));
+
+        let key_debug = format!("{:?}", key);
+        assert!(key_debug.contains("REDACTED"));
+
+        // Test accessors
+        assert_eq!(key.algorithm(), CipherAlgorithm::Aes256Gcm);
+        assert_eq!(key.as_bytes(), &[0x42; 32]);
+        assert_eq!(cipher.key().algorithm(), CipherAlgorithm::Aes256Gcm);
+    }
+
+    #[test]
+    fn test_decrypt_too_short() {
+        let key = EncryptionKey::from_raw([0x42; 32], CipherAlgorithm::Aes256Gcm);
+        let cipher = Cipher::new(key);
+
+        let short_ct = vec![0u8; 11]; // Less than nonce size (12)
+        let result = cipher.decrypt(&short_ct);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Crypto error: Ciphertext too short"
+        );
+    }
 }
