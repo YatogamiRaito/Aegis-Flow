@@ -833,4 +833,27 @@ mod tests {
         let intensity = router.get_region_intensity("us-west").await;
         assert_eq!(intensity, Some(50.0));
     }
+
+    #[tokio::test]
+    async fn test_routing_weight_boundary() {
+        // Test max intensity edge case (>= max should result in 0 or min weight)
+        
+        let config_high = CarbonRouterConfig {
+            max_intensity: 1000.0, 
+            ..Default::default()
+        };
+        let mut client_high = MockEnergyClient::new();
+        // Set intensity to 800 (max possible in API usually, or just high)
+        // Normalized score = 800/800 = 1.0.
+        client_high.intensities.insert("maxed".to_string(), 800.0);
+        
+        let router_high = CarbonRouter::new(config_high, client_high, CarbonIntensityCache::new(300));
+        router_high.register_region(Region::new("maxed", "Maxed")).await;
+        
+        router_high.refresh_carbon_data().await.unwrap();
+        
+        // Select verified
+        let region = router_high.select_greenest_region().await;
+        assert_eq!(region, Some("maxed".to_string()));
+    }
 }

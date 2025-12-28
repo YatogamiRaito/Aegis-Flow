@@ -410,4 +410,13 @@ mod tests {
         assert_eq!(metrics.bytes_transferred, 0);
         assert!(metrics.total_joules() > 0.0); // Still has CPU energy
     }
+
+    #[test]
+    fn test_energy_model_fields_read() {
+        let model = EnergyModel::default();
+        // Read fields that might be unused in logic but are part of public API
+        assert!(model.joules_per_storage_byte > 0.0);
+        assert!(model.base_overhead_joules > 0.0);
+        assert!(model.joules_per_network_byte > 0.0);
+    }
 }

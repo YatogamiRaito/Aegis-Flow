@@ -547,4 +547,16 @@ mod tests {
         let body_str = std::str::from_utf8(&resp.body).unwrap();
         assert!(body_str.contains("healthy"));
     }
+
+    #[test]
+    fn test_debug_impls() {
+        let req = Http3Request::new("GET", "/");
+        assert!(format!("{:?}", req).contains("Http3Request"));
+
+        let resp = Http3Response::new(200);
+        assert!(format!("{:?}", resp).contains("Http3Response"));
+
+        let config = Http3Config::default();
+        assert!(format!("{:?}", config).contains("Http3Config"));
+    }
 }

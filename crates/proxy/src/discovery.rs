@@ -137,6 +137,9 @@ impl ServiceRegistry {
             LoadBalanceStrategy::WeightedRoundRobin => {
                 // Use weights for selection
                 let total_weight: u32 = healthy.iter().map(|e| e.weight).sum();
+                if total_weight == 0 {
+                    return Some(healthy[0].addr);
+                }
 
                 use rand::Rng;
                 let mut target = rand::thread_rng().gen_range(0..total_weight);
@@ -771,5 +774,24 @@ mod tests {
         for _ in 0..5 {
             assert_eq!(registry.get_endpoint("single").await.unwrap(), ep);
         }
+    }
+    #[tokio::test]
+    async fn test_weighted_round_robin_zero_total_weight_internal() {
+        let registry = ServiceRegistry::new(LoadBalanceStrategy::WeightedRoundRobin);
+        let ep1: SocketAddr = "127.0.0.1:8080".parse().unwrap();
+        registry.register("internal-zero", vec![ep1]).await;
+
+        // Manually force weight to 0 while keeping healthy
+        {
+            let mut services = registry.services.write().await;
+            if let Some(eps) = services.get_mut("internal-zero") {
+                eps[0].weight = 0;
+                // healthy is already true
+            }
+        }
+
+        // Should return the endpoint via fallback or zero-check
+        let result = registry.get_endpoint("internal-zero").await;
+        assert_eq!(result, Some(ep1));
     }
 }

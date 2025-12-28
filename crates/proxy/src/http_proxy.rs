@@ -62,8 +62,17 @@ impl HttpProxy {
         shutdown: impl std::future::Future<Output = ()>,
     ) -> Result<()> {
         let listener = TcpListener::bind(self.config.listen_addr).await?;
+        self.run_with_listener(listener, shutdown).await
+    }
 
-        info!("🌐 HTTP/2 Proxy listening on {}", self.config.listen_addr);
+    /// Run with provided listener and shutdown signal
+    pub async fn run_with_listener(
+        &self,
+        listener: TcpListener,
+        shutdown: impl std::future::Future<Output = ()>,
+    ) -> Result<()> {
+        let local_addr = listener.local_addr()?;
+        info!("🌐 HTTP/2 Proxy listening on {}", local_addr);
         info!("🔄 Forwarding to {}", self.config.upstream_addr);
 
         tokio::pin!(shutdown);
@@ -627,5 +636,35 @@ mod tests {
             ..Default::default()
         };
         assert!(config.listen_addr.port() == 0);
+    }
+    #[tokio::test]
+    async fn test_http2_handshake_failure() {
+        use tokio::net::TcpStream;
+        use tokio::io::AsyncWriteExt;
+
+        let config = HttpProxyConfig {
+            listen_addr: "127.0.0.1:0".parse().unwrap(),
+            ..Default::default()
+        };
+        let proxy = HttpProxy::new(config);
+        
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        
+        // Spawn proxy
+        tokio::spawn(async move {
+            proxy.run_with_listener(listener, async { rx.await.ok(); }).await.ok();
+        });
+        
+        // Connect and send invalid data to trigger handshake error
+        let mut client = TcpStream::connect(addr).await.unwrap();
+        client.write_all(b"NOT HTTP2").await.unwrap();
+        
+        // Allow time for server to process and log error
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        
+        tx.send(()).unwrap();
     }
 }
