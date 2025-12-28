@@ -1048,7 +1048,7 @@ upstream_addr: "test:8080"
         assert!(config.pqc_enabled);
         assert_eq!(config.worker_threads, 0);
         assert_eq!(config.upstream_addr, "127.0.0.1:8080");
-        
+
         // Check sub-struct defaults
         assert!(config.tls.enabled);
         assert_eq!(config.tls.cert_path, "/etc/aegis/certs/server.crt");
@@ -1063,12 +1063,12 @@ upstream_addr: "test:8080"
         config.host = "10.0.0.1".to_string();
         config.port = 80;
         config.pqc_enabled = false;
-        
+
         assert_eq!(config.host, "10.0.0.1");
         assert_eq!(config.port, 80);
         assert!(!config.pqc_enabled);
     }
-    
+
     #[test]
     fn test_log_config_from_defaults() {
         let log = LogConfig {

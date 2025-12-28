@@ -589,23 +589,30 @@ mod tests {
     async fn test_handle_request_exhaustive_methods() {
         use http_body_util::Empty;
         let methods = [
-            Method::GET, Method::POST, Method::PUT, Method::DELETE, 
-            Method::HEAD, Method::OPTIONS, Method::CONNECT, Method::PATCH, Method::TRACE
+            Method::GET,
+            Method::POST,
+            Method::PUT,
+            Method::DELETE,
+            Method::HEAD,
+            Method::OPTIONS,
+            Method::CONNECT,
+            Method::PATCH,
+            Method::TRACE,
         ];
-        
+
         for method in methods {
             let req = Request::builder()
                 .method(method.clone())
                 .uri("/api/test")
                 .body(Empty::<Bytes>::new())
                 .unwrap();
-                
+
             let resp = handle_request(req, "upstream").await.unwrap();
-            
+
             // CONNECT usually handled differently, but here it likely goes to default
             if method == Method::CONNECT {
                 // Should still get a response handled by default branch
-                assert!(resp.status().is_success()); 
+                assert!(resp.status().is_success());
             } else {
                 assert!(resp.status().is_success());
             }
