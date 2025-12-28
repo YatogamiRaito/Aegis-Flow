@@ -423,4 +423,41 @@ mod tests {
         assert!(debug_str.contains("advertise_h3"));
         assert!(debug_str.contains("quic_port"));
     }
+
+    #[test]
+    fn test_dual_stack_alt_svc_header_enabled() {
+        let config = DualStackConfig {
+            advertise_h3: true,
+            quic_port: 443,
+            ..Default::default()
+        };
+
+        let header = config.alt_svc_header();
+        assert!(header.contains("h3"));
+        assert!(header.contains(":443"));
+        assert!(header.contains("ma=86400"));
+    }
+
+    #[test]
+    fn test_dual_stack_alt_svc_header_disabled() {
+        let config = DualStackConfig {
+            advertise_h3: false,
+            ..Default::default()
+        };
+
+        let header = config.alt_svc_header();
+        assert!(header.is_empty());
+    }
+
+    #[test]
+    fn test_dual_stack_alt_svc_custom_port() {
+        let config = DualStackConfig {
+            advertise_h3: true,
+            quic_port: 8443,
+            ..Default::default()
+        };
+
+        let header = config.alt_svc_header();
+        assert!(header.contains(":8443"));
+    }
 }
