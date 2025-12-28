@@ -197,4 +197,26 @@ mod tests {
         let batch = builder.build().unwrap();
         assert_eq!(batch.num_rows(), 0);
     }
+
+    #[test]
+    fn test_with_filter() {
+        let record = VariantRecord::new("chr1", 100, "A", "T").with_filter("PASS");
+        assert_eq!(record.filter, Some("PASS".to_string()));
+    }
+
+    #[test]
+    fn test_builder_clear() {
+        let mut builder = VariantBatchBuilder::new();
+        builder.push(VariantRecord::new("chr1", 100, "A", "T"));
+        assert_eq!(builder.len(), 1);
+
+        builder.clear();
+        assert!(builder.is_empty());
+    }
+
+    #[test]
+    fn test_builder_with_capacity() {
+        let builder = VariantBatchBuilder::with_capacity(10);
+        assert!(builder.is_empty());
+    }
 }

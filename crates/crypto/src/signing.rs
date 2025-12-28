@@ -981,4 +981,56 @@ mod tests {
         assert_eq!(recovered.ed25519_pk, pk.ed25519_pk);
         assert_eq!(recovered.mldsa_pk, pk.mldsa_pk);
     }
+
+    #[test]
+    fn test_algorithm_name() {
+        assert_eq!(MlDsaAlgorithm::MlDsa44.name(), "ML-DSA-44");
+        assert_eq!(MlDsaAlgorithm::MlDsa65.name(), "ML-DSA-65");
+        assert_eq!(MlDsaAlgorithm::MlDsa87.name(), "ML-DSA-87");
+    }
+
+    #[test]
+    fn test_algorithm_signature_size() {
+        assert!(MlDsaAlgorithm::MlDsa44.signature_size_approx() > 0);
+        assert!(MlDsaAlgorithm::MlDsa65.signature_size_approx() > 0);
+        assert!(MlDsaAlgorithm::MlDsa87.signature_size_approx() > 0);
+    }
+
+    #[test]
+    fn test_mldsa44_from_keys_invalid_size() {
+        let result = MlDsa44Signer::from_keys(vec![0u8; 10], vec![0u8; 32]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_mldsa87_from_keys_invalid_size() {
+        let result = MlDsa87Signer::from_keys(vec![0u8; 10], vec![0u8; 32]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_verifier_44_and_87() {
+        // ML-DSA-44
+        let signer44 = MlDsa44Signer::generate().unwrap();
+        let msg = b"Test";
+        let sig = signer44.sign(msg).unwrap();
+        let verifier44 =
+            MlDsaVerifier::new(signer44.public_key().to_vec(), MlDsaAlgorithm::MlDsa44).unwrap();
+        assert!(verifier44.verify(msg, &sig).unwrap());
+
+        // ML-DSA-87
+        let signer87 = MlDsa87Signer::generate().unwrap();
+        let sig87 = signer87.sign(msg).unwrap();
+        let verifier87 =
+            MlDsaVerifier::new(signer87.public_key().to_vec(), MlDsaAlgorithm::MlDsa87).unwrap();
+        assert!(verifier87.verify(msg, &sig87).unwrap());
+    }
+
+    #[test]
+    fn test_signer_debug_redacts_secret() {
+        let signer = MlDsa65Signer::generate().unwrap();
+        let debug_str = format!("{:?}", signer);
+        assert!(debug_str.contains("REDACTED"));
+        assert!(!debug_str.contains(&format!("{:?}", signer.secret_key)));
+    }
 }
