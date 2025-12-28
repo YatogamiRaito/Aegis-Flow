@@ -1057,6 +1057,7 @@ upstream_addr: "test:8080"
     }
 
     #[test]
+    #[allow(clippy::field_reassign_with_default)]
     fn test_config_builder_pattern_style() {
         // Verify we can modify fields easily (builder-like usage)
         let mut config = ProxyConfig::default();
