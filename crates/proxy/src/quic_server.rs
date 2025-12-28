@@ -295,9 +295,9 @@ impl QuicServer {
 
         // Send response body
         if !response.body.is_empty() {
-             send.write_all(&response.body).await?;
+            send.write_all(&response.body).await?;
         }
-        
+
         // Ensure flushed
         send.flush().await?;
 
@@ -513,10 +513,10 @@ mod tests {
         let request = b"GET / HTTP/1.1\r\nHost: localhost\r\n\r\n";
         let mut recv = std::io::Cursor::new(request);
         let mut send = Vec::new();
-        
+
         let result = QuicServer::process_stream(&mut recv, &mut send, "backend".to_string()).await;
         assert!(result.is_ok());
-        
+
         let response = String::from_utf8(send).unwrap();
         assert!(response.contains("HTTP/3"));
         // Status might be 200 or 502 depending on "backend" connectivity, but it should output a response
@@ -526,13 +526,13 @@ mod tests {
     async fn test_process_stream_large_request() {
         // Create a reader that yields 17MB of data
         // We use a Cursor over a zeroed vec
-        let data = vec![0u8; 17 * 1024 * 1024]; 
+        let data = vec![0u8; 17 * 1024 * 1024];
         let mut recv = std::io::Cursor::new(data);
         let mut send = Vec::new();
-        
+
         let result = QuicServer::process_stream(&mut recv, &mut send, "backend".to_string()).await;
         assert!(result.is_ok());
-        
+
         // Should return early due to size limit, writing nothing to send
         assert!(send.is_empty());
     }

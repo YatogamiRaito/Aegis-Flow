@@ -646,13 +646,13 @@ mod tests {
                     // If we run out of data, it's EOF.
                     return Poll::Ready(Ok(()));
                 }
-                 return Poll::Ready(Ok(()));
+                return Poll::Ready(Ok(()));
             }
 
             let limit = std::cmp::min(remaining.len(), self.fail_at_idx - self.read_idx);
             if limit == 0 && self.read_idx == self.fail_at_idx {
                 // Reached fail point
-                 return Poll::Ready(Ok(())); // Unexpected EOF simulation
+                return Poll::Ready(Ok(())); // Unexpected EOF simulation
             }
 
             let chunk_size = std::cmp::min(limit, buf.remaining());
@@ -663,18 +663,18 @@ mod tests {
     }
 
     impl tokio::io::AsyncWrite for FailingReader {
-         fn poll_write(
+        fn poll_write(
             self: Pin<&mut Self>,
             _cx: &mut Context<'_>,
             _buf: &[u8],
         ) -> Poll<io::Result<usize>> {
-             Poll::Ready(Ok(0))
+            Poll::Ready(Ok(0))
         }
         fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-             Poll::Ready(Ok(()))
+            Poll::Ready(Ok(()))
         }
         fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-             Poll::Ready(Ok(()))
+            Poll::Ready(Ok(()))
         }
     }
 
@@ -685,26 +685,26 @@ mod tests {
         let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&key));
         let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
         let ciphertext = cipher.encrypt(&nonce, b"payload".as_ref()).unwrap();
-        
+
         let mut frame = Vec::new();
         let frame_len = NONCE_SIZE + ciphertext.len();
         frame.extend_from_slice(&(frame_len as u32).to_be_bytes());
         frame.extend_from_slice(&nonce);
         frame.extend_from_slice(&ciphertext);
-        
-        // We want to simulate reading header (4 bytes) successfully, 
+
+        // We want to simulate reading header (4 bytes) successfully,
         // passing the "Parse length" check,
         // but then failing to read the FULL frame body.
-        
+
         // FailingReader logic needs to serve > 4 bytes but < full frame
         let partial_len = 4 + 5; // Header + 5 bytes
-        
+
         let reader = FailingReader {
             data: frame,
             read_idx: 0,
             fail_at_idx: partial_len,
         };
-        
+
         let mut stream = EncryptedStream::new(reader, &key);
         let mut buf = [0u8; 128];
         let err = stream.read(&mut buf).await.unwrap_err();
