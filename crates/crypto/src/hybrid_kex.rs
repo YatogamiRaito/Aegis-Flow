@@ -416,4 +416,19 @@ mod tests {
         let (pk, _) = kex.generate_keypair().unwrap();
         assert!(!pk.x25519.iter().all(|&b| b == 0));
     }
+
+    #[test]
+    fn test_kex_algorithm_name() {
+        let kex = HybridKeyExchange::new();
+        assert_eq!(kex.algorithm_name(), "X25519-MLKEM768-Hybrid");
+    }
+
+    #[test]
+    fn test_secret_key_debug_redacts() {
+        let kex = HybridKeyExchange::new();
+        let (_, sk) = kex.generate_keypair().unwrap();
+        let debug_str = format!("{:?}", sk);
+        assert!(debug_str.contains("REDACTED"));
+        assert!(debug_str.contains("HybridSecretKey"));
+    }
 }
