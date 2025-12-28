@@ -328,4 +328,66 @@ mod tests {
         let debug_str = format!("{:?}", header);
         assert!(debug_str.contains("BamHeader"));
     }
+
+    #[test]
+    fn test_bam_header_new() {
+        let header = BamHeader::new();
+        assert_eq!(header.references.len(), 0);
+        assert_eq!(header.read_groups.len(), 0);
+        assert_eq!(header.programs.len(), 0);
+        assert_eq!(header.total_length(), 0);
+    }
+
+    #[test]
+    fn test_get_reference_not_found() {
+        let header_text = "@SQ\tSN:chr1\tLN:1000";
+        let header = BamHeader::from_sam_text(header_text).unwrap();
+        assert!(header.get_reference("chr99").is_none());
+    }
+
+    #[test]
+    fn test_reference_sequence_debug() {
+        let header_text = "@SQ\tSN:chr1\tLN:1000";
+        let header = BamHeader::from_sam_text(header_text).unwrap();
+        let ref_seq = &header.references[0];
+        let debug_str = format!("{:?}", ref_seq);
+        assert!(debug_str.contains("ReferenceSequence"));
+    }
+
+    #[test]
+    fn test_read_group_debug() {
+        let header_text = "@RG\tID:rg1\tSM:sample";
+        let header = BamHeader::from_sam_text(header_text).unwrap();
+        let rg = &header.read_groups[0];
+        let debug_str = format!("{:?}", rg);
+        assert!(debug_str.contains("ReadGroup"));
+    }
+
+    #[test]
+    fn test_program_debug() {
+        let header_text = "@PG\tID:bwa\tPN:bwa";
+        let header = BamHeader::from_sam_text(header_text).unwrap();
+        let prog = &header.programs[0];
+        let debug_str = format!("{:?}", prog);
+        assert!(debug_str.contains("Program"));
+    }
+
+    #[test]
+    fn test_reference_sequence_clone() {
+        let header_text = "@SQ\tSN:chr1\tLN:1000";
+        let header = BamHeader::from_sam_text(header_text).unwrap();
+        let ref1 = &header.references[0];
+        let ref2 = ref1.clone();
+        assert_eq!(ref1.name, ref2.name);
+        assert_eq!(ref1.length, ref2.length);
+    }
+
+    #[test]
+    fn test_read_group_clone() {
+        let header_text = "@RG\tID:rg1\tSM:sample";
+        let header = BamHeader::from_sam_text(header_text).unwrap();
+        let rg1 = &header.read_groups[0];
+        let rg2 = rg1.clone();
+        assert_eq!(rg1.id, rg2.id);
+    }
 }

@@ -653,4 +653,24 @@ mod tests {
         assert_eq!(ep1.addr, ep2.addr);
         assert_eq!(ep1.healthy, ep2.healthy);
     }
+
+    #[test]
+    fn test_load_balance_strategy_debug() {
+        let strategy = LoadBalanceStrategy::RoundRobin;
+        let debug_str = format!("{:?}", strategy);
+        assert!(debug_str.contains("RoundRobin"));
+    }
+
+    #[tokio::test]
+    async fn test_list_services_empty() {
+        let registry = ServiceRegistry::new(LoadBalanceStrategy::RoundRobin);
+        let services = registry.list_services().await;
+        assert_eq!(services.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_endpoint_count_nonexistent() {
+        let registry = ServiceRegistry::new(LoadBalanceStrategy::RoundRobin);
+        assert_eq!(registry.endpoint_count("non-existent").await, 0);
+    }
 }

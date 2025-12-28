@@ -173,4 +173,26 @@ mod tests {
         let loader = EbpfLoader::default();
         assert!(!loader.is_loaded());
     }
+
+    #[test]
+    fn test_shared_loader() {
+        let loader = Arc::new(EbpfLoader::new());
+        let _shared: SharedEbpfLoader = loader;
+    }
+
+    #[test]
+    fn test_loader_debug() {
+        let loader = EbpfLoader::new();
+        let debug_str = format!("{:?}", loader);
+        assert!(debug_str.contains("EbpfLoader"));
+    }
+
+    #[test]
+    fn test_is_mock_after_load() {
+        let loader = EbpfLoader::new();
+        let mock_before = loader.is_mock();
+        loader.load().unwrap();
+        let mock_after = loader.is_mock();
+        assert_eq!(mock_before, mock_after);
+    }
 }

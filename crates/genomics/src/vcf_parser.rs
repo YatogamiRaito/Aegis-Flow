@@ -179,4 +179,31 @@ chr1	100	.	A	T	99.0	PASS	DP=50
             _ => panic!("Expected ParseError"),
         }
     }
+
+    #[test]
+    fn test_parse_quality_dot() {
+        let vcf_data = "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\nchr1\t100\t.\tA\tT\t.\t.\t.";
+        let reader = Cursor::new(vcf_data);
+        let parser = VcfParser::new();
+        let builder = parser.parse(reader).unwrap();
+        assert_eq!(builder.len(), 1);
+    }
+
+    #[test]
+    fn test_vcf_parser_default() {
+        let parser = VcfParser::default();
+        let vcf_data = "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\nchr1\t100\t.\tA\tT\t99.0\tPASS\tDP=50";
+        let reader = Cursor::new(vcf_data);
+        let builder = parser.parse(reader).unwrap();
+        assert_eq!(builder.len(), 1);
+    }
+
+    #[test]
+    fn test_parse_filter_dot() {
+        let vcf_data = "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\nchr1\t100\t.\tA\tT\t99.0\t.\tDP=50";
+        let reader = Cursor::new(vcf_data);
+        let parser = VcfParser::new();
+        let builder = parser.parse(reader).unwrap();
+        assert_eq!(builder.len(), 1);
+    }
 }

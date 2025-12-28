@@ -313,4 +313,31 @@ mod tests {
         let debug = format!("{:?}", model);
         assert!(debug.contains("EnergyModel"));
     }
+
+    #[test]
+    fn test_average_energy_zero_requests() {
+        let estimator = EnergyEstimator::new();
+        assert_eq!(estimator.average_energy_joules(), 0.0);
+    }
+
+    #[test]
+    fn test_estimator_default() {
+        let estimator = EnergyEstimator::default();
+        assert_eq!(estimator.request_count(), 0);
+        assert_eq!(estimator.source(), EnergySource::Software);
+    }
+
+    #[test]
+    fn test_energy_model_clone() {
+        let model1 = EnergyModel::default();
+        let model2 = model1.clone();
+        assert_eq!(model1.joules_per_cycle, model2.joules_per_cycle);
+    }
+
+    #[test]
+    fn test_estimator_source() {
+        let estimator = EnergyEstimator::new();
+        let source = estimator.source();
+        assert_eq!(source, EnergySource::Software);
+    }
 }
