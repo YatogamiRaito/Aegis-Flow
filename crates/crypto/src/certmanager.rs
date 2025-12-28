@@ -840,4 +840,162 @@ mod tests {
 
         assert!(matches!(end_entity.cert_type, CertType::EndEntity));
     }
+
+    #[test]
+    fn test_generate_self_signed_cert() {
+        let result = CertManager::generate_self_signed("test.example.com", &[], 365);
+        assert!(result.is_ok());
+
+        let (cert, key) = result.unwrap();
+        assert!(!cert.is_empty());
+        assert!(!key.is_empty());
+    }
+
+    #[test]
+    fn test_generate_self_signed_with_sans() {
+        let result = CertManager::generate_self_signed(
+            "test.example.com",
+            &[
+                "alt1.example.com".to_string(),
+                "alt2.example.com".to_string(),
+            ],
+            365,
+        );
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parsed_cert_is_valid_now() {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        let cert = ParsedCert {
+            subject_cn: "test".to_string(),
+            issuer_cn: "test".to_string(),
+            serial: "001".to_string(),
+            not_before: now - 3600, // 1 hour ago
+            not_after: now + 3600,  // 1 hour from now
+            cert_type: CertType::EndEntity,
+            fingerprint: "fp".to_string(),
+            san: vec![],
+            der_bytes: vec![],
+        };
+
+        assert!(cert.is_valid_now());
+    }
+
+    #[test]
+    fn test_parsed_cert_expired() {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        let cert = ParsedCert {
+            subject_cn: "expired".to_string(),
+            issuer_cn: "test".to_string(),
+            serial: "002".to_string(),
+            not_before: now - 7200, // 2 hours ago
+            not_after: now - 3600,  // 1 hour ago (expired)
+            cert_type: CertType::EndEntity,
+            fingerprint: "fp".to_string(),
+            san: vec![],
+            der_bytes: vec![],
+        };
+
+        assert!(!cert.is_valid_now());
+    }
+
+    #[test]
+    fn test_parsed_cert_days_until_expiry() {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        let cert = ParsedCert {
+            subject_cn: "test".to_string(),
+            issuer_cn: "test".to_string(),
+            serial: "003".to_string(),
+            not_before: now - 86400,
+            not_after: now + (30 * 86400), // 30 days from now
+            cert_type: CertType::EndEntity,
+            fingerprint: "fp".to_string(),
+            san: vec![],
+            der_bytes: vec![],
+        };
+
+        let days = cert.days_until_expiry();
+        assert!(days >= 29 && days <= 31);
+    }
+
+    #[test]
+    fn test_parsed_cert_is_expiring_soon() {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        let expiring_cert = ParsedCert {
+            subject_cn: "expiring".to_string(),
+            issuer_cn: "test".to_string(),
+            serial: "004".to_string(),
+            not_before: now - 86400,
+            not_after: now + (7 * 86400), // 7 days from now
+            cert_type: CertType::EndEntity,
+            fingerprint: "fp".to_string(),
+            san: vec![],
+            der_bytes: vec![],
+        };
+
+        assert!(expiring_cert.is_expiring_soon());
+
+        let not_expiring = ParsedCert {
+            subject_cn: "valid".to_string(),
+            issuer_cn: "test".to_string(),
+            serial: "005".to_string(),
+            not_before: now - 86400,
+            not_after: now + (365 * 86400), // 1 year from now
+            cert_type: CertType::EndEntity,
+            fingerprint: "fp".to_string(),
+            san: vec![],
+            der_bytes: vec![],
+        };
+
+        assert!(!not_expiring.is_expiring_soon());
+    }
+
+    #[test]
+    fn test_parse_self_signed_pem() {
+        let (cert_pem, _) = CertManager::generate_self_signed("test.local", &[], 365).unwrap();
+
+        let parsed = CertManager::parse_pem(cert_pem.as_bytes());
+        assert!(parsed.is_ok());
+
+        let cert = parsed.unwrap();
+        assert!(cert.subject_cn.contains("test.local"));
+        assert!(cert.is_valid_now());
+    }
+
+    #[test]
+    fn test_cert_manager_add_trusted_ca() {
+        let mut manager = CertManager::new();
+
+        let ca_cert = ParsedCert {
+            subject_cn: "MyCA".to_string(),
+            issuer_cn: "MyCA".to_string(),
+            serial: "001".to_string(),
+            not_before: 0,
+            not_after: i64::MAX,
+            cert_type: CertType::RootCa,
+            fingerprint: "cafp".to_string(),
+            san: vec![],
+            der_bytes: vec![],
+        };
+
+        let result = manager.add_trusted_ca(ca_cert);
+        assert!(result.is_ok());
+    }
 }
