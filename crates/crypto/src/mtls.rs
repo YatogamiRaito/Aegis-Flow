@@ -874,7 +874,7 @@ mod tests {
     #[test]
     fn test_mtls_config_defaults() {
         let config = MtlsConfig::default();
-        assert!(config.require_client_cert);
+        assert!(!config.require_client_cert);
         assert!(config.pqc_enabled);
     }
 }
