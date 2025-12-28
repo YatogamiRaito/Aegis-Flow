@@ -718,4 +718,11 @@ mod tests {
         let result = manager.set_server_cert(cert, "fake-key".to_string());
         assert!(result.is_ok());
     }
+
+    #[test]
+    fn test_cert_manager_empty_initialization() {
+        let manager = CertManager::new();
+        assert!(manager.trusted_cas.is_empty());
+        assert!(manager.server_cert.is_none());
+    }
 }
