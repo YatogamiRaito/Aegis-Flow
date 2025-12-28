@@ -885,4 +885,30 @@ mod tests {
         let result = provider.verify_quote(&quote, b"nonce2").unwrap();
         assert!(!result);
     }
+
+    #[test]
+    fn test_enclave_identity_creation() {
+        let mrenclave = [0xAB; 32];
+        let mrsigner = [0xCD; 32];
+        let identity = EnclaveIdentity::new(mrenclave, mrsigner, 1, 5, false);
+
+        assert!(identity.is_production());
+        assert!(identity.verify_mrenclave(&mrenclave));
+        assert!(identity.verify_mrsigner(&mrsigner));
+    }
+
+    #[test]
+    fn test_enclave_identity_verify_mismatch() {
+        let identity = EnclaveIdentity::new([0xAA; 32], [0xBB; 32], 1, 1, false);
+        assert!(!identity.verify_mrenclave(&[0xCC; 32]));
+        assert!(!identity.verify_mrsigner(&[0xDD; 32]));
+    }
+
+    #[test]
+    fn test_attestation_provider_platform() {
+        let provider = AttestationProvider::new();
+        let platform = provider.platform();
+        // In simulation mode, should be None
+        assert_eq!(platform, TeePlatform::None);
+    }
 }

@@ -676,4 +676,28 @@ mod tests {
         assert!(!job.is_expired());
         assert!(job.time_remaining() > Duration::ZERO);
     }
+
+    #[test]
+    fn test_schedule_result_variants() {
+        let queued = ScheduleResult::Queued { position: 5 };
+        let executed = ScheduleResult::ExecutedImmediately;
+        let disabled = ScheduleResult::Disabled;
+        let full = ScheduleResult::QueueFull;
+
+        // Just verify Debug trait works
+        let _ = format!("{:?}", queued);
+        let _ = format!("{:?}", executed);
+        let _ = format!("{:?}", disabled);
+        let _ = format!("{:?}", full);
+    }
+
+    #[test]
+    fn test_job_priority_clone_and_copy() {
+        let priority = JobPriority::Critical;
+        let copied = priority;
+        // JobPriority implements Copy, so just copy
+        let also_copied = priority;
+        assert_eq!(priority, copied);
+        assert_eq!(priority, also_copied);
+    }
 }

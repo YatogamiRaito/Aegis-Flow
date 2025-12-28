@@ -655,4 +655,34 @@ mod tests {
         assert!(client.authenticated_at.is_none());
         assert!(!client.is_authenticated());
     }
+
+    #[test]
+    fn test_mtls_config_default() {
+        let config = MtlsConfig::default();
+        assert!(config.cert_path.contains("server.crt"));
+        assert!(config.key_path.contains("server.key"));
+        assert!(config.pqc_enabled);
+        // Just verify the field exists
+        let _ = config.require_client_cert;
+    }
+
+    #[test]
+    fn test_mtls_config_clone() {
+        let config = MtlsConfig {
+            cert_path: "custom.crt".to_string(),
+            key_path: "custom.key".to_string(),
+            pqc_enabled: false,
+            ..Default::default()
+        };
+        let cloned = config.clone();
+        assert_eq!(config.cert_path, cloned.cert_path);
+        assert_eq!(config.pqc_enabled, cloned.pqc_enabled);
+    }
+
+    #[test]
+    fn test_auth_state_equality() {
+        assert_eq!(AuthState::Unauthenticated, AuthState::Unauthenticated);
+        assert_eq!(AuthState::Authenticated, AuthState::Authenticated);
+        assert_ne!(AuthState::Unauthenticated, AuthState::Authenticated);
+    }
 }

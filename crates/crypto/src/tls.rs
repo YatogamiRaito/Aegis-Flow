@@ -356,4 +356,39 @@ mod tests {
         assert!(!config.mtls_required);
         assert_eq!(config.algorithm, PqcAlgorithm::HybridMlKem768);
     }
+
+    #[test]
+    fn test_pqc_tls_config_custom() {
+        let config = PqcTlsConfig {
+            pqc_enabled: false,
+            mtls_required: true,
+            algorithm: PqcAlgorithm::X25519Only,
+        };
+        assert!(!config.pqc_enabled);
+        assert!(config.mtls_required);
+        assert_eq!(config.algorithm, PqcAlgorithm::X25519Only);
+    }
+
+    #[test]
+    fn test_pqc_algorithm_equality() {
+        assert_eq!(PqcAlgorithm::HybridMlKem768, PqcAlgorithm::HybridMlKem768);
+        assert_ne!(PqcAlgorithm::HybridMlKem768, PqcAlgorithm::HybridMlKem1024);
+        assert_ne!(PqcAlgorithm::X25519Only, PqcAlgorithm::MlKem768Only);
+    }
+
+    #[test]
+    fn test_secure_channel_different_ids() {
+        let ch1 = SecureChannel::new([0u8; 32], 1, PqcAlgorithm::HybridMlKem768);
+        let ch2 = SecureChannel::new([0u8; 32], 2, PqcAlgorithm::HybridMlKem768);
+        assert_ne!(ch1.channel_id(), ch2.channel_id());
+    }
+
+    #[test]
+    fn test_secure_channel_large_plaintext() {
+        let channel = SecureChannel::new([0xAB; 32], 100, PqcAlgorithm::HybridMlKem768);
+        let plaintext = vec![0xCD; 10000]; // 10KB
+        let ciphertext = channel.encrypt(&plaintext).unwrap();
+        let decrypted = channel.decrypt(&ciphertext).unwrap();
+        assert_eq!(decrypted, plaintext);
+    }
 }
