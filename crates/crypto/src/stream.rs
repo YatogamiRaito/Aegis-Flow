@@ -772,7 +772,7 @@ mod tests {
     fn test_stream_constants() {
         assert_eq!(U32_SIZE, 4);
         assert_eq!(NONCE_SIZE, 12);
-        assert!(MAX_FRAME_SIZE > 0);
+        assert_eq!(MAX_FRAME_SIZE, 64 * 1024);
         assert_eq!(FRAME_OVERHEAD, U32_SIZE + NONCE_SIZE + 16);
     }
 
