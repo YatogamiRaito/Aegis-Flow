@@ -928,7 +928,7 @@ mod tests {
         };
 
         let days = cert.days_until_expiry();
-        assert!(days >= 29 && days <= 31);
+        assert!((29..=31).contains(&days));
     }
 
     #[test]
