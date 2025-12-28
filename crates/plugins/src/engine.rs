@@ -198,4 +198,43 @@ mod tests {
         engine.clear_cache();
         assert_eq!(engine.cache_size(), 0);
     }
+
+    #[test]
+    fn test_execution_fuel_check() {
+        let config = WasmEngineConfig {
+            enable_fuel: true,
+            initial_fuel: 1_000, // Low fuel
+            ..Default::default()
+        };
+        let engine = WasmEngine::with_config(config).unwrap();
+        
+        // Infinite loop WASM
+        let wasm = wat::parse_str(r#"
+            (module 
+                (func (export "run") 
+                    (loop (br 0))
+                )
+            )
+        "#).unwrap();
+        
+        let module = engine.compile_module("infinite_loop", &wasm).unwrap();
+        let mut store = engine.create_store::<()>();
+        
+        // Instantiate and run
+        let instance = wasmtime::Instance::new(&mut store, &module, &[]).unwrap();
+        let run = instance.get_typed_func::<(), ()>(&mut store, "run").unwrap();
+        
+        // Expect Trap/Error due to fuel exhaustion
+        let result = run.call(&mut store, ());
+        assert!(result.is_err());
+        // assert!(result.unwrap_err().to_string().contains("fuel")); // Message varies by version
+    }
+
+    #[test]
+    fn test_compile_invalid_bytes() {
+        let engine = WasmEngine::new().unwrap();
+        let invalid = b"invalid binary";
+        let result = engine.compile_module("bad", invalid);
+        assert!(result.is_err());
+    }
 }

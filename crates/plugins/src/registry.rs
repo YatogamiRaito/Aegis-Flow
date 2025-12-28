@@ -231,4 +231,53 @@ mod tests {
         let plugins = registry.list_plugins();
         assert_eq!(plugins.len(), 2);
     }
+
+    #[test]
+    fn test_load_invalid_wasm() {
+        let registry = create_test_registry();
+        let invalid_bytes = b"not a wasm module";
+        
+        let result = registry.load_plugin_bytes("invalid", invalid_bytes);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_reload_plugin_lifecycle() {
+        use std::io::Write;
+        
+        let registry = create_test_registry();
+        
+        // Manual temp file using std::env::temp_dir and timestamp
+        let mut path = std::env::temp_dir();
+        path.push(format!("test_plugin_{}.wasm", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        
+        // Initial WASM
+        let wasm1 = wat::parse_str("(module (func (export \"test\")))").unwrap();
+        std::fs::write(&path, &wasm1).unwrap();
+        
+        // Load
+        registry.load_plugin(&path).unwrap();
+        assert!(registry.has_plugin(path.file_stem().unwrap().to_str().unwrap()));
+        
+        // Update WASM
+        let wasm2 = wat::parse_str("(module (func (export \"test2\")))").unwrap();
+        std::fs::write(&path, &wasm2).unwrap();
+        
+        // Reload
+        let name = path.file_stem().unwrap().to_str().unwrap();
+        let reload_res = registry.reload_plugin(name);
+        assert!(reload_res.is_ok());
+        
+        // Cleanup
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn test_load_non_existent_file() {
+        let registry = create_test_registry();
+        let path = Path::new("/path/to/virtual/void.wasm");
+        let result = registry.load_plugin(path);
+        // Should be IO error or NotFound
+        assert!(result.is_err());
+    }
 }
