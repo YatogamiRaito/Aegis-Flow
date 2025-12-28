@@ -312,4 +312,20 @@ mod tests {
         assert_eq!(rg.library, Some("lib1".to_string()));
         assert_eq!(rg.platform, Some("ILLUMINA".to_string()));
     }
+
+    #[test]
+    fn test_bam_header_clone() {
+        let text = "@HD\tVN:1.6\n@SQ\tSN:chr1\tLN:1000";
+        let header = BamHeader::from_sam_text(text).unwrap();
+        let cloned = header.clone();
+        assert_eq!(header.version, cloned.version);
+        assert_eq!(header.references.len(), cloned.references.len());
+    }
+
+    #[test]
+    fn test_bam_header_debug() {
+        let header = BamHeader::new();
+        let debug_str = format!("{:?}", header);
+        assert!(debug_str.contains("BamHeader"));
+    }
 }

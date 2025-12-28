@@ -219,4 +219,23 @@ mod tests {
         let builder = VariantBatchBuilder::with_capacity(10);
         assert!(builder.is_empty());
     }
+
+    #[test]
+    fn test_variant_record_clone() {
+        let record = VariantRecord::new("chr1", 100, "A", "T")
+            .with_qual(99.0)
+            .with_filter("PASS");
+        let cloned = record.clone();
+        assert_eq!(record.chrom, cloned.chrom);
+        assert_eq!(record.qual, cloned.qual);
+    }
+
+    #[test]
+    fn test_builder_multiple_chromosomes() {
+        let mut builder = VariantBatchBuilder::with_capacity(25);
+        for i in 1..=22 {
+            builder.push(VariantRecord::new(&format!("chr{}", i), i * 100, "A", "T"));
+        }
+        assert_eq!(builder.len(), 22);
+    }
 }

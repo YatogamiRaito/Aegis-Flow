@@ -163,4 +163,14 @@ mod tests {
             .with_cpu_cycles(u64::MAX);
         exporter.record(&metrics);
     }
+
+    #[test]
+    fn test_energy_metrics_clone() {
+        let metrics = EnergyMetrics::new("/api", "GET")
+            .with_duration(Duration::from_millis(100))
+            .with_bytes(1024);
+        let cloned = metrics.clone();
+        assert_eq!(metrics.endpoint, cloned.endpoint);
+        assert_eq!(metrics.bytes_transferred, cloned.bytes_transferred);
+    }
 }
