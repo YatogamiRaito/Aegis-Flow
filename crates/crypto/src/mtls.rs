@@ -851,7 +851,7 @@ mod tests {
     fn test_verification_result_success() {
         let result = VerificationResult {
             verified: true,
-            subject_cn: "test.example.com".to_string(),
+            subject_cn: Some("test.example.com".to_string()),
             fingerprint: "abc123".to_string(),
             expires_at: 1234567890,
         };
@@ -864,7 +864,7 @@ mod tests {
     fn test_verification_result_failure() {
         let result = VerificationResult {
             verified: false,
-            subject_cn: "invalid.example.com".to_string(),
+            subject_cn: Some("invalid.example.com".to_string()),
             fingerprint: "def456".to_string(),
             expires_at: 0,
         };
