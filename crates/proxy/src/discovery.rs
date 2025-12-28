@@ -606,7 +606,7 @@ mod tests {
     }
 
     #[test]
-    fn test_endpoint_mark_failed() {
+    fn test_endpoint_failure_threshold() {
         let addr: SocketAddr = "127.0.0.1:8080".parse().unwrap();
         let mut ep = Endpoint::new(addr);
 
@@ -621,7 +621,7 @@ mod tests {
     }
 
     #[test]
-    fn test_endpoint_mark_healthy() {
+    fn test_endpoint_recovery() {
         let addr: SocketAddr = "127.0.0.1:8080".parse().unwrap();
         let mut ep = Endpoint::new(addr);
 
