@@ -847,4 +847,76 @@ mod tests {
         // Since MockClient returns fixed intensity, we verify it updated the map
         assert_eq!(scheduler.get_region_intensity("eu-test").await, Some(123.0));
     }
+
+    #[test]
+    fn test_job_priority_max_wait_duration() {
+        assert_eq!(JobPriority::Critical.max_wait_duration(), Duration::ZERO);
+        assert_eq!(
+            JobPriority::High.max_wait_duration(),
+            Duration::from_secs(5 * 60)
+        );
+        assert_eq!(
+            JobPriority::Normal.max_wait_duration(),
+            Duration::from_secs(30 * 60)
+        );
+        assert_eq!(
+            JobPriority::Low.max_wait_duration(),
+            Duration::from_secs(2 * 60 * 60)
+        );
+        assert_eq!(
+            JobPriority::Background.max_wait_duration(),
+            Duration::from_secs(24 * 60 * 60)
+        );
+    }
+
+    #[test]
+    fn test_job_priority_ordering() {
+        assert!(JobPriority::Critical < JobPriority::High);
+        assert!(JobPriority::High < JobPriority::Normal);
+        assert!(JobPriority::Normal < JobPriority::Low);
+        assert!(JobPriority::Low < JobPriority::Background);
+    }
+
+    #[test]
+    fn test_job_priority_default() {
+        let priority: JobPriority = Default::default();
+        assert_eq!(priority, JobPriority::Normal);
+    }
+
+    #[test]
+    fn test_deferred_job_is_expired_critical() {
+        let job = DeferredJob::new(
+            "critical-job",
+            JobPriority::Critical,
+            Region::new("us-west", "US West"),
+            100.0,
+            vec![],
+        );
+
+        // Critical jobs have zero wait duration
+        assert!(job.is_expired());
+    }
+
+    #[test]
+    fn test_deferred_job_creation() {
+        let job = DeferredJob::new(
+            "test-job",
+            JobPriority::Normal,
+            Region::new("eu-central", "EU Central"),
+            150.0,
+            vec![1, 2, 3],
+        );
+
+        assert_eq!(job.id, "test-job");
+        assert_eq!(job.priority, JobPriority::Normal);
+        assert_eq!(job.carbon_threshold, 150.0);
+        assert_eq!(job.payload, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn test_job_priority_debug() {
+        let priority = JobPriority::Background;
+        let debug = format!("{:?}", priority);
+        assert!(debug.contains("Background"));
+    }
 }

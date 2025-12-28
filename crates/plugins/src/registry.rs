@@ -420,4 +420,51 @@ mod tests {
         let nonexistent = registry.has_plugin("does_not_exist");
         assert!(!nonexistent);
     }
+
+    #[test]
+    fn test_plugin_info_creation() {
+        let info = PluginInfo {
+            name: "test-plugin".to_string(),
+            path: PathBuf::from("/path/to/plugin.wasm"),
+            enabled: true,
+            loaded_at: std::time::SystemTime::now(),
+        };
+
+        assert_eq!(info.name, "test-plugin");
+        assert!(info.enabled);
+    }
+
+    #[test]
+    fn test_plugin_info_debug() {
+        let info = PluginInfo {
+            name: "debug-test".to_string(),
+            path: PathBuf::from("/test"),
+            enabled: false,
+            loaded_at: std::time::SystemTime::now(),
+        };
+
+        let debug = format!("{:?}", info);
+        assert!(debug.contains("PluginInfo"));
+    }
+
+    #[test]
+    fn test_plugin_info_clone() {
+        let info1 = PluginInfo {
+            name: "clone-test".to_string(),
+            path: PathBuf::from("/clone"),
+            enabled: true,
+            loaded_at: std::time::SystemTime::now(),
+        };
+
+        let info2 = info1.clone();
+        assert_eq!(info1.name, info2.name);
+        assert_eq!(info1.enabled, info2.enabled);
+    }
+
+    #[test]
+    fn test_registry_list_empty() {
+        let registry = create_test_registry();
+        let plugins = registry.list_plugins();
+        assert!(plugins.is_empty());
+    }
 }
