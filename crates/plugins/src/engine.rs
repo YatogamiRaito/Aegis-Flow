@@ -296,4 +296,29 @@ mod tests {
         // Cache should remain empty
         assert_eq!(engine.cache_size(), 0);
     }
+
+    #[test]
+    fn test_load_module_success() {
+        let engine = WasmEngine::new().unwrap();
+        
+        // Create a temporary wasm file
+        let temp_dir = std::env::temp_dir().join(format!(
+            "aegis-engine-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+        let wasm_path = temp_dir.join("test_module.wasm");
+        let wasm_bytes = wat::parse_str("(module)").unwrap();
+        std::fs::write(&wasm_path, &wasm_bytes).unwrap();
+
+        // Load the module
+        let module = engine.load_module(&wasm_path).unwrap();
+        assert!(module.exports().count() == 0);
+        
+        // Cleanup
+        let _ = std::fs::remove_dir_all(temp_dir);
+    }
 }
