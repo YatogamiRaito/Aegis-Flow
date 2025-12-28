@@ -14,7 +14,7 @@ pub async fn bootstrap() -> Result<()> {
 }
 
 /// Run bootstrap with a shutdown signal for testing
-pub async fn bootstrap_with_shutdown<F>(shutdown: F) -> Result<()> 
+pub async fn bootstrap_with_shutdown<F>(shutdown: F) -> Result<()>
 where
     F: std::future::Future<Output = ()> + Send + 'static,
 {
@@ -59,7 +59,7 @@ where
     // pqc_server.run() blocks.
     // They don't take shutdown.
     // We need to run them IN SELECT with the shutdown signal.
-    
+
     let server_task = async move {
         if config.pqc_enabled {
             info!("🛡️ PQC mode enabled - using hybrid key exchange");
@@ -154,35 +154,36 @@ mod tests {
         // Test that bootstrap startup works and responds to shutdown
         // This covers the main entry point logic
         let (tx, rx) = tokio::sync::oneshot::channel();
-        
+
         let handle = tokio::spawn(async move {
             // We use a short run
             bootstrap_with_shutdown(async {
                 rx.await.ok();
-            }).await
+            })
+            .await
         });
-        
+
         // Let it start (bind ports etc)
         // Note: Default binds port 8080. If another test is using it, this might fail binding.
         // But bootstrap() uses ProxyConfig::default().
         // If we can't change config in bootstrap(), we risk collision.
         // But tests run in parallel?
-        // We really should be able to inject config. 
+        // We really should be able to inject config.
         // But for now, let's assume it works or we catch error.
-        
+
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
         tx.send(()).unwrap();
-        
+
         let result = handle.await.unwrap();
         // It might be Err(AddrInUse) depending on environment.
         // If it runs, it covers the logic.
         // We assert true to avoid flaky failure if port busy?
         // Or we inspect error.
         if let Err(e) = &result {
-             if e.to_string().contains("Address already in use") {
-                 // Acceptable for test collision
-                 return;
-             }
+            if e.to_string().contains("Address already in use") {
+                // Acceptable for test collision
+                return;
+            }
         }
         assert!(result.is_ok(), "Bootstrap failed: {:?}", result.err());
     }

@@ -639,32 +639,37 @@ mod tests {
     }
     #[tokio::test]
     async fn test_http2_handshake_failure() {
-        use tokio::net::TcpStream;
         use tokio::io::AsyncWriteExt;
+        use tokio::net::TcpStream;
 
         let config = HttpProxyConfig {
             listen_addr: "127.0.0.1:0".parse().unwrap(),
             ..Default::default()
         };
         let proxy = HttpProxy::new(config);
-        
+
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
-        
+
         let (tx, rx) = tokio::sync::oneshot::channel();
-        
+
         // Spawn proxy
         tokio::spawn(async move {
-            proxy.run_with_listener(listener, async { rx.await.ok(); }).await.ok();
+            proxy
+                .run_with_listener(listener, async {
+                    rx.await.ok();
+                })
+                .await
+                .ok();
         });
-        
+
         // Connect and send invalid data to trigger handshake error
         let mut client = TcpStream::connect(addr).await.unwrap();
         client.write_all(b"NOT HTTP2").await.unwrap();
-        
+
         // Allow time for server to process and log error
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-        
+
         tx.send(()).unwrap();
     }
 }

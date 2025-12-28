@@ -218,10 +218,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_pqc_server_handshake() {
-        use hyper::Request;
-        use http_body_util::Full;
-        use bytes::Bytes;
         use crate::http_proxy::TokioExecutor;
+        use bytes::Bytes;
+        use http_body_util::Full;
+        use hyper::Request;
 
         let config = ProxyConfig {
             host: "127.0.0.1".to_string(),
@@ -275,14 +275,15 @@ mod tests {
         // 🔒 Data Plane
         let key = client_channel.encryption_key().as_bytes();
         let encrypted_client = EncryptedStream::new(client, key);
-        
+
         // Wrap in TokioIo
         let io = get_tokio_io(encrypted_client);
-        
+
         // Initiate HTTP/2 Client Handshake over Encrypted Stream
-        let (mut request_sender, connection) = hyper::client::conn::http2::handshake(TokioExecutor, io)
-            .await
-            .unwrap();
+        let (mut request_sender, connection) =
+            hyper::client::conn::http2::handshake(TokioExecutor, io)
+                .await
+                .unwrap();
 
         // Spawn connection driver
         tokio::spawn(async move {
@@ -300,9 +301,9 @@ mod tests {
             .unwrap();
 
         let response = request_sender.send_request(request).await.unwrap();
-        
+
         assert!(response.status().is_success());
-        
+
         // Cleanup
         tx.send(()).unwrap();
     }
