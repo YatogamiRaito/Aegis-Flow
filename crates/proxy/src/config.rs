@@ -1041,7 +1041,7 @@ upstream_addr: "test:8080"
     #[test]
     fn test_proxy_config_default_values() {
         let config = ProxyConfig::default();
-        assert_eq!(config.port, 8080);
+        assert_eq!(config.port, 8443);
         assert_eq!(config.host, "0.0.0.0");
         assert!(!config.pqc_enabled);
     }
