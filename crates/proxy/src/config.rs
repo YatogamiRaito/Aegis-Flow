@@ -1030,4 +1030,19 @@ upstream_addr: "test:8080"
         };
         assert!(config.upstream_addr.contains("backend.local"));
     }
+
+    #[test]
+    fn test_config_manager_new() {
+        let manager = ConfigManager::new();
+        // Manager created successfully
+        let _ = manager;
+    }
+
+    #[test]
+    fn test_proxy_config_default_values() {
+        let config = ProxyConfig::default();
+        assert_eq!(config.port, 8080);
+        assert_eq!(config.host, "0.0.0.0");
+        assert!(!config.pqc_enabled);
+    }
 }
