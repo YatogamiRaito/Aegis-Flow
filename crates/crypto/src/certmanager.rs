@@ -1122,4 +1122,50 @@ mod tests {
         let result = manager.add_trusted_ca(ca_cert);
         assert!(result.is_ok());
     }
+    #[test]
+    fn test_intermediate_ca_parsing() {
+        // 1. Create Root CA
+        let mut root_params = CertificateParams::default();
+        root_params.distinguished_name.push(DnType::CommonName, "Root CA");
+        root_params.is_ca = rcgen::IsCa::Ca(rcgen::BasicConstraints::Unconstrained);
+        let root_key = KeyPair::generate().unwrap();
+        let root_cert = root_params.self_signed(&root_key).unwrap();
+
+        // 2. Create Intermediate CA params
+        let mut int_params = CertificateParams::default();
+        int_params.distinguished_name.push(DnType::CommonName, "Intermediate CA");
+        int_params.is_ca = rcgen::IsCa::Ca(rcgen::BasicConstraints::Unconstrained);
+        // Important: rcgen by default might not set issuer correctly in params unless signed?
+        // Actually, when signed_by is used, it sets the issuer from the signer.
+        
+        // 3. Sign Intermediate by Root
+        let int_key = KeyPair::generate().unwrap();
+        let int_cert = int_params.signed_by(&int_key, &root_cert, &root_key).unwrap();
+        
+        // 4. Parse Intermediate
+        let pem = int_cert.pem();
+        let parsed = CertManager::parse_pem(pem.as_bytes()).unwrap();
+
+        // 5. Verify type
+        assert_eq!(parsed.cert_type, CertType::IntermediateCa);
+        assert_eq!(parsed.issuer_cn, "Root CA");
+        assert_eq!(parsed.subject_cn, "Intermediate CA");
+    }
+
+    #[test]
+    fn test_ipv4_san_parsing() {
+        let mut params = CertificateParams::default();
+        params.distinguished_name.push(DnType::CommonName, "ipv4-test");
+        let ip: std::net::IpAddr = "192.168.1.1".parse().unwrap();
+        params.subject_alt_names.push(SanType::IpAddress(ip));
+        
+        let key_pair = KeyPair::generate().unwrap();
+        let cert = params.self_signed(&key_pair).unwrap();
+        let pem = cert.pem();
+
+        let parsed = CertManager::parse_pem(pem.as_bytes()).unwrap();
+        
+        // Should contain the IPv4 address
+        assert!(parsed.san.contains(&"192.168.1.1".to_string()));
+    }
 }

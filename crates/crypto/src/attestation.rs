@@ -1030,6 +1030,7 @@ mod tests {
         assert!(quote.signature.is_none());
     }
 
+
     #[test]
     fn test_attestation_quote_with_signature() {
         let quote = AttestationQuote::new(TeePlatform::IntelSgx, vec![1, 2, 3], vec![], vec![])
@@ -1039,3 +1040,152 @@ mod tests {
         assert_eq!(quote.signature.unwrap(), vec![10, 20, 30]);
     }
 }
+
+#[cfg(test)]
+mod tests_coverage {
+    use super::*;
+    use std::env;
+    use std::sync::Mutex;
+
+    // Mutex to serialize env var tests to avoid race conditions with other tests
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+
+    #[test]
+    fn test_tee_capabilities_detect_env_vars() {
+        let _lock = ENV_LOCK.lock().unwrap();
+
+        // Save original vars
+        let orig_sgx = env::var("AEGIS_TEE_SGX");
+        let orig_tdx = env::var("AEGIS_TEE_TDX");
+        let orig_sev = env::var("AEGIS_TEE_SEV_SNP");
+
+        // Clear all
+        // Clear all
+        unsafe {
+            unsafe { env::remove_var("AEGIS_TEE_SGX"); }
+            unsafe { env::remove_var("AEGIS_TEE_TDX"); }
+            unsafe { env::remove_var("AEGIS_TEE_SEV_SNP"); }
+        }
+
+        // 1. None
+        let caps = TeeCapabilities::detect();
+        assert!(!caps.any_available());
+
+        // 2. SGX only
+        unsafe { env::set_var("AEGIS_TEE_SGX", "1"); }
+        let caps = TeeCapabilities::detect();
+        assert!(caps.sgx);
+        assert!(!caps.tdx);
+        assert!(!caps.sev_snp);
+        unsafe { env::remove_var("AEGIS_TEE_SGX"); }
+
+        // 3. TDX only
+        unsafe { env::set_var("AEGIS_TEE_TDX", "1"); }
+        let caps = TeeCapabilities::detect();
+        assert!(!caps.sgx);
+        assert!(caps.tdx);
+        assert!(!caps.sev_snp);
+        unsafe { env::remove_var("AEGIS_TEE_TDX"); }
+
+        // 4. SEV-SNP only
+        unsafe { env::set_var("AEGIS_TEE_SEV_SNP", "1"); }
+        let caps = TeeCapabilities::detect();
+        assert!(!caps.sgx);
+        assert!(!caps.tdx);
+        assert!(caps.sev_snp);
+        unsafe { env::remove_var("AEGIS_TEE_SEV_SNP"); }
+
+        // Restore
+        unsafe {
+            if let Ok(v) = orig_sgx { unsafe { env::set_var("AEGIS_TEE_SGX", v); } }
+            if let Ok(v) = orig_tdx { unsafe { env::set_var("AEGIS_TEE_TDX", v); } }
+            if let Ok(v) = orig_sev { unsafe { env::set_var("AEGIS_TEE_SEV_SNP", v); } }
+        }
+    }
+
+    #[test]
+    fn test_quote_from_bytes_signature_edge_cases() {
+        let q = AttestationQuote::new(TeePlatform::None, vec![10], vec![20], vec![30]);
+        let bytes = q.to_bytes();
+
+        // The serialized bytes structure:
+        // Platform(1) | NonceLen(4) | Nonce(1) | UserLen(4) | User(1) | QuoteLen(4) | Quote(1) | Time(8) | SigLen(4) | Sig(0)
+        // Total base length = 1 + 4+1 + 4+1 + 4+1 + 8 + 4 + 0 = 28 bytes
+
+        assert_eq!(bytes.len(), 28);
+
+        // Case 1: Bytes are longer than base, but not enough for the declared signature length
+        // We artificially extend bytes by 1, and set SigLen to 10
+        let mut bytes_bad_sig = bytes.clone();
+        // Modify SigLen (last 4 bytes)
+        let sig_len_offset = bytes_bad_sig.len() - 4;
+        let large_len = 10u32;
+        bytes_bad_sig[sig_len_offset..].copy_from_slice(&large_len.to_le_bytes());
+        // Add 1 byte of "signature data"
+        bytes_bad_sig.push(0xFF);
+        // Now total len is 29. Expected len = 28 (base w/o sig len) + 10 (sig len) = 38.
+        // The code checks: if sig_len > 0 && offset + sig_len <= bytes.len()
+        // 28 + 10 = 38 <= 29 is FALSE. So it should return None for signature.
+        let recovered = AttestationQuote::from_bytes(&bytes_bad_sig).unwrap();
+        assert!(recovered.signature.is_none());
+
+        // Case 2: Exact fit signature
+        let mut bytes_good_sig = bytes.clone();
+        let sig_len = 2u32;
+        bytes_good_sig[sig_len_offset..].copy_from_slice(&sig_len.to_le_bytes());
+        bytes_good_sig.push(0xAA);
+        bytes_good_sig.push(0xBB);
+        let recovered = AttestationQuote::from_bytes(&bytes_good_sig).unwrap();
+        assert_eq!(recovered.signature.unwrap(), vec![0xAA, 0xBB]);
+    }
+
+    #[test]
+    fn test_platform_specific_generations() {
+        // We can't easily injection-mock capabilities in AttestationProvider::new() because it calls detect() internally.
+        // However, we can construct the struct manually if fields were pub, but they are private.
+        // We CAN control it via env vars since new() calls detect() which reads env vars.
+
+        let _lock = ENV_LOCK.lock().unwrap();
+        // Save
+        let orig_sgx = env::var("AEGIS_TEE_SGX");
+        unsafe { env::remove_var("AEGIS_TEE_SGX"); }
+
+        // 1. Force SGX
+        unsafe { env::set_var("AEGIS_TEE_SGX", "1"); }
+        let provider = AttestationProvider::new();
+        assert_eq!(provider.platform(), TeePlatform::IntelSgx);
+        let quote = provider.generate_quote(b"n", b"u").unwrap();
+        assert_eq!(quote.platform, TeePlatform::IntelSgx);
+        assert_eq!(quote.quote_bytes, b"SGX_QUOTE_V3_MOCK_DATA");
+        assert!(provider.verify_quote(&quote, b"n").unwrap());
+
+        // 2. Force TDX (higher priority than SGX in our mock)
+        unsafe { env::set_var("AEGIS_TEE_TDX", "1"); }
+        let provider = AttestationProvider::new();
+        assert_eq!(provider.platform(), TeePlatform::IntelTdx);
+        let quote = provider.generate_quote(b"n", b"u").unwrap();
+        assert_eq!(quote.platform, TeePlatform::IntelTdx);
+        assert_eq!(quote.quote_bytes, b"TDX_QUOTE_V4_MOCK_DATA");
+        assert!(provider.verify_quote(&quote, b"n").unwrap());
+        unsafe { env::remove_var("AEGIS_TEE_TDX"); }
+
+        // 3. Force SEV-SNP
+        unsafe { env::remove_var("AEGIS_TEE_SGX"); }
+        unsafe { env::set_var("AEGIS_TEE_SEV_SNP", "1"); }
+        let provider = AttestationProvider::new();
+        assert_eq!(provider.platform(), TeePlatform::AmdSevSnp);
+        let quote = provider.generate_quote(b"n", b"u").unwrap();
+        assert_eq!(quote.platform, TeePlatform::AmdSevSnp);
+        assert_eq!(quote.quote_bytes, b"SEV_SNP_REPORT_MOCK");
+        assert!(provider.verify_quote(&quote, b"n").unwrap());
+        unsafe { env::remove_var("AEGIS_TEE_SEV_SNP"); }
+
+        // Restore
+        unsafe {
+            if let Ok(v) = orig_sgx { unsafe { env::set_var("AEGIS_TEE_SGX", v); } }
+        }
+    }
+}
+
+

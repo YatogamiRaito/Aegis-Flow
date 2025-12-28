@@ -1291,4 +1291,35 @@ mod tests {
         let algo: MlDsaAlgorithm = Default::default();
         assert_eq!(algo, MlDsaAlgorithm::MlDsa65);
     }
+
+    #[test]
+    fn test_mldsa65_sign_invalid_secret_key() {
+        let signer_valid = MlDsa65Signer::generate().unwrap();
+        // Construct with valid PK length but invalid SK (empty)
+        let signer_invalid = MlDsa65Signer::from_keys(
+            signer_valid.public_key().to_vec(),
+            vec![] // Invalid secret key
+        ).unwrap();
+
+        // Sign should fail
+        let result = signer_invalid.sign(b"test");
+        assert!(result.is_err());
+        let err = result.err().unwrap().to_string();
+        assert!(err.contains("Invalid secret key"));
+    }
+
+    #[test]
+    fn test_mldsa65_verify_invalid_signature_len() {
+        let signer = MlDsa65Signer::generate().unwrap();
+        let msg = b"test";
+        // Invalid signature length
+        let invalid_sig = vec![0u8; 10]; 
+        
+        // Verify returns Ok(false) even for invalid length signatures in this implementation
+        let result = signer.verify(msg, &invalid_sig);
+        assert!(result.is_ok());
+        assert!(!result.unwrap(), "Signature verification should fail (return false)");
+    }
+
+
 }

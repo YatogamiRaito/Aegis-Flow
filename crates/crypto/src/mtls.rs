@@ -230,11 +230,13 @@ impl MtlsAuthenticator {
                         debug!("Client certificate verified: {}", cert.subject_cn);
                     }
                     Ok(false) | Err(_) => {
-                        client.state =
-                            AuthState::Failed("Certificate verification failed".to_string());
-                        return Err(AegisError::Crypto(
-                            "Client certificate verification failed".to_string(),
-                        ));
+                        let msg = if let Err(e) = self.cert_manager.verify_chain(cert) {
+                            format!("Client certificate verification failed: {}", e)
+                        } else {
+                            "Client certificate verification failed".to_string()
+                        };
+                        client.state = AuthState::Failed(msg.clone());
+                        return Err(AegisError::Crypto(msg));
                     }
                 }
             } else {
@@ -931,5 +933,122 @@ mod tests {
 
         let result = auth.complete_handshake(conn_id, &dummy_ct, Some(&client_der));
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_paths_invalid_ca() {
+        let config = MtlsConfig {
+            cert_path: "/tmp/test_cert_valid_ca".to_string(),
+            key_path: "/tmp/test_key_valid_ca".to_string(),
+            ca_path: Some("/nonexistent/ca.crt".to_string()),
+            ..Default::default()
+        };
+
+        // Create the cert/key files temporarily
+        std::fs::write(&config.cert_path, "fake cert").ok();
+        std::fs::write(&config.key_path, "fake key").ok();
+
+        let handler = MtlsHandler::new(config.clone());
+        let result = handler.validate_paths();
+        assert!(result.is_err());
+        
+        if let Err(AegisError::Config(msg)) = result {
+             assert!(msg.contains("CA certificate not found"));
+        }
+
+        // Cleanup
+        std::fs::remove_file(&config.cert_path).ok();
+        std::fs::remove_file(&config.key_path).ok();
+    }
+
+    #[test]
+    fn test_init_from_files_invalid_ca() {
+        let config = MtlsConfig {
+            cert_path: "/tmp/test_cert_init_ca".to_string(),
+            key_path: "/tmp/test_key_init_ca".to_string(),
+            ca_path: Some("/nonexistent/ca.crt".to_string()),
+            ..Default::default()
+        };
+
+        // Create the cert/key files temporarily so they don't fail first
+        let (cert_pem, key_pem) = CertManager::generate_self_signed(
+            "test.server",
+            &["localhost".to_string()],
+            1,
+        ).unwrap();
+
+        std::fs::write(&config.cert_path, cert_pem).unwrap();
+        std::fs::write(&config.key_path, key_pem).unwrap();
+
+        let mut auth = MtlsAuthenticator::new(config.clone()).unwrap();
+        let result = auth.init_from_files();
+        
+        assert!(result.is_err());
+
+        // Cleanup
+        std::fs::remove_file(&config.cert_path).ok();
+        std::fs::remove_file(&config.key_path).ok();
+    }
+
+    #[test]
+    fn test_complete_handshake_expired_cert() {
+        use rcgen::{CertificateParams, DnType, KeyPair};
+        
+        let config = MtlsConfig {
+            require_client_cert: true,
+            pqc_enabled: false,
+            ..Default::default()
+        };
+        let mut auth = MtlsAuthenticator::new(config).unwrap();
+        auth.init_self_signed("server").unwrap();
+
+        // 1. Generate an EXPIRED client cert manually
+        let mut params = rcgen::CertificateParams::default();
+        params.distinguished_name.push(rcgen::DnType::CommonName, "expired-client");
+        
+        // rcgen uses time::OffsetDateTime
+        let now = ::time::OffsetDateTime::now_utc();
+        let past = now - ::time::Duration::days(1);
+        let before_past = past - ::time::Duration::days(1);
+        params.not_before = before_past;
+        params.not_after = past;
+        
+        let key_pair = rcgen::KeyPair::generate().unwrap();
+        let client_cert = params.self_signed(&key_pair).unwrap();
+        
+        // Newer rcgen uses impl From<Certificate> for Vec<u8> (DER) or .der()
+        // verify what .der() returns. In certmanager.rs it calls .pem() or .serialize_pem().
+        // .der() usually gives the DER bytes.
+        let client_der = client_cert.der().to_vec();
+
+        // 2. Trust this cert's issuer (itself)
+        // Parse it back to get ParsedCert for CertManager
+        let mut client_cert_parsed = CertManager::parse_der(&client_der).unwrap();
+        // Hack: Make it a CA so we can add it to trusted store
+        client_cert_parsed.cert_type = crate::certmanager::CertType::RootCa;
+        client_cert_parsed.issuer_cn = client_cert_parsed.subject_cn.clone(); // It is self-signed
+        
+        auth.cert_manager.add_trusted_ca(client_cert_parsed).unwrap();
+
+        let (conn_id, _) = auth.accept_connection().unwrap();
+
+        let dummy_ct = crate::hybrid_kex::HybridCiphertext {
+            x25519_ephemeral: [0u8; 32],
+            mlkem_ciphertext: vec![0u8; 10],
+        };
+
+        let result = auth.complete_handshake(conn_id, &dummy_ct, Some(&client_der));
+        
+        assert!(result.is_err());
+        if let Err(AegisError::Crypto(msg)) = result {
+            assert!(msg.contains("expired"));
+        }
+        
+        // Verify state
+        if let Ok(state) = auth.get_client_state(conn_id) {
+             assert!(matches!(state, AuthState::Failed(_)));
+             let debug = format!("{:?}", state);
+             assert!(debug.contains("expired"));
+        }
     }
 }
