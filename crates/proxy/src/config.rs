@@ -1043,6 +1043,6 @@ upstream_addr: "test:8080"
         let config = ProxyConfig::default();
         assert_eq!(config.port, 8443);
         assert_eq!(config.host, "0.0.0.0");
-        assert!(!config.pqc_enabled);
+        assert!(config.pqc_enabled);
     }
 }
