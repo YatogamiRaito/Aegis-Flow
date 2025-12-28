@@ -319,4 +319,41 @@ mod tests {
         assert!(debug_str.contains("123"));
         assert!(!debug_str.contains("secret")); // Should not leak keys
     }
+
+    #[test]
+    fn test_secure_channel_encrypt_decrypt() {
+        let channel = SecureChannel::new([42u8; 32], 999, PqcAlgorithm::HybridMlKem768);
+        let plaintext = b"Hello, PQC world!";
+        let ciphertext = channel.encrypt(plaintext).unwrap();
+        let decrypted = channel.decrypt(&ciphertext).unwrap();
+        assert_eq!(decrypted, plaintext);
+    }
+
+    #[test]
+    fn test_secure_channel_properties() {
+        let channel = SecureChannel::new([1u8; 32], 456, PqcAlgorithm::MlKem768Only);
+        assert_eq!(channel.channel_id(), 456);
+        assert_eq!(channel.algorithm(), PqcAlgorithm::MlKem768Only);
+    }
+
+    #[test]
+    fn test_pqc_algorithm_variants() {
+        let algos = [
+            PqcAlgorithm::X25519Only,
+            PqcAlgorithm::MlKem768Only,
+            PqcAlgorithm::HybridMlKem768,
+            PqcAlgorithm::HybridMlKem1024,
+        ];
+        for algo in algos {
+            let _ = format!("{:?}", algo);
+        }
+    }
+
+    #[test]
+    fn test_pqc_tls_config_default() {
+        let config = PqcTlsConfig::default();
+        assert!(config.pqc_enabled);
+        assert!(!config.mtls_required);
+        assert_eq!(config.algorithm, PqcAlgorithm::HybridMlKem768);
+    }
 }

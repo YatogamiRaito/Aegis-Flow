@@ -308,4 +308,56 @@ mod tests {
         registry.load_plugin_bytes("test_has", &wasm_bytes).unwrap();
         assert!(registry.has_plugin("test_has"));
     }
+
+    #[test]
+    fn test_load_all_plugins_no_dir() {
+        let registry = create_test_registry();
+        // No plugin_dir set
+        let result = registry.load_all_plugins();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_load_all_plugins_with_dir() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "test_plugins_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+
+        // Create a valid wasm file
+        let wasm = wat::parse_str("(module)").unwrap();
+        let wasm_path = temp_dir.join("test.wasm");
+        std::fs::write(&wasm_path, &wasm).unwrap();
+
+        // Create an invalid file (should be skipped but not crash)
+        let txt_path = temp_dir.join("readme.txt");
+        std::fs::write(&txt_path, "not wasm").unwrap();
+
+        let registry = create_test_registry().with_plugin_dir(temp_dir.clone());
+        let count = registry.load_all_plugins().unwrap();
+        assert_eq!(count, 1);
+
+        // Cleanup
+        std::fs::remove_dir_all(&temp_dir).ok();
+    }
+
+    #[test]
+    fn test_plugin_info_fields() {
+        let registry = create_test_registry();
+        let wasm_bytes = wat::parse_str("(module)").unwrap();
+
+        registry
+            .load_plugin_bytes("info_test", &wasm_bytes)
+            .unwrap();
+        let plugins = registry.list_plugins();
+
+        let info = plugins.iter().find(|p| p.name == "info_test").unwrap();
+        assert_eq!(info.name, "info_test");
+        assert!(info.enabled);
+        assert!(info.path.as_os_str().is_empty()); // Path is empty for bytes-loaded plugins
+    }
 }

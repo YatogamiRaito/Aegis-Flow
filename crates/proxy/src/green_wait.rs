@@ -614,4 +614,66 @@ mod tests {
             Duration::from_secs(86400)
         );
     }
+
+    #[test]
+    fn test_job_priority_ordering() {
+        assert!(JobPriority::Critical < JobPriority::High);
+        assert!(JobPriority::High < JobPriority::Normal);
+        assert!(JobPriority::Normal < JobPriority::Low);
+        assert!(JobPriority::Low < JobPriority::Background);
+    }
+
+    #[test]
+    fn test_all_priority_wait_times() {
+        assert_eq!(JobPriority::Critical.max_wait_duration(), Duration::ZERO);
+        assert_eq!(
+            JobPriority::High.max_wait_duration(),
+            Duration::from_secs(300)
+        );
+        assert_eq!(
+            JobPriority::Normal.max_wait_duration(),
+            Duration::from_secs(1800)
+        );
+        assert_eq!(
+            JobPriority::Low.max_wait_duration(),
+            Duration::from_secs(7200)
+        );
+    }
+
+    #[test]
+    fn test_green_wait_config_default() {
+        let config = GreenWaitConfig::default();
+        assert!(config.enabled);
+        assert_eq!(config.default_threshold, 150.0);
+        assert_eq!(config.check_interval_secs, 60);
+        assert_eq!(config.max_queue_size, 1000);
+    }
+
+    #[test]
+    fn test_deferred_job_creation() {
+        let job = DeferredJob::new(
+            "test-job",
+            JobPriority::Low,
+            Region::new("us-west", "US West"),
+            100.0,
+            vec![1, 2, 3, 4],
+        );
+        assert_eq!(job.id, "test-job");
+        assert_eq!(job.priority, JobPriority::Low);
+        assert_eq!(job.carbon_threshold, 100.0);
+        assert_eq!(job.payload, vec![1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn test_deferred_job_not_expired_immediately() {
+        let job = DeferredJob::new(
+            "test-job",
+            JobPriority::Background,
+            Region::new("us-west", "US West"),
+            100.0,
+            vec![],
+        );
+        assert!(!job.is_expired());
+        assert!(job.time_remaining() > Duration::ZERO);
+    }
 }

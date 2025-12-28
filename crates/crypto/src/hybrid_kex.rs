@@ -382,4 +382,38 @@ mod tests {
         let result = HybridCiphertext::from_bytes(&invalid_bytes);
         assert!(result.is_err());
     }
+
+    #[test]
+    fn test_shared_secret_debug_redacts() {
+        let x25519 = [1u8; 32];
+        let mlkem = [2u8; 32];
+        let ss = HybridSharedSecret::combine(&x25519, &mlkem);
+        let debug_str = format!("{:?}", ss);
+        assert!(debug_str.contains("REDACTED"));
+        assert!(!debug_str.contains("01")); // Should not contain any raw bytes
+    }
+
+    #[test]
+    fn test_hybrid_public_key_as_ref() {
+        let kex = HybridKeyExchange::new();
+        let (pk, _) = kex.generate_keypair().unwrap();
+        let as_ref: &[u8] = pk.as_ref();
+        assert_eq!(as_ref.len(), 32); // X25519 public key size
+    }
+
+    #[test]
+    fn test_hybrid_shared_secret_as_ref() {
+        let x25519 = [1u8; 32];
+        let mlkem = [2u8; 32];
+        let ss = HybridSharedSecret::combine(&x25519, &mlkem);
+        let as_ref: &[u8] = ss.as_ref();
+        assert_eq!(as_ref.len(), 64);
+    }
+
+    #[test]
+    fn test_hybrid_key_exchange_default() {
+        let kex = HybridKeyExchange::new();
+        let (pk, _) = kex.generate_keypair().unwrap();
+        assert!(!pk.x25519.iter().all(|&b| b == 0));
+    }
 }
