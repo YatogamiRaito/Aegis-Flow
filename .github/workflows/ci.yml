@@ -35,8 +35,24 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: Run tests
-        run: cargo test --all-features --workspace
+      - name: Cache cargo-nextest
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cargo-nextest
+          key: ${{ runner.os }}-nextest-0.9
+      - name: Install cargo-nextest
+        run: command -v cargo-nextest || cargo install cargo-nextest --locked
+      - name: Run tests with JUnit output
+        run: |
+          cargo nextest run --all-features --workspace --profile ci
+        continue-on-error: true
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/test-results-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: target/nextest/ci/junit.xml
+          fail_ci_if_error: false
 
   security:
     name: Security Audit

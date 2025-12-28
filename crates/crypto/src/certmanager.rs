@@ -592,4 +592,130 @@ mod tests {
         assert_eq!(cert.san.len(), 2);
         assert!(cert.san.contains(&"localhost".to_string()));
     }
+
+    #[test]
+    fn test_add_trusted_ca_non_ca_cert() {
+        let mut manager = CertManager::new();
+        let now = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        let end_entity = ParsedCert {
+            subject_cn: "end-entity".to_string(),
+            issuer_cn: "ca".to_string(),
+            serial: "123".to_string(),
+            not_before: now - 86400,
+            not_after: now + 86400,
+            cert_type: CertType::EndEntity, // Not a CA
+            fingerprint: "xyz".to_string(),
+            san: vec![],
+            der_bytes: vec![],
+        };
+
+        let result = manager.add_trusted_ca(end_entity);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_add_trusted_ca_success() {
+        let mut manager = CertManager::new();
+        let now = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        let ca = ParsedCert {
+            subject_cn: "test-ca".to_string(),
+            issuer_cn: "test-ca".to_string(),
+            serial: "001".to_string(),
+            not_before: now - 86400,
+            not_after: now + 86400 * 365,
+            cert_type: CertType::RootCa,
+            fingerprint: "ca-fp".to_string(),
+            san: vec![],
+            der_bytes: vec![],
+        };
+
+        let result = manager.add_trusted_ca(ca);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_verify_chain_no_trusted_ca() {
+        let manager = CertManager::new();
+        let now = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        let cert = ParsedCert {
+            subject_cn: "test-cert".to_string(),
+            issuer_cn: "unknown-ca".to_string(),
+            serial: "567".to_string(),
+            not_before: now - 86400,
+            not_after: now + 86400,
+            cert_type: CertType::EndEntity,
+            fingerprint: "fp".to_string(),
+            san: vec![],
+            der_bytes: vec![],
+        };
+
+        let result = manager.verify_chain(&cert);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_verify_chain_self_signed_root() {
+        let manager = CertManager::new();
+        let now = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        let root_ca = ParsedCert {
+            subject_cn: "self-signed-root".to_string(),
+            issuer_cn: "self-signed-root".to_string(),
+            serial: "001".to_string(),
+            not_before: now - 86400,
+            not_after: now + 86400 * 365,
+            cert_type: CertType::RootCa,
+            fingerprint: "root-fp".to_string(),
+            san: vec![],
+            der_bytes: vec![],
+        };
+
+        let result = manager.verify_chain(&root_ca);
+        assert!(result.unwrap());
+    }
+
+    #[test]
+    fn test_load_from_file_missing() {
+        let result = CertManager::load_from_file(std::path::Path::new("/nonexistent/cert.crt"));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_set_server_cert() {
+        let mut manager = CertManager::new();
+        let now = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        let cert = ParsedCert {
+            subject_cn: "server.example.com".to_string(),
+            issuer_cn: "ca".to_string(),
+            serial: "789".to_string(),
+            not_before: now - 86400,
+            not_after: now + 86400,
+            cert_type: CertType::EndEntity,
+            fingerprint: "srv-fp".to_string(),
+            san: vec!["server.example.com".to_string()],
+            der_bytes: vec![],
+        };
+
+        let result = manager.set_server_cert(cert, "fake-key".to_string());
+        assert!(result.is_ok());
+    }
 }
