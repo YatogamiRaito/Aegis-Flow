@@ -267,7 +267,7 @@ mod tests {
 
         // Verify each region can be retrieved
         for i in 0..5 {
-            let region = Region::new(&format!("R{}", i), "Test");
+            let region = Region::new(format!("R{}", i), "Test");
             let result = cache.get(&region).await;
             assert!(result.is_some());
         }
