@@ -279,4 +279,21 @@ mod tests {
         let config = engine.config();
         assert!(config.cache_modules);
     }
+
+    #[test]
+    fn test_compile_module_no_cache() {
+        let config = WasmEngineConfig {
+            cache_modules: false,
+            ..Default::default()
+        };
+        let engine = WasmEngine::with_config(config).unwrap();
+        let wasm_bytes = wat::parse_str("(module)").unwrap();
+
+        // Compile twice - no caching should happen
+        let _ = engine.compile_module("no_cache", &wasm_bytes).unwrap();
+        let _ = engine.compile_module("no_cache", &wasm_bytes).unwrap();
+        
+        // Cache should remain empty
+        assert_eq!(engine.cache_size(), 0);
+    }
 }

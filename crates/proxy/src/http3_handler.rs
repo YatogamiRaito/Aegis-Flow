@@ -395,4 +395,44 @@ mod tests {
         assert_eq!(config.max_body_size, 1024);
         assert!(!config.log_requests);
     }
+
+    #[test]
+    fn test_http3_handler_upstream_addr() {
+        let handler = Http3Handler::new(Http3Config::default(), "upstream.local:8080".to_string());
+        assert_eq!(handler.upstream_addr(), "upstream.local:8080");
+    }
+
+    #[test]
+    fn test_http3_handler_logging_enabled() {
+        let config = Http3Config {
+            log_requests: true,
+            ..Default::default()
+        };
+        let handler = Http3Handler::new(config, "localhost:8080".to_string());
+        assert!(handler.is_logging_enabled());
+    }
+
+    #[tokio::test]
+    async fn test_http3_handler_health_endpoint() {
+        let handler = Http3Handler::new(Http3Config::default(), "127.0.0.1:8080".to_string());
+        let req = Http3Request::new("GET", "/health");
+        let resp = handler.handle_request(req).await;
+        assert_eq!(resp.status, 200);
+    }
+
+    #[tokio::test]
+    async fn test_http3_handler_ready_endpoint() {
+        let handler = Http3Handler::new(Http3Config::default(), "127.0.0.1:8080".to_string());
+        let req = Http3Request::new("GET", "/ready");
+        let resp = handler.handle_request(req).await;
+        assert_eq!(resp.status, 200);
+    }
+
+    #[tokio::test]
+    async fn test_http3_handler_energy_endpoint() {
+        let handler = Http3Handler::new(Http3Config::default(), "127.0.0.1:8080".to_string());
+        let req = Http3Request::new("GET", "/energy");
+        let resp = handler.handle_request(req).await;
+        assert_eq!(resp.status, 200);
+    }
 }
