@@ -857,7 +857,7 @@ mod tests {
         };
         
         assert!(result.verified);
-        assert!(result.subject_cn.contains("test.example.com"));
+        assert!(result.subject_cn.unwrap().contains("test.example.com"));
     }
 
     #[test]
