@@ -64,19 +64,19 @@ mod tests {
     async fn test_bootstrap_components() {
         // We can't easily run the full bootstrap() because it starts a server loop.
         // But we can verify that the dependent initialization functions work.
-        
-        // 1. Tracing init (should be idempotent due to try_init usage in bootstrap, 
+
+        // 1. Tracing init (should be idempotent due to try_init usage in bootstrap,
         // but here we just check we can call registry)
         let subscriber = tracing_subscriber::registry();
         assert!(std::thread::current().name().is_some()); // Just ensuring thread context exists
-        
+
         // 2. Metrics init
         // We verify that calling init_metrics multiple times doesn't panic
         let handle1 = crate::metrics::init_metrics();
         let handle2 = crate::metrics::init_metrics();
         // Handles might be different clones, but underlying recorder should be set.
         // This confirms idempotency safety in our metrics.rs implementation (if we add it).
-        
+
         // 3. Verify version constant is available
         let version = env!("CARGO_PKG_VERSION");
         assert!(!version.is_empty());
@@ -84,8 +84,8 @@ mod tests {
 
     #[test]
     fn test_bootstrap_metadata() {
-         let version = env!("CARGO_PKG_VERSION");
-         println!("Testing version: {}", version);
-         assert!(!version.is_empty());
+        let version = env!("CARGO_PKG_VERSION");
+        println!("Testing version: {}", version);
+        assert!(!version.is_empty());
     }
 }

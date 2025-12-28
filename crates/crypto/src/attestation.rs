@@ -940,7 +940,7 @@ mod tests {
         assert!(AttestationQuote::from_bytes(too_short_nonce_len).is_err());
 
         // 3. Truncated nonce content
-        // Nonce is 2 bytes. valid_bytes has everything. 
+        // Nonce is 2 bytes. valid_bytes has everything.
         // Platform(1) + NonceLen(4) = 5. NonceLen=2. So Nonce ends at 7.
         // If we truncate at 6...
         let truncated_nonce = &valid_bytes[0..6];
@@ -950,7 +950,7 @@ mod tests {
         // UserDataLen starts at offset 7. (5 + 2 = 7). 4 bytes long. Ends at 11.
         let truncated_user_data_len = &valid_bytes[0..10];
         assert!(AttestationQuote::from_bytes(truncated_user_data_len).is_err());
-        
+
         // 5. Truncated user data content
         // UserData is 2 bytes. Ends at 13.
         let truncated_user_data = &valid_bytes[0..12];
@@ -977,10 +977,13 @@ mod tests {
         let provider = AttestationProvider::new();
         // Manually create an old quote
         let mut quote = provider.generate_quote(b"nonce", b"data").unwrap();
-        
+
         // Set timestamp to 10 minutes ago
         use std::time::{SystemTime, UNIX_EPOCH};
-        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as i64;
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
         quote.timestamp = now - 600; // 10 minutes old
 
         // Verify with 5 minute max age (300s)

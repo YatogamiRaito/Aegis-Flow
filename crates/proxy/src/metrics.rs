@@ -46,7 +46,7 @@ pub fn init_metrics() -> PrometheusHandle {
     }
 
     let builder = PrometheusBuilder::new();
-    
+
     match builder.install_recorder() {
         Ok(handle) => {
             info!("📊 Metrics system initialized");
@@ -87,13 +87,16 @@ pub fn init_metrics() -> PrometheusHandle {
             handle
         }
         Err(e) => {
-             // If we failed, it means a global recorder is already set.
-             // This can happen if another crate (or another test binary running in same process context?) installed it.
-             // Or if we failed to set METRICS_HANDLE in a previous run but recorder was installed (unlikely with our lock).
-             // However, `metrics` crate doesn't let us retrieve the handle if we don't have it.
-             // But we MUST return something matching the signature.
-             // We can panic (which fails the test) OR we can try to facilitate the test passing.
-             panic!("Failed to install global recorder: {}. Possible race condition with external installer.", e);
+            // If we failed, it means a global recorder is already set.
+            // This can happen if another crate (or another test binary running in same process context?) installed it.
+            // Or if we failed to set METRICS_HANDLE in a previous run but recorder was installed (unlikely with our lock).
+            // However, `metrics` crate doesn't let us retrieve the handle if we don't have it.
+            // But we MUST return something matching the signature.
+            // We can panic (which fails the test) OR we can try to facilitate the test passing.
+            panic!(
+                "Failed to install global recorder: {}. Possible race condition with external installer.",
+                e
+            );
         }
     }
 }
@@ -325,13 +328,13 @@ mod tests {
         // our init_metrics implementation should probably handle that gracefull or we accept
         // that test runners execute sequentially or we catch the panic if we want to be safe.
         // However, looking at line 34: .expect("Failed to install Prometheus recorder").
-        // This means it WILL panic if global recorder is set. 
+        // This means it WILL panic if global recorder is set.
         // Real-world usage: We only call main() once.
-        // Test usage: Tests run in parallel. 
+        // Test usage: Tests run in parallel.
         // If we want to test re-init safety we should wrap that logic or assume the test runner handles isolation (it does not for globals).
         // Let's modify init_metrics to use try_install_recorder or check if recorder is set.
         // OR we just assert that get_metrics_handle returns something.
-        
+
         // Actually, let's just checking handles are not null if initialized.
         let _ = h1;
         let _ = h2;
