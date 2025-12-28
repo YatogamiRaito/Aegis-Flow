@@ -484,8 +484,9 @@ mod tests {
         let kex = HybridKeyExchange::new();
         let (pk, sk) = kex.generate_keypair().unwrap();
         let (ct, ss_enc) = kex.encapsulate(&pk).unwrap();
-        let ss_dec = kex.decapsulate(&sk, &ct).unwrap();
+        let ss_dec = kex.decapsulate(&ct, &sk).unwrap();
 
-        assert_eq!(ss_enc, ss_dec);
+        // Both should produce shared secrets with the same underlying bytes
+        assert_eq!(ss_enc.as_bytes(), ss_dec.as_bytes());
     }
 }
