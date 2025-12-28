@@ -458,4 +458,42 @@ mod tests {
         // Just verify it doesn't crash and returns 404
         assert_eq!(resp.status, 404);
     }
+
+    #[test]
+    fn test_http3_config_clone() {
+        let config = Http3Config {
+            max_concurrent_streams: 200,
+            max_body_size: 2048,
+            log_requests: false,
+        };
+        let cloned = config.clone();
+        assert_eq!(cloned.max_concurrent_streams, 200);
+        assert_eq!(cloned.max_body_size, 2048);
+        assert!(!cloned.log_requests);
+    }
+
+    #[tokio::test]
+    async fn test_handle_request_with_body() {
+        let handler = Http3Handler::new(Http3Config::default(), "127.0.0.1:8080".to_string());
+        let req = Http3Request::new("POST", "/api")
+            .with_body(Bytes::from(r#"{"test": "data"}"#));
+        let resp = handler.handle_request(req).await;
+        // Path not found, but processing should work
+        assert_eq!(resp.status, 404);
+    }
+
+    #[test]
+    fn test_http3_response_bad_gateway() {
+        let resp = Http3Response::new(502).with_body("Bad Gateway");
+        assert_eq!(resp.status, 502);
+        assert_eq!(resp.body, Bytes::from("Bad Gateway"));
+    }
+
+    #[test]
+    fn test_http3_request_various_methods() {
+        for method in ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"] {
+            let req = Http3Request::new(method, "/test");
+            assert_eq!(req.method, method);
+        }
+    }
 }

@@ -372,4 +372,22 @@ mod tests {
         let result = run_health_server(config, lifecycle, None).await;
         assert!(result.is_err());
     }
+
+    #[test]
+    fn test_health_config_default_values() {
+        let config = HealthConfig::default();
+        assert_eq!(config.port, 8080);
+        assert!(config.enabled);
+    }
+
+    #[test]
+    fn test_health_config_custom() {
+        let config = HealthConfig {
+            port: 8888,
+            enabled: false,
+            ..Default::default()
+        };
+        assert_eq!(config.port, 8888);
+        assert!(!config.enabled);
+    }
 }

@@ -544,4 +544,53 @@ mod tests {
         registry.mark_failed("nonexistent", ep1).await;
         registry.mark_healthy("nonexistent", ep1).await;
     }
+
+    #[tokio::test]
+    async fn test_all_endpoints_unhealthy() {
+        let registry = ServiceRegistry::new(LoadBalanceStrategy::RoundRobin);
+        let ep: SocketAddr = "127.0.0.1:8080".parse().unwrap();
+
+        registry.register("unhealthy-svc", vec![ep]).await;
+
+        // Mark as failed multiple times
+        for _ in 0..5 {
+            registry.mark_failed("unhealthy-svc", ep).await;
+        }
+
+        // Should return None when no healthy endpoints
+        let result = registry.get_endpoint("unhealthy-svc").await;
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_lc_strategy_with_multiple_endpoints() {
+        let registry = ServiceRegistry::new(LoadBalanceStrategy::LeastConnections);
+        let ep1: SocketAddr = "127.0.0.1:8080".parse().unwrap();
+        let ep2: SocketAddr = "127.0.0.1:8081".parse().unwrap();
+
+        registry.register("lc-svc", vec![ep1, ep2]).await;
+
+        // Both have 0 connections, either can be selected
+        let selected = registry.get_endpoint("lc-svc").await;
+        assert!(selected.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_random_strategy_with_three_endpoints() {
+        let registry = ServiceRegistry::new(LoadBalanceStrategy::Random);
+        let eps: Vec<SocketAddr> = vec![
+            "127.0.0.1:8080".parse().unwrap(),
+            "127.0.0.1:8081".parse().unwrap(),
+            "127.0.0.1:8082".parse().unwrap(),
+        ];
+
+        registry.register("random-svc", eps.clone()).await;
+
+        // Verify random selection works
+        for _ in 0..5 {
+            let selected = registry.get_endpoint("random-svc").await;
+            assert!(selected.is_some());
+            assert!(eps.contains(&selected.unwrap()));
+        }
+    }
 }

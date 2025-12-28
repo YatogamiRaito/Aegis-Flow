@@ -965,4 +965,27 @@ upstream_addr: "test:8080"
         // reload returns false when no path
         assert!(!manager.reload().unwrap());
     }
+
+    #[test]
+    fn test_proxy_config_all_fields() {
+        let config = ProxyConfig {
+            host: "192.168.1.1".to_string(),
+            port: 9000,
+            pqc_enabled: false,
+            upstream_addr: "backend:8080".to_string(),
+            ..Default::default()
+        };
+        assert_eq!(config.host, "192.168.1.1");
+        assert_eq!(config.port, 9000);
+        assert!(!config.pqc_enabled);
+        assert_eq!(config.upstream_addr, "backend:8080");
+    }
+
+    #[test]
+    fn test_tls_config_debug() {
+        let tls = TlsConfig::default();
+        let debug_str = format!("{:?}", tls);
+        assert!(debug_str.contains("cert_path"));
+        assert!(debug_str.contains("key_path"));
+    }
 }
