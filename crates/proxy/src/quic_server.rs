@@ -675,7 +675,10 @@ mod tests {
             fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
                 Poll::Ready(Ok(()))
             }
-            fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
+            fn poll_shutdown(
+                self: Pin<&mut Self>,
+                _cx: &mut Context<'_>,
+            ) -> Poll<Result<(), Error>> {
                 Poll::Ready(Ok(()))
             }
         }
@@ -704,24 +707,24 @@ mod tests {
 
     #[tokio::test]
     async fn test_handle_connection_stream_error() {
-       // Ideally we would mock s2n_quic::Connection but it's hard.
-       // However, we can test the handle_connection function if it was public or if we can invoke it.
-       // It's private: async fn handle_connection(...)
-       // So we can only test it via run() or if we make it pub(crate).
-       // Refactoring to make it pub(crate) for testing is acceptable in this phase.
-       // But wait, I can't easily change visibility without modifying the source definition.
-       // The source definition is at line... let's check.
-       // If I can't test it directly, I will test the failure mode via integration if possible,
-       // or skip if too complex for this interaction.
-       // Let's assume I can't easily call it.
-       // I'll add a test that exercises the `check_certificates` failure path which is easier.
-        
-       let mut config = ProxyConfig::default();
-       config.tls.cert_path = "/nonexistent/cert".to_string();
-       
-       let server = QuicServer::with_defaults(config);
-       // This checks check_certificates
-       let result = server.run().await;
-       assert!(result.is_err());
+        // Ideally we would mock s2n_quic::Connection but it's hard.
+        // However, we can test the handle_connection function if it was public or if we can invoke it.
+        // It's private: async fn handle_connection(...)
+        // So we can only test it via run() or if we make it pub(crate).
+        // Refactoring to make it pub(crate) for testing is acceptable in this phase.
+        // But wait, I can't easily change visibility without modifying the source definition.
+        // The source definition is at line... let's check.
+        // If I can't test it directly, I will test the failure mode via integration if possible,
+        // or skip if too complex for this interaction.
+        // Let's assume I can't easily call it.
+        // I'll add a test that exercises the `check_certificates` failure path which is easier.
+
+        let mut config = ProxyConfig::default();
+        config.tls.cert_path = "/nonexistent/cert".to_string();
+
+        let server = QuicServer::with_defaults(config);
+        // This checks check_certificates
+        let result = server.run().await;
+        assert!(result.is_err());
     }
 }

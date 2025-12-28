@@ -510,18 +510,20 @@ mod tests {
         let server = PqcProxyServer::new(config);
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let (tx, rx) = tokio::sync::oneshot::channel();
-        
+
         let handle = tokio::spawn(async move {
-             server.run_with_listener(listener, async {
-                 rx.await.ok();
-             }).await
+            server
+                .run_with_listener(listener, async {
+                    rx.await.ok();
+                })
+                .await
         });
-        
+
         // Let it start
         tokio::time::sleep(Duration::from_millis(10)).await;
         // Send shutdown
         tx.send(()).unwrap();
-        
+
         let result = handle.await.unwrap();
         assert!(result.is_ok());
     }

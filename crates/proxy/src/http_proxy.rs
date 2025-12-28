@@ -411,7 +411,7 @@ mod tests {
             ..Default::default()
         };
         let proxy = HttpProxy::new(config);
-        
+
         // Run with immediate shutdown
         let result = proxy.run_with_shutdown(async {}).await;
         assert!(result.is_ok());
@@ -419,15 +419,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_accept_error() {
-       // Testing explicit binding failure is easier than accept error
-       // Verify bind error with invalid address (privileged port)
+        // Testing explicit binding failure is easier than accept error
+        // Verify bind error with invalid address (privileged port)
         let config_bad = HttpProxyConfig {
-            listen_addr: "127.0.0.1:1".parse().unwrap(), 
+            listen_addr: "127.0.0.1:1".parse().unwrap(),
             ..Default::default()
         };
         let proxy = HttpProxy::new(config_bad);
         let result = proxy.run_with_shutdown(async {}).await;
         // Typically fails with EACCES
-        assert!(result.is_err()); 
+        assert!(result.is_err());
     }
 }

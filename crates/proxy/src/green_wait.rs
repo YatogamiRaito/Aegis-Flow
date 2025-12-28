@@ -841,7 +841,7 @@ mod tests {
 
         // Recently submitted job triggers intensity check if not cached, or just queues it.
         // refresh_intensities() specifically updates cached values.
-        
+
         scheduler.refresh_intensities().await;
 
         // Since MockClient returns fixed intensity, we verify it updated the map
