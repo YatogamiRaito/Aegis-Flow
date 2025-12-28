@@ -595,4 +595,43 @@ mod tests {
         manager.initiate_shutdown().await;
         assert!(manager.is_shutting_down());
     }
+
+    #[test]
+    fn test_health_status_to_status_code() {
+        assert_eq!(HealthStatus::Healthy.to_status_code(), 200);
+        assert_eq!(HealthStatus::Starting.to_status_code(), 503);
+        assert_eq!(HealthStatus::Draining.to_status_code(), 503);
+        assert_eq!(HealthStatus::Unhealthy.to_status_code(), 503);
+    }
+
+    #[test]
+    fn test_health_status_is_ready() {
+        assert!(HealthStatus::Healthy.is_ready());
+        assert!(!HealthStatus::Starting.is_ready());
+        assert!(!HealthStatus::Draining.is_ready());
+        assert!(!HealthStatus::Unhealthy.is_ready());
+    }
+
+    #[test]
+    fn test_health_status_is_alive() {
+        assert!(HealthStatus::Healthy.is_alive());
+        assert!(HealthStatus::Starting.is_alive());
+        assert!(HealthStatus::Draining.is_alive());
+        assert!(!HealthStatus::Unhealthy.is_alive());
+    }
+
+    #[test]
+    fn test_health_status_display() {
+        assert_eq!(format!("{}", HealthStatus::Healthy), "healthy");
+        assert_eq!(format!("{}", HealthStatus::Starting), "starting");
+        assert_eq!(format!("{}", HealthStatus::Draining), "draining");
+        assert_eq!(format!("{}", HealthStatus::Unhealthy), "unhealthy");
+    }
+
+    #[test]
+    fn test_health_response_creation() {
+        let response = HealthResponse::from_status(HealthStatus::Healthy);
+        assert!(response.ready);
+        assert!(response.alive);
+    }
 }

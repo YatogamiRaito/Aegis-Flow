@@ -639,4 +639,46 @@ mod tests {
         let result = router.refresh_carbon_data().await;
         assert!(result.is_ok());
     }
+
+    #[test]
+    fn test_carbon_router_config_enabled() {
+        let config = CarbonRouterConfig {
+            enabled: true,
+            threshold: 150.0,
+            ..Default::default()
+        };
+        assert!(config.enabled);
+        assert_eq!(config.threshold, 150.0);
+    }
+
+    #[test]
+    fn test_carbon_router_config_renewable() {
+        let config = CarbonRouterConfig::default();
+        assert!(config.prefer_renewable);
+        assert_eq!(config.carbon_weight, 0.5);
+    }
+
+    #[test]
+    fn test_region_score_creation() {
+        let score = RegionScore {
+            region_id: "us-west-2".to_string(),
+            carbon_intensity: 150.0,
+            score: 0.3,
+            recommended: true,
+        };
+        assert!(score.recommended);
+        assert_eq!(score.region_id, "us-west-2");
+    }
+
+    #[test]
+    fn test_region_score_clone() {
+        let score = RegionScore {
+            region_id: "eu-central".to_string(),
+            carbon_intensity: 100.0,
+            score: 0.2,
+            recommended: true,
+        };
+        let cloned = score.clone();
+        assert_eq!(score.region_id, cloned.region_id);
+    }
 }

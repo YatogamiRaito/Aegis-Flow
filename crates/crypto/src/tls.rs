@@ -410,4 +410,32 @@ mod tests {
         let copied = alg; // PqcAlgorithm is Copy
         assert_eq!(alg, copied);
     }
+
+    #[test]
+    fn test_pqc_algorithm_debug() {
+        let alg = PqcAlgorithm::MlKem768Only;
+        let debug = format!("{:?}", alg);
+        assert!(debug.contains("MlKem768Only"));
+    }
+
+    #[test]
+    fn test_pqc_tls_config_default() {
+        let config = PqcTlsConfig::default();
+        assert!(config.pqc_enabled);
+        assert!(!config.mtls_required);
+    }
+
+    #[test]
+    fn test_pqc_algorithm_all_variants() {
+        let variants = [
+            PqcAlgorithm::HybridMlKem768,
+            PqcAlgorithm::HybridMlKem1024,
+            PqcAlgorithm::MlKem768Only,
+            PqcAlgorithm::MlKem1024Only,
+        ];
+        for v in variants {
+            let debug = format!("{:?}", v);
+            assert!(!debug.is_empty());
+        }
+    }
 }
