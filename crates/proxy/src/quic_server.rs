@@ -736,14 +736,14 @@ mod tests {
         let mut send = Vec::new();
 
         let result = QuicServer::process_stream(&mut recv, &mut send, "backend".to_string()).await;
-        
+
         // Should handle gracefully (likely default path or return ok)
         assert!(result.is_ok());
-        
+
         // If it wrote something, it's likely a HTTP/3 response (even if error)
         if !send.is_empty() {
-             let response = String::from_utf8(send).unwrap();
-             assert!(response.contains("HTTP/3"));
+            let response = String::from_utf8(send).unwrap();
+            assert!(response.contains("HTTP/3"));
         }
     }
 }

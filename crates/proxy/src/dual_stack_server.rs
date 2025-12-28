@@ -387,7 +387,7 @@ mod tests {
 
         let server = DualStackServer::new(config, ProxyConfig::default());
         let result = server.run_with_shutdown(std::future::pending()).await;
-        
+
         // It returns Ok because the error is logged in the background task and the task finishes.
         assert!(result.is_ok());
     }

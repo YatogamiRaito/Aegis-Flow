@@ -526,4 +526,43 @@ mod tests {
         manager.initiate_shutdown().await;
         assert!(manager.is_shutting_down());
     }
+
+    #[tokio::test]
+    async fn test_connection_tracking_concurrent() {
+        let manager = Arc::new(LifecycleManager::new());
+
+        // Simulate concurrent connections
+        let handles: Vec<_> = (0..10)
+            .map(|_| {
+                let m = Arc::clone(&manager);
+                tokio::spawn(async move {
+                    m.connection_started();
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                    m.connection_finished();
+                })
+            })
+            .collect();
+
+        for h in handles {
+            h.await.unwrap();
+        }
+
+        assert_eq!(manager.active_connections(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_health_status_transitions() {
+        let manager = LifecycleManager::new();
+
+        // Initial state
+        assert!(!manager.health_status().await.is_ready());
+
+        // Mark ready
+        manager.mark_ready().await;
+        assert!(manager.health_status().await.is_ready());
+
+        // Mark unhealthy
+        manager.mark_unhealthy().await;
+        assert!(!manager.health_status().await.is_ready());
+    }
 }

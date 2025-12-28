@@ -575,4 +575,49 @@ mod tests {
         let regions = router.get_regions().await;
         assert_eq!(regions.len(), 2);
     }
+
+    #[tokio::test]
+    async fn test_select_greenest_region_empty() {
+        let config = CarbonRouterConfig::default();
+        let client = MockEnergyClient::new();
+        let cache = CarbonIntensityCache::new(300);
+        let router = CarbonRouter::new(config, client, cache);
+
+        // No regions registered
+        let result = router.select_greenest_region().await;
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_routing_weight_unknown_region() {
+        let config = CarbonRouterConfig::default();
+        let client = MockEnergyClient::new();
+        let cache = CarbonIntensityCache::new(300);
+        let router = CarbonRouter::new(config, client, cache);
+
+        // Unknown region should return default weight
+        let weight = router.get_routing_weight("nonexistent").await;
+        assert_eq!(weight, 50);
+    }
+
+    #[tokio::test]
+    async fn test_routing_weight_high_carbon_region() {
+        let config = CarbonRouterConfig {
+            enabled: true,
+            max_intensity: 300.0,
+            ..Default::default()
+        };
+        let client = MockEnergyClient::new();
+        let cache = CarbonIntensityCache::new(300);
+        let router = CarbonRouter::new(config, client, cache);
+
+        // us-east has 350.0 which is above max_intensity of 300
+        router
+            .register_region(Region::new("us-east", "US East"))
+            .await;
+        router.refresh_carbon_data().await.unwrap();
+
+        let weight = router.get_routing_weight("us-east").await;
+        assert_eq!(weight, 0); // No traffic to high-carbon regions
+    }
 }

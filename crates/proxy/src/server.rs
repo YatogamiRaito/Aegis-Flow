@@ -184,4 +184,42 @@ mod tests {
         // It should be a future that resolves to Result<()>
         drop(future);
     }
+
+    #[tokio::test]
+    async fn test_run_accepts_multiple_clients() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let (tx, rx) = tokio::sync::oneshot::channel();
+
+        tokio::spawn(async move {
+            run_with_listener(listener, async {
+                rx.await.ok();
+            })
+            .await
+            .ok();
+        });
+
+        // Connect multiple clients
+        for _ in 0..3 {
+            let mut client = TcpStream::connect(addr).await.unwrap();
+            client.write_all(b"test").await.unwrap();
+            let mut buf = [0u8; 4];
+            client.read_exact(&mut buf).await.unwrap();
+            assert_eq!(&buf, b"test");
+        }
+
+        tx.send(()).unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_run_bind_failure() {
+        // Try to bind to privileged port (should fail without root)
+        let config = ProxyConfig {
+            host: "127.0.0.1".to_string(),
+            port: 1, // Privileged port
+            ..Default::default()
+        };
+        let result = run(config).await;
+        assert!(result.is_err());
+    }
 }
