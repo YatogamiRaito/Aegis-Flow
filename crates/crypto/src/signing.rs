@@ -1264,4 +1264,31 @@ mod tests {
         assert_eq!(MlDsaAlgorithm::MlDsa65.name(), "ML-DSA-65");
         assert_eq!(MlDsaAlgorithm::MlDsa87.name(), "ML-DSA-87");
     }
+
+    #[test]
+    fn test_algorithm_security_levels() {
+        assert_eq!(MlDsaAlgorithm::MlDsa44.security_level(), 2);
+        assert_eq!(MlDsaAlgorithm::MlDsa65.security_level(), 3);
+        assert_eq!(MlDsaAlgorithm::MlDsa87.security_level(), 5);
+    }
+
+    #[test]
+    fn test_algorithm_public_key_sizes() {
+        assert_eq!(MlDsaAlgorithm::MlDsa44.public_key_size(), 1312);
+        assert_eq!(MlDsaAlgorithm::MlDsa65.public_key_size(), 1952);
+        assert_eq!(MlDsaAlgorithm::MlDsa87.public_key_size(), 2592);
+    }
+
+    #[test]
+    fn test_algorithm_signature_sizes() {
+        assert_eq!(MlDsaAlgorithm::MlDsa44.signature_size_approx(), 2420);
+        assert_eq!(MlDsaAlgorithm::MlDsa65.signature_size_approx(), 3309);
+        assert_eq!(MlDsaAlgorithm::MlDsa87.signature_size_approx(), 4627);
+    }
+
+    #[test]
+    fn test_algorithm_default() {
+        let algo: MlDsaAlgorithm = Default::default();
+        assert_eq!(algo, MlDsaAlgorithm::MlDsa65);
+    }
 }

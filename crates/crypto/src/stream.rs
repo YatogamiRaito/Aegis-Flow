@@ -767,4 +767,18 @@ mod tests {
 
         enc_stream.shutdown().await.unwrap();
     }
+
+    #[test]
+    fn test_stream_constants() {
+        assert_eq!(U32_SIZE, 4);
+        assert_eq!(NONCE_SIZE, 12);
+        assert!(MAX_FRAME_SIZE > 0);
+        assert_eq!(FRAME_OVERHEAD, U32_SIZE + NONCE_SIZE + 16);
+    }
+
+    #[test]
+    fn test_max_frame_size_reasonable() {
+        // Should be 64KB
+        assert_eq!(MAX_FRAME_SIZE, 64 * 1024);
+    }
 }

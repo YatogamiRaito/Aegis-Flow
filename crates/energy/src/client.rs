@@ -472,4 +472,16 @@ mod tests {
 
         assert!(matches!(result, Err(EnergyApiError::HttpError(_))));
     }
+
+    #[test]
+    fn test_watttime_client_creation() {
+        let client = WattTimeClient::new("user".to_string(), "pass".to_string());
+        let _ = &client;
+    }
+
+    #[test]
+    fn test_electricity_maps_client_creation() {
+        let client = ElectricityMapsClient::new("api_key".to_string());
+        let _ = &client;
+    }
 }
