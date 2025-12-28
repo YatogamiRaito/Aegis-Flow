@@ -265,4 +265,18 @@ mod tests {
         let engine = WasmEngine::new().unwrap();
         let _ = engine.engine(); // Just verify it returns without panic
     }
+
+    #[test]
+    fn test_load_module_file_not_found() {
+        let engine = WasmEngine::new().unwrap();
+        let result = engine.load_module(std::path::Path::new("/nonexistent/module.wasm"));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_config_accessor() {
+        let engine = WasmEngine::new().unwrap();
+        let config = engine.config();
+        assert!(config.cache_modules);
+    }
 }

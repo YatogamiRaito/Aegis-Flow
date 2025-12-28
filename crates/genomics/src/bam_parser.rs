@@ -290,4 +290,26 @@ mod tests {
 
         assert_eq!(header.read_groups.len(), 1);
     }
+
+    #[test]
+    fn test_parse_pg_line() {
+        let text = "@PG\tID:bwa\tPN:bwa\tVN:0.7.17\tCL:bwa mem ref.fa read.fq";
+        let header = BamHeader::from_sam_text(text).unwrap();
+        assert_eq!(header.programs.len(), 1);
+        assert_eq!(header.programs[0].id, "bwa");
+        assert_eq!(header.programs[0].name, Some("bwa".to_string()));
+        assert_eq!(header.programs[0].version, Some("0.7.17".to_string()));
+    }
+
+    #[test]
+    fn test_parse_rg_with_all_fields() {
+        let text = "@RG\tID:sample1\tSM:sample\tLB:lib1\tPL:ILLUMINA";
+        let header = BamHeader::from_sam_text(text).unwrap();
+        assert_eq!(header.read_groups.len(), 1);
+        let rg = &header.read_groups[0];
+        assert_eq!(rg.id, "sample1");
+        assert_eq!(rg.sample, Some("sample".to_string()));
+        assert_eq!(rg.library, Some("lib1".to_string()));
+        assert_eq!(rg.platform, Some("ILLUMINA".to_string()));
+    }
 }
