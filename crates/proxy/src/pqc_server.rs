@@ -588,4 +588,40 @@ mod tests {
         // Should fail to bind
         assert!(result.is_err());
     }
+
+    #[test]
+    fn test_pqc_server_with_default_config() {
+        let config = ProxyConfig::default();
+        let server = PqcProxyServer::new(config);
+        let _ = &server;
+    }
+
+    #[test]
+    fn test_pqc_server_with_custom_port() {
+        let config = ProxyConfig {
+            port: 9443,
+            ..Default::default()
+        };
+        let server = PqcProxyServer::new(config);
+        let _ = &server;
+    }
+
+    #[test]
+    fn test_pqc_server_pqc_mode() {
+        let config = ProxyConfig {
+            pqc_enabled: true,
+            ..Default::default()
+        };
+        let server = PqcProxyServer::new(config);
+        let _ = &server;
+    }
+
+    #[tokio::test]
+    async fn test_pqc_server_shutdown() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let config = ProxyConfig::default();
+        let server = PqcProxyServer::new(config);
+        let result = server.run_with_listener(listener, async {}).await;
+        assert!(result.is_ok());
+    }
 }

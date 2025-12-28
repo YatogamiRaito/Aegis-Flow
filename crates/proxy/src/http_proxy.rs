@@ -536,4 +536,34 @@ mod tests {
         let resp = handle_request(req, "upstream").await.unwrap();
         assert!(resp.status().is_success());
     }
+
+    #[test]
+    fn test_http_proxy_config_defaults() {
+        let config = HttpProxyConfig::default();
+        assert_eq!(config.max_concurrent_streams, 100);
+        assert_eq!(config.initial_window_size, 65535);
+    }
+
+    #[test]
+    fn test_http_proxy_config_custom_upstream() {
+        let config = HttpProxyConfig {
+            upstream_addr: "backend.local:8080".to_string(),
+            ..Default::default()
+        };
+        assert!(config.upstream_addr.contains("backend"));
+    }
+
+    #[test]
+    fn test_http_proxy_config_debug_format() {
+        let config = HttpProxyConfig::default();
+        let debug = format!("{:?}", config);
+        assert!(debug.contains("HttpProxyConfig"));
+    }
+
+    #[test]
+    fn test_http_proxy_new_with_config() {
+        let config = HttpProxyConfig::default();
+        let proxy = HttpProxy::new(config);
+        let _ = &proxy;
+    }
 }
