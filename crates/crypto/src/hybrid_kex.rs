@@ -368,4 +368,18 @@ mod tests {
         assert_eq!(ct.x25519_ephemeral, ct2.x25519_ephemeral);
         assert_eq!(ct.mlkem_ciphertext, ct2.mlkem_ciphertext);
     }
+
+    #[test]
+    fn test_invalid_public_key_from_bytes() {
+        let invalid_bytes = vec![0u8; 10]; // Too short
+        let result = HybridPublicKey::from_bytes(&invalid_bytes);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_invalid_ciphertext_from_bytes() {
+        let invalid_bytes = vec![0u8; 10]; // Too short
+        let result = HybridCiphertext::from_bytes(&invalid_bytes);
+        assert!(result.is_err());
+    }
 }
