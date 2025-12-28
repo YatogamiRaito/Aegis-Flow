@@ -1129,4 +1129,51 @@ mod tests {
             MlDsaVerifier::new(signer.public_key().to_vec(), MlDsaAlgorithm::MlDsa65).unwrap();
         assert_eq!(verifier.algorithm(), MlDsaAlgorithm::MlDsa65);
     }
+
+    #[test]
+    fn test_mldsa65_from_keys_valid() {
+        let signer = MlDsa65Signer::generate().unwrap();
+        let result =
+            MlDsa65Signer::from_keys(signer.public_key().to_vec(), signer.secret_key.clone());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_mldsa_verifier_invalid_public_key() {
+        let result = MlDsaVerifier::new(vec![0u8; 10], MlDsaAlgorithm::MlDsa65);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_mldsa87_verify_with_wrong_message() {
+        let signer = MlDsa87Signer::generate().unwrap();
+        let message1 = b"original message";
+        let message2 = b"different message";
+
+        let signature = signer.sign(message1).unwrap();
+        let result = signer.verify(message2, &signature).unwrap();
+        assert!(!result);
+    }
+
+    #[test]
+    fn test_mldsa44_sign_empty_message() {
+        let signer = MlDsa44Signer::generate().unwrap();
+        let signature = signer.sign(b"").unwrap();
+        assert!(!signature.is_empty());
+
+        let valid = signer.verify(b"", &signature).unwrap();
+        assert!(valid);
+    }
+
+    #[test]
+    fn test_verifier_cross_algorithm_fail() {
+        let signer44 = MlDsa44Signer::generate().unwrap();
+        let message = b"test";
+        let sig44 = signer44.sign(message).unwrap();
+
+        // Try to verify with wrong algorithm verifier
+        let verifier65 =
+            MlDsaVerifier::new(signer44.public_key().to_vec(), MlDsaAlgorithm::MlDsa65);
+        assert!(verifier65.is_err()); // Should fail due to wrong key size
+    }
 }
