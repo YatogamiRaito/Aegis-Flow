@@ -177,7 +177,7 @@ mod tests {
 
     #[test]
     fn test_exporter_default() {
-        let exporter = EnergyPrometheusExporter::default();
+        let exporter = EnergyPrometheusExporter;
         let _ = exporter;
     }
 
