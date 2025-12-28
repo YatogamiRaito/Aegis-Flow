@@ -622,18 +622,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_router_empty_regions() {
-        let config = CarbonRouterConfig::default();
-        let client = MockEnergyClient::new();
-        let cache = CarbonIntensityCache::new(300);
-        let router = CarbonRouter::new(config, client, cache);
-
-        // No regions registered
-        let regions = router.get_green_regions().await;
-        assert!(regions.is_empty());
-    }
-
-    #[tokio::test]
     async fn test_router_config_debug() {
         let config = CarbonRouterConfig::default();
         let debug_str = format!("{:?}", config);

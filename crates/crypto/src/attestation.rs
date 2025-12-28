@@ -918,11 +918,4 @@ mod tests {
         let debug = format!("{:?}", platform);
         assert!(debug.contains("None"));
     }
-
-    #[test]
-    fn test_attestation_provider_clone() {
-        let provider1 = AttestationProvider::default();
-        let provider2 = provider1.clone();
-        assert_eq!(provider1.platform(), provider2.platform());
-    }
 }

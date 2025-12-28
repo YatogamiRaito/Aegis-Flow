@@ -1259,7 +1259,7 @@ mod tests {
     }
 
     #[test]
-    fn test_algorithm_name() {
+    fn test_algorithm_name_strings() {
         assert_eq!(MlDsaAlgorithm::MlDsa44.name(), "ML-DSA-44");
         assert_eq!(MlDsaAlgorithm::MlDsa65.name(), "ML-DSA-65");
         assert_eq!(MlDsaAlgorithm::MlDsa87.name(), "ML-DSA-87");
