@@ -362,4 +362,42 @@ mod tests {
         let source = estimator.source();
         assert_eq!(source, EnergySource::Software);
     }
+
+    #[test]
+    fn test_shared_energy_estimator_type() {
+        // Test the SharedEnergyEstimator type alias
+        let shared: SharedEnergyEstimator = Arc::new(EnergyEstimator::new());
+        let cloned = Arc::clone(&shared);
+
+        // Both references should work
+        assert_eq!(shared.request_count(), 0);
+        assert_eq!(cloned.request_count(), 0);
+
+        // Measure through one reference
+        shared.measure("/test", "GET", || 42);
+
+        // Both should see the update
+        assert_eq!(shared.request_count(), 1);
+        assert_eq!(cloned.request_count(), 1);
+    }
+
+    #[test]
+    fn test_total_energy_joules_precision() {
+        let estimator = EnergyEstimator::new();
+
+        // Do multiple measurements
+        for _ in 0..100 {
+            estimator.measure("/precision", "GET", || {
+                std::thread::sleep(Duration::from_micros(10));
+            });
+        }
+
+        let total = estimator.total_energy_joules();
+        assert!(total > 0.0);
+
+        // Verify precision conversion (micro-joules to joules)
+        let avg = estimator.average_energy_joules();
+        let expected_total = avg * 100.0;
+        assert!((total - expected_total).abs() < 1e-10);
+    }
 }

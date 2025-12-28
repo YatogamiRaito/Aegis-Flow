@@ -503,4 +503,30 @@ mod tests {
             // It might be an IO error, but we expect NotFound for name extraction if it happens first
         }
     }
+
+    #[test]
+    fn test_load_all_plugins_with_invalid_wasm() {
+        // This test triggers the warn! macro on line 174
+        let temp_dir = std::env::temp_dir().join(format!(
+            "test_invalid_plugins_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+
+        // Create an INVALID wasm file (this will trigger the warn! path)
+        let wasm_path = temp_dir.join("bad_plugin.wasm");
+        std::fs::write(&wasm_path, b"not valid wasm bytes at all").unwrap();
+
+        let registry = create_test_registry().with_plugin_dir(temp_dir.clone());
+        let count = registry.load_all_plugins().unwrap();
+
+        // Should be 0 because the wasm file is invalid
+        assert_eq!(count, 0);
+
+        // Cleanup
+        std::fs::remove_dir_all(&temp_dir).ok();
+    }
 }

@@ -523,4 +523,28 @@ mod tests {
             assert_eq!(req.method, method);
         }
     }
+
+    #[tokio::test]
+    async fn test_readiness_endpoint() {
+        // Test the /readiness endpoint specifically (alias for /ready)
+        let handler = Http3Handler::new(Http3Config::default(), "127.0.0.1:8080".to_string());
+        let req = Http3Request::new("GET", "/readiness");
+        let resp = handler.handle_request(req).await;
+
+        assert_eq!(resp.status, 200);
+        let body_str = std::str::from_utf8(&resp.body).unwrap();
+        assert!(body_str.contains("ready"));
+    }
+
+    #[tokio::test]
+    async fn test_healthz_endpoint() {
+        // Test the /healthz endpoint specifically
+        let handler = Http3Handler::new(Http3Config::default(), "127.0.0.1:8080".to_string());
+        let req = Http3Request::new("GET", "/healthz");
+        let resp = handler.handle_request(req).await;
+
+        assert_eq!(resp.status, 200);
+        let body_str = std::str::from_utf8(&resp.body).unwrap();
+        assert!(body_str.contains("healthy"));
+    }
 }

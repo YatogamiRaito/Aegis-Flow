@@ -1030,7 +1030,6 @@ mod tests {
         assert!(quote.signature.is_none());
     }
 
-
     #[test]
     fn test_attestation_quote_with_signature() {
         let quote = AttestationQuote::new(TeePlatform::IntelSgx, vec![1, 2, 3], vec![], vec![])
@@ -1050,7 +1049,6 @@ mod tests_coverage {
     // Mutex to serialize env var tests to avoid race conditions with other tests
     static ENV_LOCK: Mutex<()> = Mutex::new(());
 
-
     #[test]
     fn test_tee_capabilities_detect_env_vars() {
         let _lock = ENV_LOCK.lock().unwrap();
@@ -1061,11 +1059,10 @@ mod tests_coverage {
         let orig_sev = env::var("AEGIS_TEE_SEV_SNP");
 
         // Clear all
-        // Clear all
         unsafe {
-            unsafe { env::remove_var("AEGIS_TEE_SGX"); }
-            unsafe { env::remove_var("AEGIS_TEE_TDX"); }
-            unsafe { env::remove_var("AEGIS_TEE_SEV_SNP"); }
+            env::remove_var("AEGIS_TEE_SGX");
+            env::remove_var("AEGIS_TEE_TDX");
+            env::remove_var("AEGIS_TEE_SEV_SNP");
         }
 
         // 1. None
@@ -1073,34 +1070,52 @@ mod tests_coverage {
         assert!(!caps.any_available());
 
         // 2. SGX only
-        unsafe { env::set_var("AEGIS_TEE_SGX", "1"); }
+        unsafe {
+            env::set_var("AEGIS_TEE_SGX", "1");
+        }
         let caps = TeeCapabilities::detect();
         assert!(caps.sgx);
         assert!(!caps.tdx);
         assert!(!caps.sev_snp);
-        unsafe { env::remove_var("AEGIS_TEE_SGX"); }
+        unsafe {
+            env::remove_var("AEGIS_TEE_SGX");
+        }
 
         // 3. TDX only
-        unsafe { env::set_var("AEGIS_TEE_TDX", "1"); }
+        unsafe {
+            env::set_var("AEGIS_TEE_TDX", "1");
+        }
         let caps = TeeCapabilities::detect();
         assert!(!caps.sgx);
         assert!(caps.tdx);
         assert!(!caps.sev_snp);
-        unsafe { env::remove_var("AEGIS_TEE_TDX"); }
+        unsafe {
+            env::remove_var("AEGIS_TEE_TDX");
+        }
 
         // 4. SEV-SNP only
-        unsafe { env::set_var("AEGIS_TEE_SEV_SNP", "1"); }
+        unsafe {
+            env::set_var("AEGIS_TEE_SEV_SNP", "1");
+        }
         let caps = TeeCapabilities::detect();
         assert!(!caps.sgx);
         assert!(!caps.tdx);
         assert!(caps.sev_snp);
-        unsafe { env::remove_var("AEGIS_TEE_SEV_SNP"); }
+        unsafe {
+            env::remove_var("AEGIS_TEE_SEV_SNP");
+        }
 
         // Restore
         unsafe {
-            if let Ok(v) = orig_sgx { unsafe { env::set_var("AEGIS_TEE_SGX", v); } }
-            if let Ok(v) = orig_tdx { unsafe { env::set_var("AEGIS_TEE_TDX", v); } }
-            if let Ok(v) = orig_sev { unsafe { env::set_var("AEGIS_TEE_SEV_SNP", v); } }
+            if let Ok(v) = orig_sgx {
+                env::set_var("AEGIS_TEE_SGX", v);
+            }
+            if let Ok(v) = orig_tdx {
+                env::set_var("AEGIS_TEE_TDX", v);
+            }
+            if let Ok(v) = orig_sev {
+                env::set_var("AEGIS_TEE_SEV_SNP", v);
+            }
         }
     }
 
@@ -1149,10 +1164,14 @@ mod tests_coverage {
         let _lock = ENV_LOCK.lock().unwrap();
         // Save
         let orig_sgx = env::var("AEGIS_TEE_SGX");
-        unsafe { env::remove_var("AEGIS_TEE_SGX"); }
+        unsafe {
+            env::remove_var("AEGIS_TEE_SGX");
+        }
 
         // 1. Force SGX
-        unsafe { env::set_var("AEGIS_TEE_SGX", "1"); }
+        unsafe {
+            env::set_var("AEGIS_TEE_SGX", "1");
+        }
         let provider = AttestationProvider::new();
         assert_eq!(provider.platform(), TeePlatform::IntelSgx);
         let quote = provider.generate_quote(b"n", b"u").unwrap();
@@ -1161,31 +1180,41 @@ mod tests_coverage {
         assert!(provider.verify_quote(&quote, b"n").unwrap());
 
         // 2. Force TDX (higher priority than SGX in our mock)
-        unsafe { env::set_var("AEGIS_TEE_TDX", "1"); }
+        unsafe {
+            env::set_var("AEGIS_TEE_TDX", "1");
+        }
         let provider = AttestationProvider::new();
         assert_eq!(provider.platform(), TeePlatform::IntelTdx);
         let quote = provider.generate_quote(b"n", b"u").unwrap();
         assert_eq!(quote.platform, TeePlatform::IntelTdx);
         assert_eq!(quote.quote_bytes, b"TDX_QUOTE_V4_MOCK_DATA");
         assert!(provider.verify_quote(&quote, b"n").unwrap());
-        unsafe { env::remove_var("AEGIS_TEE_TDX"); }
+        unsafe {
+            env::remove_var("AEGIS_TEE_TDX");
+        }
 
         // 3. Force SEV-SNP
-        unsafe { env::remove_var("AEGIS_TEE_SGX"); }
-        unsafe { env::set_var("AEGIS_TEE_SEV_SNP", "1"); }
+        unsafe {
+            env::remove_var("AEGIS_TEE_SGX");
+        }
+        unsafe {
+            env::set_var("AEGIS_TEE_SEV_SNP", "1");
+        }
         let provider = AttestationProvider::new();
         assert_eq!(provider.platform(), TeePlatform::AmdSevSnp);
         let quote = provider.generate_quote(b"n", b"u").unwrap();
         assert_eq!(quote.platform, TeePlatform::AmdSevSnp);
         assert_eq!(quote.quote_bytes, b"SEV_SNP_REPORT_MOCK");
         assert!(provider.verify_quote(&quote, b"n").unwrap());
-        unsafe { env::remove_var("AEGIS_TEE_SEV_SNP"); }
+        unsafe {
+            env::remove_var("AEGIS_TEE_SEV_SNP");
+        }
 
         // Restore
         unsafe {
-            if let Ok(v) = orig_sgx { unsafe { env::set_var("AEGIS_TEE_SGX", v); } }
+            if let Ok(v) = orig_sgx {
+                env::set_var("AEGIS_TEE_SGX", v);
+            }
         }
     }
 }
-
-
