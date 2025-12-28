@@ -920,7 +920,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tee_platform_name() {
+    fn test_tee_platform_name_strings() {
         assert_eq!(TeePlatform::IntelSgx.name(), "Intel SGX");
         assert_eq!(TeePlatform::IntelTdx.name(), "Intel TDX");
         assert_eq!(TeePlatform::AmdSevSnp.name(), "AMD SEV-SNP");
@@ -928,7 +928,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tee_platform_is_tee() {
+    fn test_tee_platform_is_tee_check() {
         assert!(TeePlatform::IntelSgx.is_tee());
         assert!(TeePlatform::IntelTdx.is_tee());
         assert!(TeePlatform::AmdSevSnp.is_tee());
