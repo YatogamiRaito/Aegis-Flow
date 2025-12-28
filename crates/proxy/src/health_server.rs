@@ -25,7 +25,8 @@ pub async fn run_health_server(
 
     info!("🏥 Health server listening on http://{}", addr);
 
-    run_health_server_with_listener(listener, lifecycle, metrics_handle, std::future::pending()).await
+    run_health_server_with_listener(listener, lifecycle, metrics_handle, std::future::pending())
+        .await
 }
 
 pub async fn run_health_server_with_listener(
@@ -237,13 +238,16 @@ mod tests {
 
         let resp = handle_request(req, lifecycle, None).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.headers().get("Content-Type").unwrap(), "application/json");
+        assert_eq!(
+            resp.headers().get("Content-Type").unwrap(),
+            "application/json"
+        );
     }
 
     #[tokio::test]
     async fn test_handle_request_ready() {
         let lifecycle = create_test_lifecycle();
-        
+
         // Not ready initially
         let req = Request::builder()
             .uri("/ready")
@@ -255,7 +259,7 @@ mod tests {
 
         // Mark ready
         lifecycle.mark_ready().await;
-        
+
         let req = Request::builder()
             .uri("/ready")
             .method(Method::GET)

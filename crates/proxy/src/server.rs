@@ -91,12 +91,13 @@ mod tests {
         let addr = listener.local_addr().unwrap();
 
         let (tx, rx) = tokio::sync::oneshot::channel();
-        
+
         // Spawn server task with graceful shutdown
         let handle = tokio::spawn(async move {
             run_with_listener(listener, async {
                 rx.await.ok();
-            }).await
+            })
+            .await
         });
 
         // Connect client
@@ -110,7 +111,7 @@ mod tests {
 
         assert!(result.is_ok());
         assert_eq!(&response, test_data);
-        
+
         tx.send(()).unwrap();
         handle.await.unwrap().unwrap();
     }

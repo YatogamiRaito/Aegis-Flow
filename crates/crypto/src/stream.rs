@@ -290,7 +290,7 @@ mod tests {
         // 2. Read back from buffer
         let mut read_cursor = std::io::Cursor::new(&network_buffer);
         let mut reader = EncryptedStream::new(&mut read_cursor, &key);
-        
+
         let mut decrypted = vec![0u8; payload.len()];
         reader.read_exact(&mut decrypted).await.unwrap();
 
@@ -301,7 +301,7 @@ mod tests {
     async fn test_large_payload_chunking() {
         let key = [0x11u8; 32];
         // Create payload covering multiple internal buffer states
-        let payload = vec![0xAAu8; 5000]; 
+        let payload = vec![0xAAu8; 5000];
 
         let mut network_buffer = Vec::new();
         let mut cursor = std::io::Cursor::new(&mut network_buffer);
@@ -314,13 +314,13 @@ mod tests {
 
         let mut read_cursor = std::io::Cursor::new(&network_buffer);
         let mut reader = EncryptedStream::new(&mut read_cursor, &key);
-        
+
         let mut decrypted = Vec::new();
         reader.read_to_end(&mut decrypted).await.unwrap();
 
         assert_eq!(decrypted, payload);
     }
-    
+
     #[tokio::test]
     async fn test_multiple_writes() {
         let key = [0x22u8; 32];
@@ -339,7 +339,7 @@ mod tests {
 
         let mut read_cursor = std::io::Cursor::new(&network_buffer);
         let mut reader = EncryptedStream::new(&mut read_cursor, &key);
-        
+
         let mut buf = vec![0u8; p1.len() + p2.len()];
         reader.read_exact(&mut buf).await.unwrap();
 
@@ -367,10 +367,10 @@ mod tests {
 
         let mut read_cursor = std::io::Cursor::new(&network_buffer);
         let mut reader = EncryptedStream::new(&mut read_cursor, &key);
-        
+
         let mut buf = vec![0u8; payload.len()];
         let result = reader.read_exact(&mut buf).await;
-        
+
         assert!(result.is_err());
     }
 }

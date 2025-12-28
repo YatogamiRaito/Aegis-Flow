@@ -191,7 +191,7 @@ mod tests {
     // Note: Functions like record_request, record_handshake etc. require
     // a metrics recorder to be installed. However, calling them without a recorder
     // is safe (no-op) and serves to verify the code paths are reachable and don't panic.
-    
+
     #[test]
     fn test_record_request_execution() {
         // Exercise the function to ensure no panics and improve coverage
@@ -239,7 +239,7 @@ mod tests {
     fn test_deferred_jobs_execution() {
         update_deferred_jobs(5);
     }
-    
+
     #[test]
     fn test_get_metrics_handle() {
         // Should be None or Some depending on test order/init, but shouldn't panic

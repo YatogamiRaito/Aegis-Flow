@@ -33,7 +33,8 @@ impl PqcProxyServer {
         info!("🎯 Aegis-Flow PQC proxy is ready to accept connections");
         info!("🔒 Using algorithm: X25519-MLKEM768-Hybrid");
 
-        self.run_with_listener(listener, std::future::pending()).await
+        self.run_with_listener(listener, std::future::pending())
+            .await
     }
 
     /// Run with provided listener and shutdown signal
@@ -190,24 +191,29 @@ mod tests {
         let listener = TcpListener::bind(format!("{}:{}", config.host, config.port))
             .await
             .unwrap();
-        
+
         let server = PqcProxyServer::new(config);
-        
+
         let (tx, rx) = tokio::sync::oneshot::channel();
-        
+
         let handle = tokio::spawn(async move {
-            server.run_with_listener(listener, async {
-                rx.await.ok();
-            }).await
+            server
+                .run_with_listener(listener, async {
+                    rx.await.ok();
+                })
+                .await
         });
-        
+
         tokio::time::sleep(Duration::from_millis(50)).await;
         // Trigger shutdown
         tx.send(()).unwrap();
-        
+
         let result = timeout(Duration::from_secs(1), handle).await;
         assert!(result.is_ok(), "Server shutdown timed out");
-        assert!(result.unwrap().unwrap().is_ok(), "Server finished with error");
+        assert!(
+            result.unwrap().unwrap().is_ok(),
+            "Server finished with error"
+        );
     }
 
     #[tokio::test]
@@ -224,15 +230,17 @@ mod tests {
             .await
             .unwrap();
         let addr = listener.local_addr().unwrap();
-        
+
         let server = Arc::new(PqcProxyServer::new(config.clone()));
         let (tx, rx) = tokio::sync::oneshot::channel();
-        
+
         let server_clone = Arc::clone(&server);
         tokio::spawn(async move {
-            server_clone.run_with_listener(listener, async {
-                 rx.await.ok();
-            }).await
+            server_clone
+                .run_with_listener(listener, async {
+                    rx.await.ok();
+                })
+                .await
         });
 
         // Give server time to start accepting
@@ -253,17 +261,20 @@ mod tests {
         let (ciphertext, client_channel) = client_handshake.client_complete(&server_pk).unwrap();
 
         let ct_bytes = ciphertext.to_bytes();
-        client.write_all(&(ct_bytes.len() as u32).to_be_bytes()).await.unwrap();
+        client
+            .write_all(&(ct_bytes.len() as u32).to_be_bytes())
+            .await
+            .unwrap();
         client.write_all(&ct_bytes).await.unwrap();
 
         // 🔒 Data Plane
         let key = client_channel.encryption_key().as_bytes();
         let mut encrypted_client = EncryptedStream::new(client, key);
-        
+
         // Just verify we can write to the encrypted stream without error
         let frame1 = b"Frame 1";
         encrypted_client.write_all(frame1).await.unwrap();
-        
+
         // Cleanup
         tx.send(()).unwrap();
     }

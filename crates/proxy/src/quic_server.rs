@@ -107,7 +107,10 @@ impl QuicServer {
     }
 
     /// Run the QUIC server with a shutdown signal
-    pub async fn run_with_shutdown(&self, shutdown: impl std::future::Future<Output = ()>) -> Result<()> {
+    pub async fn run_with_shutdown(
+        &self,
+        shutdown: impl std::future::Future<Output = ()>,
+    ) -> Result<()> {
         // Verify certificates exist
         self.check_certificates()?;
 
@@ -147,13 +150,18 @@ impl QuicServer {
         );
 
         // Accept connections
-        self.accept_connections_with_shutdown(server, shutdown).await
+        self.accept_connections_with_shutdown(server, shutdown)
+            .await
     }
 
     /// Accept and handle QUIC connections
-    async fn accept_connections_with_shutdown(&self, mut server: Server, shutdown: impl std::future::Future<Output = ()>) -> Result<()> {
+    async fn accept_connections_with_shutdown(
+        &self,
+        mut server: Server,
+        shutdown: impl std::future::Future<Output = ()>,
+    ) -> Result<()> {
         tokio::pin!(shutdown);
-        
+
         loop {
             tokio::select! {
                 accept_result = server.accept() => {
@@ -342,7 +350,7 @@ mod tests {
     async fn test_quic_server_lifecycle() {
         use rcgen::generate_simple_self_signed;
         use std::fs;
-        use tokio::time::{timeout, Duration};
+        use tokio::time::{Duration, timeout};
 
         // Generate certs
         let subject_alt_names = vec!["localhost".to_string()];
@@ -352,7 +360,7 @@ mod tests {
 
         let cert_path = "test_quic_server.crt";
         let key_path = "test_quic_server.key";
-        
+
         fs::write(cert_path, &cert_pem).unwrap();
         fs::write(key_path, &key_pem).unwrap();
 
@@ -360,32 +368,34 @@ mod tests {
         config.bind_address = "127.0.0.1:0".to_string(); // Random port
         config.cert_path = cert_path.to_string();
         config.key_path = key_path.to_string();
-        
+
         let proxy_config = ProxyConfig::default();
         let server = QuicServer::new(config, proxy_config);
-        
+
         let (tx, rx) = tokio::sync::oneshot::channel();
-        
+
         // Run server with shutdown signal
         let server_task = tokio::spawn(async move {
-            server.run_with_shutdown(async {
-                rx.await.ok();
-            }).await
+            server
+                .run_with_shutdown(async {
+                    rx.await.ok();
+                })
+                .await
         });
-        
+
         // Let it start
         tokio::time::sleep(Duration::from_millis(100)).await;
-        
+
         // Trigger shutdown
         tx.send(()).unwrap();
-        
+
         // Wait for finish
         let result = timeout(Duration::from_secs(2), server_task).await;
-        
+
         // Cleanup
         let _ = fs::remove_file(cert_path);
         let _ = fs::remove_file(key_path);
-        
+
         assert!(result.is_ok(), "Server shutdown timed out");
         assert!(result.unwrap().unwrap().is_ok(), "Server run failed");
     }
