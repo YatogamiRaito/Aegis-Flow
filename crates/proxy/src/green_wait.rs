@@ -919,4 +919,60 @@ mod tests {
         let debug = format!("{:?}", priority);
         assert!(debug.contains("Background"));
     }
+
+    #[test]
+    fn test_job_priority_max_wait_critical() {
+        let priority = JobPriority::Critical;
+        assert_eq!(priority.max_wait_duration(), Duration::ZERO);
+    }
+
+    #[test]
+    fn test_job_priority_max_wait_high() {
+        let priority = JobPriority::High;
+        assert_eq!(priority.max_wait_duration(), Duration::from_secs(5 * 60));
+    }
+
+    #[test]
+    fn test_job_priority_max_wait_low() {
+        let priority = JobPriority::Low;
+        assert_eq!(
+            priority.max_wait_duration(),
+            Duration::from_secs(2 * 60 * 60)
+        );
+    }
+
+    #[test]
+    fn test_job_priority_max_wait_background() {
+        let priority = JobPriority::Background;
+        assert_eq!(
+            priority.max_wait_duration(),
+            Duration::from_secs(24 * 60 * 60)
+        );
+    }
+
+    #[test]
+    fn test_deferred_job_not_expired() {
+        let job = DeferredJob::new(
+            "fresh-job",
+            JobPriority::Normal,
+            Region::new("us-west", "US West"),
+            200.0,
+            vec![],
+        );
+        // Job just created, should not be expired
+        assert!(!job.is_expired());
+    }
+
+    #[test]
+    fn test_deferred_job_payload() {
+        let payload = vec![0xDE, 0xAD, 0xBE, 0xEF];
+        let job = DeferredJob::new(
+            "payload-job",
+            JobPriority::Background,
+            Region::new("ap-northeast", "Asia Pacific"),
+            100.0,
+            payload.clone(),
+        );
+        assert_eq!(job.payload, payload);
+    }
 }
