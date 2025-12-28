@@ -390,4 +390,60 @@ mod tests {
         let rg2 = rg1.clone();
         assert_eq!(rg1.id, rg2.id);
     }
+
+    #[test]
+    fn test_program_clone() {
+        let header_text = "@PG\tID:prog1\tPN:program\tVN:1.0";
+        let header = BamHeader::from_sam_text(header_text).unwrap();
+        let prog1 = &header.programs[0];
+        let prog2 = prog1.clone();
+        assert_eq!(prog1.id, prog2.id);
+        assert_eq!(prog1.name, prog2.name);
+    }
+
+    #[test]
+    fn test_parse_rg_without_id() {
+        // RG without ID should not be added
+        let header_text = "@RG\tSM:sample\tLB:lib";
+        let header = BamHeader::from_sam_text(header_text).unwrap();
+        assert_eq!(header.read_groups.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_pg_without_id() {
+        // PG without ID should not be added
+        let header_text = "@PG\tPN:progname\tVN:1.0";
+        let header = BamHeader::from_sam_text(header_text).unwrap();
+        assert_eq!(header.programs.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_hd_with_extra_fields() {
+        // @HD with extra unknown fields should still parse
+        let header_text = "@HD\tVN:1.6\tSO:coordinate\tFO:unknown\tXX:extra";
+        let header = BamHeader::from_sam_text(header_text).unwrap();
+        assert_eq!(header.version, Some("1.6".to_string()));
+        assert_eq!(header.sort_order, Some("coordinate".to_string()));
+    }
+
+    #[test]
+    fn test_parse_sq_with_extra_attributes() {
+        // @SQ with multiple extra attributes
+        let header_text = "@SQ\tSN:chr1\tLN:1000\tAS:assembly\tM5:checksum\tSP:species";
+        let header = BamHeader::from_sam_text(header_text).unwrap();
+        assert_eq!(header.references.len(), 1);
+        let ref_seq = &header.references[0];
+        assert_eq!(ref_seq.attributes.get("AS"), Some(&"assembly".to_string()));
+        assert_eq!(ref_seq.attributes.get("M5"), Some(&"checksum".to_string()));
+    }
+
+    #[test]
+    fn test_bam_header_default() {
+        let header: BamHeader = Default::default();
+        assert_eq!(header.version, None);
+        assert_eq!(header.sort_order, None);
+        assert_eq!(header.references.len(), 0);
+        assert_eq!(header.read_groups.len(), 0);
+        assert_eq!(header.programs.len(), 0);
+    }
 }

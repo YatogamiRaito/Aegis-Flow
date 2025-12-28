@@ -534,4 +534,148 @@ mod tests {
         let result = client.get_carbon_intensity(&region).await;
         assert!(matches!(result, Err(EnergyApiError::AuthenticationError)));
     }
+
+    #[tokio::test]
+    async fn test_electricity_maps_rate_limit() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/carbon-intensity/latest"))
+            .respond_with(ResponseTemplate::new(429))
+            .mount(&mock_server)
+            .await;
+
+        let client = ElectricityMapsClient::new("key".to_string()).with_base_url(mock_server.uri());
+        let region = Region::new("FR", "France");
+        let result = client.get_carbon_intensity(&region).await;
+
+        match result {
+            Err(EnergyApiError::RateLimitExceeded {
+                retry_after_seconds,
+            }) => {
+                assert_eq!(retry_after_seconds, 60);
+            }
+            _ => panic!("Expected RateLimitExceeded error"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_watttime_get_region_for_location() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/login"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "token": "test_token"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/region-from-loc"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "abbrev": "CAISO_NORTH",
+                "name": "California ISO - Northern"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = WattTimeClient::new("user".to_string(), "pass".to_string())
+            .with_base_url(mock_server.uri());
+
+        let region = client
+            .get_region_for_location(37.7749, -122.4194)
+            .await
+            .unwrap();
+        assert_eq!(region.id, "CAISO_NORTH");
+    }
+
+    #[tokio::test]
+    async fn test_watttime_get_carbon_intensity_full() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/login"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "token": "test_token"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/signal-index"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "ba": "CAISO",
+                "point_time": "2025-12-25T14:00:00Z",
+                "moer": 800.0,
+                "percent": 75
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = WattTimeClient::new("user".to_string(), "pass".to_string())
+            .with_base_url(mock_server.uri());
+
+        let region = Region::new("CAISO", "California");
+        let intensity = client.get_carbon_intensity(&region).await.unwrap();
+
+        assert_eq!(intensity.region.id, "CAISO");
+        assert!(intensity.value > 0.0);
+        assert!(intensity.rating.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_electricity_maps_by_location() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/carbon-intensity/latest"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "zone": "DE",
+                "carbonIntensity": 200.0,
+                "datetime": "2025-12-25T14:00:00Z",
+                "updatedAt": "2025-12-25T14:05:00Z"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = ElectricityMapsClient::new("key".to_string()).with_base_url(mock_server.uri());
+        let intensity = client
+            .get_carbon_intensity_by_location(52.52, 13.405)
+            .await
+            .unwrap();
+
+        assert_eq!(intensity.region.id, "DE");
+        assert!(intensity.value > 0.0);
+    }
+
+    #[tokio::test]
+    async fn test_electricity_maps_get_region_for_location() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/carbon-intensity/latest"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "zone": "FR",
+                "carbonIntensity": 50.0,
+                "datetime": "2025-12-25T14:00:00Z",
+                "updatedAt": "2025-12-25T14:05:00Z"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = ElectricityMapsClient::new("key".to_string()).with_base_url(mock_server.uri());
+        let region = client
+            .get_region_for_location(48.8566, 2.3522)
+            .await
+            .unwrap();
+
+        assert_eq!(region.id, "FR");
+    }
+
+    #[test]
+    fn test_electricity_maps_client_creation() {
+        let client = ElectricityMapsClient::new("api_key".to_string());
+        let _ = &client;
+    }
 }

@@ -438,4 +438,31 @@ mod tests {
             assert!(!debug.is_empty());
         }
     }
+
+    #[test]
+    fn test_secure_channel_encryption_key() {
+        let key_bytes = [0xAB; 32];
+        let channel = SecureChannel::new(key_bytes, 100, PqcAlgorithm::HybridMlKem768);
+        let key = channel.encryption_key();
+        // Key should be accessible
+        let _ = format!("{:?}", key);
+    }
+
+    #[test]
+    fn test_server_handshake_state_debug() {
+        let config = PqcTlsConfig::default();
+        let handshake = PqcHandshake::new(config);
+        let (_, state) = handshake.server_init().unwrap();
+
+        let debug = format!("{:?}", state);
+        assert!(debug.contains("ServerHandshakeState"));
+        assert!(debug.contains("[REDACTED]")); // Secret key should be redacted
+    }
+
+    #[test]
+    fn test_pqc_config_debug() {
+        let config = PqcTlsConfig::default();
+        let debug = format!("{:?}", config);
+        assert!(debug.contains("PqcTlsConfig"));
+    }
 }
