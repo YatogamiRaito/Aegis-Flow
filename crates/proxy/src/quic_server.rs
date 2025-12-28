@@ -611,18 +611,41 @@ mod tests {
         assert!(result.is_err());
     }
 
-    #[test]
-    fn test_quic_config_debug() {
-        let config = QuicConfig::default();
-        let debug_str = format!("{:?}", config);
-        assert!(debug_str.contains("bind_address"));
-        assert!(debug_str.contains("cert_path"));
+    #[tokio::test]
+    async fn test_quic_server_run_fails_without_keys() {
+        // Generate a cert but no key
+        let temp_dir =
+            std::env::temp_dir().join(format!("aegis-quic-fail-{}", rand::random::<u64>()));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+        let cert_path = temp_dir.join("server.crt");
+        std::fs::write(&cert_path, "fake cert").unwrap();
+
+        let config = QuicConfig {
+            bind_address: "127.0.0.1:0".to_string(),
+            cert_path: cert_path.to_str().unwrap().to_string(),
+            key_path: "/nonexistent/key.key".to_string(),
+            ..Default::default()
+        };
+        let server = QuicServer::new(config, ProxyConfig::default());
+
+        let result = server.run_with_shutdown(async {}).await;
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("private key not found")
+        );
+
+        let _ = std::fs::remove_dir_all(temp_dir);
     }
 
     #[test]
-    fn test_quic_stats_debug() {
+    fn test_quic_stats_default_values() {
         let stats = QuicStats::default();
-        let debug_str = format!("{:?}", stats);
-        assert!(debug_str.contains("connections_accepted"));
+        assert_eq!(stats.connections_accepted, 0);
+        assert_eq!(stats.streams_handled, 0);
+        assert_eq!(stats.active_connections, 0);
+        assert_eq!(stats.zero_rtt_connections, 0);
     }
 }

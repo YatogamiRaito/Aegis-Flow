@@ -436,7 +436,10 @@ impl Default for ConfigManager {
 mod tests {
     use super::*;
     use std::io::Write;
+    use std::sync::Mutex;
     use tempfile::NamedTempFile;
+
+    static ENV_MUTEX: Mutex<()> = Mutex::new(());
 
     #[test]
     fn test_default_config() {
@@ -539,6 +542,7 @@ upstream_addr: "test:8080"
 
     #[test]
     fn test_config_manager_from_file() {
+        let _lock = ENV_MUTEX.lock().unwrap();
         let yaml = "port: 6443\nupstream_addr: \"backend:80\"\n";
         let mut file = NamedTempFile::with_suffix(".yaml").unwrap();
         file.write_all(yaml.as_bytes()).unwrap();
@@ -751,6 +755,7 @@ upstream_addr: "test:8080"
 
     #[test]
     fn test_apply_env_overrides_host() {
+        let _lock = ENV_MUTEX.lock().unwrap();
         // SAFETY: This is a single-threaded test
         unsafe {
             std::env::set_var("AEGIS_HOST", "192.168.1.1");
@@ -765,6 +770,7 @@ upstream_addr: "test:8080"
 
     #[test]
     fn test_apply_env_overrides_port() {
+        let _lock = ENV_MUTEX.lock().unwrap();
         // SAFETY: This is a single-threaded test
         unsafe {
             std::env::set_var("AEGIS_PORT", "9090");
@@ -779,6 +785,7 @@ upstream_addr: "test:8080"
 
     #[test]
     fn test_apply_env_overrides_upstream() {
+        let _lock = ENV_MUTEX.lock().unwrap();
         // SAFETY: This is a single-threaded test
         unsafe {
             std::env::set_var("AEGIS_UPSTREAM", "http://backend:8080");
@@ -793,6 +800,7 @@ upstream_addr: "test:8080"
 
     #[test]
     fn test_apply_env_overrides_tls_enabled() {
+        let _lock = ENV_MUTEX.lock().unwrap();
         // SAFETY: This is a single-threaded test
         unsafe {
             std::env::set_var("AEGIS_TLS_ENABLED", "true");
@@ -807,6 +815,7 @@ upstream_addr: "test:8080"
 
     #[test]
     fn test_apply_env_overrides_pqc_enabled() {
+        let _lock = ENV_MUTEX.lock().unwrap();
         // SAFETY: This is a single-threaded test
         unsafe {
             std::env::set_var("AEGIS_PQC_ENABLED", "false");
@@ -821,6 +830,7 @@ upstream_addr: "test:8080"
 
     #[test]
     fn test_apply_env_overrides_worker_threads() {
+        let _lock = ENV_MUTEX.lock().unwrap();
         // SAFETY: This is a single-threaded test
         unsafe {
             std::env::set_var("AEGIS_WORKER_THREADS", "8");
@@ -835,6 +845,7 @@ upstream_addr: "test:8080"
 
     #[test]
     fn test_apply_env_overrides_log_level() {
+        let _lock = ENV_MUTEX.lock().unwrap();
         // SAFETY: This is a single-threaded test
         unsafe {
             std::env::set_var("AEGIS_LOG_LEVEL", "debug");

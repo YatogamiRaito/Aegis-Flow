@@ -419,4 +419,66 @@ mod tests {
         let io = get_tokio_io(client);
         let _ = io;
     }
+
+    #[tokio::test]
+    async fn test_pqc_handshake_client_closes_prematurely() {
+        let config = ProxyConfig {
+            host: "127.0.0.1".to_string(),
+            port: 0,
+            ..Default::default()
+        };
+        let server = PqcProxyServer::new(config);
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        tokio::spawn(async move {
+            server
+                .run_with_listener(listener, std::future::pending())
+                .await
+                .ok();
+        });
+
+        // Client connects and immediately closes
+        {
+            let _stream = TcpStream::connect(addr).await.unwrap();
+        }
+
+        // Give server a moment to hit the read error
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+
+    #[tokio::test]
+    async fn test_pqc_handshake_client_disconnect_after_pk() {
+        let config = ProxyConfig {
+            host: "127.0.0.1".to_string(),
+            port: 0,
+            ..Default::default()
+        };
+        let server = PqcProxyServer::new(config);
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        tokio::spawn(async move {
+            server
+                .run_with_listener(listener, std::future::pending())
+                .await
+                .ok();
+        });
+
+        let mut stream = TcpStream::connect(addr).await.unwrap();
+
+        // Read PK length
+        let mut len_buf = [0u8; 4];
+        stream.read_exact(&mut len_buf).await.unwrap();
+        let pk_len = u32::from_be_bytes(len_buf);
+
+        // Read PK
+        let mut pk_buf = vec![0u8; pk_len as usize];
+        stream.read_exact(&mut pk_buf).await.unwrap();
+
+        // Disconnect instead of sending CT
+        drop(stream);
+
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
 }

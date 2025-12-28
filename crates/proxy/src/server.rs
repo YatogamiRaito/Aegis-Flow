@@ -117,42 +117,57 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_server_entry_point() {
+    async fn test_echo_server_client_disconnects() {
         let config = ProxyConfig {
             host: "127.0.0.1".to_string(),
             port: 0,
             ..Default::default()
         };
+        let listener = TcpListener::bind(format!("{}:{}", config.host, config.port))
+            .await
+            .unwrap();
+        let addr = listener.local_addr().unwrap();
 
-        // We can't easily wait for "ready" with run(), so we just spawn it
-        // and loop connect until successful or timeout
-        let _server_task = tokio::spawn(async move { super::run(config).await });
+        tokio::spawn(async move {
+            run_with_listener(listener, std::future::pending())
+                .await
+                .ok();
+        });
 
-        // Give it a tiny bit to bind
+        // Connect and immediately drop
+        {
+            let _client = TcpStream::connect(addr).await.unwrap();
+        }
+
+        // Give server time to hit Ok(0)
         tokio::time::sleep(Duration::from_millis(50)).await;
+    }
 
-        // Since we don't know the port (it was 0), this test is tricky with run().
-        // run() binds and doesn't return the address.
-        // Wait, run() logs the address? No, it logs "ready".
-        // Actually, if we pass port 0, we can't know what port it bound to without
-        // passing a listener or having a channel.
-        // The current run() implementation is:
-        // let listener = TcpListener::bind(&addr).await?;
-        // run_with_listener...
-
-        // If we can't determine the port, we can't connect.
-        // So we should probably modify run() to strictly use the config port
-        // or just test run_with_listener properly if run() is just a wrapper.
-        // coverage for run() might be low priority if it's just a bind wrapper.
-        // However, I can test run() failure (invalid address).
-
-        let bad_config = ProxyConfig {
-            host: "999.999.999.999".to_string(), // Invalid IP
-            port: 80,
+    #[tokio::test]
+    async fn test_echo_server_partial_read() {
+        let config = ProxyConfig {
+            host: "127.0.0.1".to_string(),
+            port: 0,
             ..Default::default()
         };
+        let listener = TcpListener::bind(format!("{}:{}", config.host, config.port))
+            .await
+            .unwrap();
+        let addr = listener.local_addr().unwrap();
 
-        let result = super::run(bad_config).await;
-        assert!(result.is_err());
+        tokio::spawn(async move {
+            run_with_listener(listener, std::future::pending())
+                .await
+                .ok();
+        });
+
+        let mut client = TcpStream::connect(addr).await.unwrap();
+        client.write_all(b"partial").await.unwrap();
+        // Shutdown write side to signal EOF after data
+        client.shutdown().await.unwrap();
+
+        let mut buf = vec![0u8; 7];
+        client.read_exact(&mut buf).await.unwrap();
+        assert_eq!(&buf, b"partial");
     }
 }

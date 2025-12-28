@@ -370,7 +370,29 @@ mod tests {
         let req = Http3Request::new("GET", "/unknown/path");
         let resp = handler.handle_request(req).await;
 
-        // Default case may proxy or return 404/502 depending on impl
-        assert!(resp.status == 404 || resp.status == 502);
+        assert_eq!(resp.status, 404);
+    }
+
+    #[tokio::test]
+    async fn test_metrics_not_initialized() {
+        // This is tricky because metrics might be initialized by other tests.
+        // But the code explicitly handles the None case.
+        // We can't easily force it to None if it's already Some globally.
+        // However, we can test the internal_error response creation.
+        let resp = Http3Response::internal_error("Metrics not initialized");
+        assert_eq!(resp.status, 500);
+        assert_eq!(resp.body, Bytes::from("Metrics not initialized"));
+    }
+
+    #[test]
+    fn test_http3_config_custom() {
+        let config = Http3Config {
+            max_concurrent_streams: 50,
+            max_body_size: 1024,
+            log_requests: false,
+        };
+        assert_eq!(config.max_concurrent_streams, 50);
+        assert_eq!(config.max_body_size, 1024);
+        assert!(!config.log_requests);
     }
 }

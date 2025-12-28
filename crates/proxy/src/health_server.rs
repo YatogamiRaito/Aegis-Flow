@@ -329,4 +329,31 @@ mod tests {
         assert!(result.is_ok(), "Server did not shut down in time");
         assert!(result.unwrap().is_ok()); // Task finished successfully
     }
+
+    #[tokio::test]
+    async fn test_health_server_bind_failure() {
+        // Bind to a port first
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+
+        let config = HealthConfig {
+            port,
+            enabled: true,
+            ..Default::default()
+        };
+        let lifecycle = Arc::new(LifecycleManager::new());
+
+        let result = run_health_server(config, lifecycle, None).await;
+        assert!(result.is_err(), "Should fail to bind to an occupied port");
+    }
+
+    #[tokio::test]
+    async fn test_lifecycle_unhealthy_transition() {
+        let lifecycle = create_test_lifecycle();
+        lifecycle.mark_ready().await;
+        assert!(lifecycle.health_status().await.is_ready());
+
+        lifecycle.mark_unhealthy().await;
+        assert!(!lifecycle.health_status().await.is_ready());
+    }
 }
