@@ -4,6 +4,10 @@
 //! used across the Aegis-Flow project.
 
 pub mod error;
-pub mod types;
+mod types;
 
 pub use error::{AegisError, Result};
+pub use types::*;
+
+#[cfg(test)]
+mod phase22_tests;
