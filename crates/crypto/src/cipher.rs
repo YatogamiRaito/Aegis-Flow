@@ -363,4 +363,42 @@ mod tests {
         // Ciphertexts should be different due to different keys
         assert_ne!(ct1, ct2);
     }
+
+    #[test]
+    fn test_cipher_nonce_uniqueness() {
+        let key = EncryptionKey::from_raw([0x42; 32], CipherAlgorithm::Aes256Gcm);
+        let cipher = Cipher::new(key);
+
+        let plaintext = b"test message";
+        let ct1 = cipher.encrypt(plaintext).unwrap();
+        let ct2 = cipher.encrypt(plaintext).unwrap();
+
+        // Same message encrypted twice should produce different ciphertexts (due to random nonce)
+        assert_ne!(ct1, ct2);
+    }
+
+    #[test]
+    fn test_cipher_algorithm_display() {
+        assert_eq!(format!("{:?}", CipherAlgorithm::Aes256Gcm), "Aes256Gcm");
+        assert_eq!(
+            format!("{:?}", CipherAlgorithm::ChaCha20Poly1305),
+            "ChaCha20Poly1305"
+        );
+    }
+
+    #[test]
+    fn test_cross_algorithm_decryption_fails() {
+        let aes_key = EncryptionKey::from_raw([0x42; 32], CipherAlgorithm::Aes256Gcm);
+        let chacha_key = EncryptionKey::from_raw([0x42; 32], CipherAlgorithm::ChaCha20Poly1305);
+
+        let aes_cipher = Cipher::new(aes_key);
+        let chacha_cipher = Cipher::new(chacha_key);
+
+        let plaintext = b"test";
+        let aes_ct = aes_cipher.encrypt(plaintext).unwrap();
+
+        // Trying to decrypt AES ciphertext with ChaCha should fail
+        let result = chacha_cipher.decrypt(&aes_ct);
+        assert!(result.is_err());
+    }
 }

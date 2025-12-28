@@ -398,7 +398,9 @@ mod tests {
     fn test_registry_disable_enable_plugin() {
         let registry = create_test_registry();
         let wasm_bytes = wat::parse_str("(module)").unwrap();
-        registry.load_plugin_bytes("toggle_test", &wasm_bytes).unwrap();
+        registry
+            .load_plugin_bytes("toggle_test", &wasm_bytes)
+            .unwrap();
 
         assert!(registry.has_plugin("toggle_test"));
         let plugins = registry.list_plugins();

@@ -245,4 +245,31 @@ mod tests {
         let result = cache.get(&region).await.unwrap();
         assert_eq!(result.value, 200.0); // Should be overwritten
     }
+
+    #[test]
+    fn test_region_clone_and_debug() {
+        let region = Region::new("TEST", "Test Region");
+        let cloned = region.clone();
+        assert_eq!(region.id, cloned.id);
+        let debug_str = format!("{:?}", region);
+        assert!(debug_str.contains("TEST"));
+    }
+
+    #[tokio::test]
+    async fn test_cache_multiple_regions() {
+        let cache = CarbonIntensityCache::new(60);
+
+        for i in 0..5 {
+            cache
+                .put(create_test_intensity(&format!("R{}", i), i as f64 * 10.0))
+                .await;
+        }
+
+        // Verify each region can be retrieved
+        for i in 0..5 {
+            let region = Region::new(&format!("R{}", i), "Test");
+            let result = cache.get(&region).await;
+            assert!(result.is_some());
+        }
+    }
 }
