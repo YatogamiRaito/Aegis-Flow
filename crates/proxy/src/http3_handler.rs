@@ -475,8 +475,7 @@ mod tests {
     #[tokio::test]
     async fn test_handle_request_with_body() {
         let handler = Http3Handler::new(Http3Config::default(), "127.0.0.1:8080".to_string());
-        let req = Http3Request::new("POST", "/api")
-            .with_body(Bytes::from(r#"{"test": "data"}"#));
+        let req = Http3Request::new("POST", "/api").with_body(Bytes::from(r#"{"test": "data"}"#));
         let resp = handler.handle_request(req).await;
         // Path not found, but processing should work
         assert_eq!(resp.status, 404);

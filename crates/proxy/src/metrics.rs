@@ -245,4 +245,24 @@ mod tests {
         // Should be None or Some depending on test order/init, but shouldn't panic
         let _ = get_metrics_handle();
     }
+
+    #[test]
+    fn test_record_request_multiple_paths() {
+        for path in ["/api/v1", "/api/v2", "/health", "/metrics"] {
+            record_request("GET", path, 200, 0.01);
+        }
+    }
+
+    #[test]
+    fn test_record_request_various_status_codes() {
+        for status in [200, 201, 301, 400, 404, 500, 502, 503] {
+            record_request("GET", "/test", status, 0.05);
+        }
+    }
+
+    #[test]
+    fn test_record_bytes_large_values() {
+        record_bytes(1_000_000, 2_000_000);
+        record_bytes(0, 0);
+    }
 }

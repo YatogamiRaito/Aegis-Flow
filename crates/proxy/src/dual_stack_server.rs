@@ -391,4 +391,36 @@ mod tests {
         // It returns Ok because the error is logged in the background task and the task finishes.
         assert!(result.is_ok());
     }
+
+    #[test]
+    fn test_dual_stack_config_clone() {
+        let config = DualStackConfig {
+            advertise_h3: true,
+            quic_port: 9443,
+            ..Default::default()
+        };
+        let cloned = config.clone();
+        assert!(cloned.advertise_h3);
+        assert_eq!(cloned.quic_port, 9443);
+    }
+
+    #[test]
+    fn test_dual_stack_stats_clone() {
+        let stats = DualStackStats {
+            http2_requests: 100,
+            http3_requests: 50,
+            quic_stats: QuicStats::default(),
+        };
+        let cloned = stats.clone();
+        assert_eq!(cloned.http2_requests, 100);
+        assert_eq!(cloned.http3_requests, 50);
+    }
+
+    #[test]
+    fn test_dual_stack_config_debug() {
+        let config = DualStackConfig::default();
+        let debug_str = format!("{:?}", config);
+        assert!(debug_str.contains("advertise_h3"));
+        assert!(debug_str.contains("quic_port"));
+    }
 }

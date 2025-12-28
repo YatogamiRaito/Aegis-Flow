@@ -746,4 +746,23 @@ mod tests {
             assert!(response.contains("HTTP/3"));
         }
     }
+
+    #[test]
+    fn test_quic_config_max_values() {
+        let config = QuicConfig {
+            bind_address: "0.0.0.0:443".to_string(),
+            max_streams: 1000,
+            idle_timeout_secs: 3600,
+            ..Default::default()
+        };
+        assert_eq!(config.max_streams, 1000);
+        assert_eq!(config.idle_timeout_secs, 3600);
+    }
+
+    #[test]
+    fn test_quic_stats_debug() {
+        let stats = QuicStats::default();
+        let debug_str = format!("{:?}", stats);
+        assert!(debug_str.contains("connections"));
+    }
 }

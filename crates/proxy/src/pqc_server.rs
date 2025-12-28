@@ -562,4 +562,30 @@ mod tests {
         // Server should reject and close connection
         tokio::time::sleep(Duration::from_millis(50)).await;
     }
+
+    #[test]
+    fn test_pqc_server_config_options() {
+        let config = ProxyConfig {
+            host: "0.0.0.0".to_string(),
+            port: 8443,
+            pqc_enabled: true,
+            upstream_addr: "backend:9000".to_string(),
+            ..Default::default()
+        };
+        let server = PqcProxyServer::new(config);
+        let _ = format!("{:p}", &server);
+    }
+
+    #[tokio::test]
+    async fn test_pqc_server_bind_privileged_port() {
+        let config = ProxyConfig {
+            host: "127.0.0.1".to_string(),
+            port: 1, // Privileged port
+            ..Default::default()
+        };
+        let server = PqcProxyServer::new(config);
+        let result = server.run().await;
+        // Should fail to bind
+        assert!(result.is_err());
+    }
 }
