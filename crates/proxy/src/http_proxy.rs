@@ -475,4 +475,65 @@ mod tests {
             assert_eq!(resp.status(), StatusCode::OK);
         }
     }
+
+    #[tokio::test]
+    async fn test_handle_request_with_headers() {
+        use http_body_util::Empty;
+        let req = Request::builder()
+            .method(Method::GET)
+            .uri("/api/data")
+            .header("Authorization", "Bearer token123")
+            .header("Content-Type", "application/json")
+            .body(Empty::<Bytes>::new())
+            .unwrap();
+
+        let resp = handle_request(req, "upstream").await.unwrap();
+        assert!(resp.status().is_success());
+    }
+
+    #[tokio::test]
+    async fn test_handle_request_query_params() {
+        use http_body_util::Empty;
+        let req = Request::builder()
+            .method(Method::GET)
+            .uri("/search?q=test&page=1")
+            .body(Empty::<Bytes>::new())
+            .unwrap();
+
+        let resp = handle_request(req, "upstream").await.unwrap();
+        assert!(resp.status().is_success());
+    }
+
+    #[tokio::test]
+    async fn test_handle_request_deep_path() {
+        use http_body_util::Empty;
+        let req = Request::builder()
+            .method(Method::GET)
+            .uri("/api/v1/users/123/profile/settings")
+            .body(Empty::<Bytes>::new())
+            .unwrap();
+
+        let resp = handle_request(req, "upstream").await.unwrap();
+        assert!(resp.status().is_success());
+    }
+
+    #[test]
+    fn test_proxy_config_debug() {
+        let config = HttpProxyConfig::default();
+        let debug = format!("{:?}", config);
+        assert!(debug.contains("HttpProxyConfig"));
+    }
+
+    #[tokio::test]
+    async fn test_handle_request_head_method() {
+        use http_body_util::Empty;
+        let req = Request::builder()
+            .method(Method::HEAD)
+            .uri("/api/health")
+            .body(Empty::<Bytes>::new())
+            .unwrap();
+
+        let resp = handle_request(req, "upstream").await.unwrap();
+        assert!(resp.status().is_success());
+    }
 }

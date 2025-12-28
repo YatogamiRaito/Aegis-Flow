@@ -306,4 +306,57 @@ mod tests {
         assert!(model.joules_per_cycle > 0.0);
         assert!(model.joules_per_memory_byte > 0.0);
     }
+
+    #[test]
+    fn test_estimator_with_custom_model() {
+        let model = EnergyModel {
+            joules_per_cycle: 1e-9,
+            joules_per_memory_byte: 1e-12,
+            base_power_watts: 50.0,
+            ..Default::default()
+        };
+
+        let estimator = EnergyEstimator::with_model(model);
+        assert!(estimator.estimate_joules(1000, 1024) > 0.0);
+    }
+
+    #[test]
+    fn test_estimate_zero_cycles() {
+        let estimator = EnergyEstimator::new();
+        let result = estimator.estimate_joules(0, 0);
+        assert!(result >= 0.0);
+    }
+
+    #[test]
+    fn test_estimate_large_values() {
+        let estimator = EnergyEstimator::new();
+        let result = estimator.estimate_joules(1_000_000_000, 1_000_000_000);
+        assert!(result > 0.0);
+    }
+
+    #[test]
+    fn test_estimator_clone() {
+        let est1 = EnergyEstimator::new();
+        let est2 = est1.clone();
+
+        let r1 = est1.estimate_joules(100, 100);
+        let r2 = est2.estimate_joules(100, 100);
+
+        assert_eq!(r1, r2);
+    }
+
+    #[test]
+    fn test_energy_model_clone() {
+        let model1 = EnergyModel::default();
+        let model2 = model1.clone();
+
+        assert_eq!(model1.joules_per_cycle, model2.joules_per_cycle);
+    }
+
+    #[test]
+    fn test_estimator_debug() {
+        let estimator = EnergyEstimator::new();
+        let debug = format!("{:?}", estimator);
+        assert!(debug.contains("EnergyEstimator"));
+    }
 }

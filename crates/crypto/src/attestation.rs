@@ -911,4 +911,77 @@ mod tests {
         // In simulation mode, should be None
         assert_eq!(platform, TeePlatform::None);
     }
+
+    #[test]
+    fn test_tee_platform_variants() {
+        let platforms = vec![
+            TeePlatform::None,
+            TeePlatform::IntelSgx,
+            TeePlatform::AmdSev,
+            TeePlatform::ArmTrustZone,
+        ];
+
+        for p in platforms {
+            let debug = format!("{:?}", p);
+            assert!(!debug.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_enclave_identity_creation() {
+        let identity = EnclaveIdentity {
+            mrenclave: [0u8; 32],
+            mrsigner: [1u8; 32],
+            isv_prod_id: 100,
+            isv_svn: 1,
+        };
+
+        assert_eq!(identity.isv_prod_id, 100);
+        assert_eq!(identity.isv_svn, 1);
+    }
+
+    #[test]
+    fn test_attestation_quote_creation() {
+        let quote = AttestationQuote {
+            version: 3,
+            platform: TeePlatform::IntelSgx,
+            enclave_identity: EnclaveIdentity {
+                mrenclave: [0u8; 32],
+                mrsigner: [0u8; 32],
+                isv_prod_id: 1,
+                isv_svn: 1,
+            },
+            report_data: vec![1, 2, 3],
+            signature: vec![4, 5, 6],
+        };
+
+        assert_eq!(quote.version, 3);
+        assert_eq!(quote.platform, TeePlatform::IntelSgx);
+    }
+
+    #[test]
+    fn test_tee_capabilities_default() {
+        let caps = TeeCapabilities::default();
+        let debug = format!("{:?}", caps);
+        assert!(debug.contains("TeeCapabilities"));
+    }
+
+    #[test]
+    fn test_attestation_provider_default() {
+        let provider = AttestationProvider::default();
+        assert_eq!(provider.platform(), TeePlatform::None);
+    }
+
+    #[test]
+    fn test_enclave_identity_debug() {
+        let identity = EnclaveIdentity {
+            mrenclave: [0xAAu8; 32],
+            mrsigner: [0xBBu8; 32],
+            isv_prod_id: 42,
+            isv_svn: 7,
+        };
+
+        let debug = format!("{:?}", identity);
+        assert!(debug.contains("EnclaveIdentity"));
+    }
 }

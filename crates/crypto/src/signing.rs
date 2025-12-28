@@ -1176,4 +1176,92 @@ mod tests {
             MlDsaVerifier::new(signer44.public_key().to_vec(), MlDsaAlgorithm::MlDsa65);
         assert!(verifier65.is_err()); // Should fail due to wrong key size
     }
+
+    #[test]
+    fn test_mldsa44_large_message() {
+        let signer = MlDsa44Signer::generate().unwrap();
+        let large_msg = vec![0x42u8; 100_000]; // 100KB message
+
+        let sig = signer.sign(&large_msg).unwrap();
+        assert!(signer.verify(&large_msg, &sig).unwrap());
+    }
+
+    #[test]
+    fn test_mldsa65_large_message() {
+        let signer = MlDsa65Signer::generate().unwrap();
+        let large_msg = vec![0xABu8; 50_000];
+
+        let sig = signer.sign(&large_msg).unwrap();
+        assert!(signer.verify(&large_msg, &sig).unwrap());
+    }
+
+    #[test]
+    fn test_mldsa87_large_message() {
+        let signer = MlDsa87Signer::generate().unwrap();
+        let large_msg = vec![0xCDu8; 75_000];
+
+        let sig = signer.sign(&large_msg).unwrap();
+        assert!(signer.verify(&large_msg, &sig).unwrap());
+    }
+
+    #[test]
+    fn test_signer_public_key_length() {
+        let signer44 = MlDsa44Signer::generate().unwrap();
+        let signer65 = MlDsa65Signer::generate().unwrap();
+        let signer87 = MlDsa87Signer::generate().unwrap();
+
+        assert!(signer44.public_key().len() > 0);
+        assert!(signer65.public_key().len() > 0);
+        assert!(signer87.public_key().len() > 0);
+
+        // Different key sizes
+        assert!(signer65.public_key().len() > signer44.public_key().len());
+        assert!(signer87.public_key().len() > signer65.public_key().len());
+    }
+
+    #[test]
+    fn test_signature_sizes() {
+        let signer44 = MlDsa44Signer::generate().unwrap();
+        let signer65 = MlDsa65Signer::generate().unwrap();
+        let signer87 = MlDsa87Signer::generate().unwrap();
+
+        let msg = b"test";
+        let sig44 = signer44.sign(msg).unwrap();
+        let sig65 = signer65.sign(msg).unwrap();
+        let sig87 = signer87.sign(msg).unwrap();
+
+        assert!(sig65.len() > sig44.len());
+        assert!(sig87.len() > sig65.len());
+    }
+
+    #[test]
+    fn test_verifier_from_signer() {
+        let signer = MlDsa44Signer::generate().unwrap();
+        let verifier =
+            MlDsaVerifier::new(signer.public_key().to_vec(), MlDsaAlgorithm::MlDsa44).unwrap();
+
+        let msg = b"verified message";
+        let sig = signer.sign(msg).unwrap();
+        assert!(verifier.verify(msg, &sig).unwrap());
+    }
+
+    #[test]
+    fn test_verifier_wrong_signature() {
+        let signer = MlDsa65Signer::generate().unwrap();
+        let verifier =
+            MlDsaVerifier::new(signer.public_key().to_vec(), MlDsaAlgorithm::MlDsa65).unwrap();
+
+        let msg = b"message";
+        let wrong_sig = vec![0u8; 100];
+
+        let result = verifier.verify(msg, &wrong_sig);
+        assert!(result.is_err() || !result.unwrap());
+    }
+
+    #[test]
+    fn test_algorithm_name() {
+        assert_eq!(MlDsaAlgorithm::MlDsa44.name(), "ML-DSA-44");
+        assert_eq!(MlDsaAlgorithm::MlDsa65.name(), "ML-DSA-65");
+        assert_eq!(MlDsaAlgorithm::MlDsa87.name(), "ML-DSA-87");
+    }
 }
