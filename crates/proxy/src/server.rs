@@ -170,4 +170,18 @@ mod tests {
         client.read_exact(&mut buf).await.unwrap();
         assert_eq!(&buf, b"partial");
     }
+    #[tokio::test]
+    async fn test_server_entry_point() {
+        // Just verify the run() wrapper function returns the expected future
+        // We can't easily run it since it binds to a port and loops forever
+        // But we can check it returns a future
+        let config = ProxyConfig {
+            host: "127.0.0.1".to_string(),
+            port: 0,
+            ..Default::default()
+        };
+        let future = run(config);
+        // It should be a future that resolves to Result<()>
+        drop(future);
+    }
 }

@@ -291,4 +291,10 @@ mod tests {
         let ctx = TraceContext::parse_traceparent(header).unwrap();
         assert_eq!(ctx.trace_id, "0af7651916cd43dd8448eb211c80319c");
     }
+    #[test]
+    fn test_parse_traceparent_invalid_hex() {
+        // Invalid flags (not hex)
+        let header = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-ZZ";
+        assert!(TraceContext::parse_traceparent(header).is_none());
+    }
 }

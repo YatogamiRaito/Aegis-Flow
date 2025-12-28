@@ -435,7 +435,7 @@ impl Default for ConfigManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::{Write, Seek};
+    use std::io::{Seek, Write};
     use std::sync::Mutex;
     use tempfile::NamedTempFile;
 
@@ -799,6 +799,48 @@ upstream_addr: "test:8080"
     }
 
     #[test]
+    fn test_validate_tls_certs_missing() {
+        let config = ProxyConfig {
+            tls_enabled: true,
+            tls: TlsConfig {
+                enabled: true,
+                cert_path: "/nonexistent/cert.crt".to_string(),
+                key_path: "/nonexistent/key.pem".to_string(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        // Should verify it logs warnings, but logic-wise it returns Ok
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_apply_env_overrides_full() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        unsafe {
+            std::env::set_var("AEGIS_TLS_ENABLED", "false");
+            std::env::set_var("AEGIS_PQC_ENABLED", "false");
+            std::env::set_var("AEGIS_WORKER_THREADS", "4");
+            std::env::set_var("AEGIS_LOG_LEVEL", "debug");
+        }
+
+        let mut config = ProxyConfig::default();
+        config.apply_env_overrides();
+
+        assert!(!config.tls_enabled);
+        assert!(!config.pqc_enabled);
+        assert_eq!(config.worker_threads, 4);
+        assert_eq!(config.logging.level, "debug");
+
+        unsafe {
+            std::env::remove_var("AEGIS_TLS_ENABLED");
+            std::env::remove_var("AEGIS_PQC_ENABLED");
+            std::env::remove_var("AEGIS_WORKER_THREADS");
+            std::env::remove_var("AEGIS_LOG_LEVEL");
+        }
+    }
+
+    #[test]
     fn test_apply_env_overrides_tls_enabled() {
         let _lock = ENV_MUTEX.lock().unwrap();
         // SAFETY: This is a single-threaded test
@@ -863,7 +905,7 @@ upstream_addr: "test:8080"
         let manager = ConfigManager::default();
         let config = manager.get();
         assert_eq!(config.host, "0.0.0.0");
-        
+
         let arc_config = manager.config();
         assert_eq!(arc_config.read().host, "0.0.0.0");
     }
@@ -871,26 +913,23 @@ upstream_addr: "test:8080"
     #[test]
     fn test_config_manager_load_and_reload() {
         // Create a temporary config file with .yaml extension
-        let mut file = tempfile::Builder::new()
-            .suffix(".yaml")
-            .tempfile()
-            .unwrap();
+        let mut file = tempfile::Builder::new().suffix(".yaml").tempfile().unwrap();
         let config = ProxyConfig {
             host: "10.0.0.1".to_string(),
             ..Default::default()
         };
         let content = yaml::to_string(&config).unwrap();
         file.write_all(content.as_bytes()).unwrap();
-        
+
         let path = file.path().to_path_buf();
-        
+
         // Load manager from file
         let manager = ConfigManager::from_file(&path).unwrap();
         assert_eq!(manager.get().host, "10.0.0.1");
-        
+
         // Check for changes (should be false)
         assert!(!manager.check_for_changes());
-        
+
         // Update file
         std::thread::sleep(std::time::Duration::from_millis(100)); // Ensure mtime matches
         let new_config = ProxyConfig {
@@ -899,20 +938,22 @@ upstream_addr: "test:8080"
         };
         let new_content = yaml::to_string(&new_config).unwrap();
         file.as_file_mut().set_len(0).unwrap();
-        file.as_file_mut().seek(std::io::SeekFrom::Start(0)).unwrap();
+        file.as_file_mut()
+            .seek(std::io::SeekFrom::Start(0))
+            .unwrap();
         file.write_all(new_content.as_bytes()).unwrap();
         file.as_file_mut().sync_all().unwrap();
-        
+
         // Reload
         // Note: Filesystem mtime resolution might be coarse.
         // We force reload check if logic depends on mtime.
         // But let's see if check_for_changes picks it up.
         // If not, we might need to manually touch the file mtime.
-        
+
         // Ensure mtime is updated (some filesystems have 1s resolution)
-        
+
         let reloaded = manager.reload().unwrap();
-        // It might return false if mtime didn't change enough. 
+        // It might return false if mtime didn't change enough.
         // But regardless, we exercised the code.
     }
 

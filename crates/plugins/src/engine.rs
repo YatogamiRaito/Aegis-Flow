@@ -321,4 +321,14 @@ mod tests {
         // Cleanup
         let _ = std::fs::remove_dir_all(temp_dir);
     }
+    #[test]
+    fn test_wasm_engine_config_clone_debug() {
+        let config = WasmEngineConfig::default();
+        let cloned = config.clone();
+        assert_eq!(config.cache_modules, cloned.cache_modules);
+        assert_eq!(config.max_memory_bytes, cloned.max_memory_bytes);
+
+        let debug_str = format!("{:?}", config);
+        assert!(debug_str.contains("WasmEngineConfig"));
+    }
 }

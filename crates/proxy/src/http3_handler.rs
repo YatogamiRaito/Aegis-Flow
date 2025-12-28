@@ -428,9 +428,34 @@ mod tests {
         let handler = Http3Handler::new(Http3Config::default(), "127.0.0.1:8080".to_string());
         let req = Http3Request::new("GET", "/metrics");
         let resp = handler.handle_request(req).await;
-        
+
         // Should be 200 OK with metrics text
         assert_eq!(resp.status, 200);
-        assert!(resp.headers.contains(&("content-type".to_string(), "text/plain; charset=utf-8".to_string())));
+        assert!(resp.headers.contains(&(
+            "content-type".to_string(),
+            "text/plain; charset=utf-8".to_string()
+        )));
+    }
+    #[test]
+    fn test_http3_handler_logging_disabled() {
+        let config = Http3Config {
+            log_requests: false,
+            ..Default::default()
+        };
+        let handler = Http3Handler::new(config, "localhost:8080".to_string());
+        assert!(!handler.is_logging_enabled());
+    }
+
+    #[tokio::test]
+    async fn test_handle_request_log_disabled() {
+        let config = Http3Config {
+            log_requests: false, // This triggers the else/skip branch
+            ..Default::default()
+        };
+        let handler = Http3Handler::new(config, "127.0.0.1:8080".to_string());
+        let req = Http3Request::new("GET", "/");
+        let resp = handler.handle_request(req).await;
+        // Just verify it doesn't crash and returns 404
+        assert_eq!(resp.status, 404);
     }
 }

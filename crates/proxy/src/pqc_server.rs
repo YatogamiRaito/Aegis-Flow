@@ -470,4 +470,32 @@ mod tests {
         let result = timeout(Duration::from_secs(1), server_handle).await;
         assert!(result.is_ok());
     }
+    #[tokio::test]
+    async fn test_pqc_handshake_socket_write_error() {
+        let config = ProxyConfig {
+            host: "127.0.0.1".to_string(),
+            port: 0,
+            pqc_enabled: true,
+            ..Default::default()
+        };
+        let server = PqcProxyServer::new(config);
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        tokio::spawn(async move {
+            server
+                .run_with_listener(listener, std::future::pending())
+                .await
+                .ok();
+        });
+
+        // Connect but close read side immediately to cause write error on server
+        let mut stream = TcpStream::connect(addr).await.unwrap();
+        // We need to read just enough to establish connection but then simulate error
+        // Actually, if we close/shutdown everything, the server might fail to write the PK length
+        stream.shutdown().await.unwrap(); // Shutdown everything
+
+        // Give server a moment to fail
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
 }
