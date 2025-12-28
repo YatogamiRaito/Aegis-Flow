@@ -661,7 +661,7 @@ mod tests {
         use std::io::{Error, ErrorKind};
         use std::pin::Pin;
         use std::task::{Context, Poll};
-        use tokio::io::AsyncWrite;
+        // use tokio::io::AsyncWrite; // Removed unused import
 
         struct FailWriter;
         impl tokio::io::AsyncWrite for FailWriter {

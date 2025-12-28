@@ -6,7 +6,7 @@ use anyhow::Result;
 use bytes::Bytes;
 use http_body_util::Full;
 use hyper::{
-    Method, Request, Response, StatusCode, body::Incoming, server::conn::http2, service::service_fn,
+    Method, Request, Response, StatusCode, server::conn::http2, service::service_fn,
 };
 use hyper_util::rt::TokioIo;
 use std::net::SocketAddr;

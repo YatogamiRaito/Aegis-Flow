@@ -952,7 +952,7 @@ upstream_addr: "test:8080"
 
         // Ensure mtime is updated (some filesystems have 1s resolution)
 
-        let reloaded = manager.reload().unwrap();
+        let _reloaded = manager.reload().unwrap();
         // It might return false if mtime didn't change enough.
         // But regardless, we exercised the code.
     }
