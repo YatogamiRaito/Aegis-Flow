@@ -256,7 +256,9 @@ mod tests {
             region: &Region,
         ) -> Result<CarbonIntensity, EnergyApiError> {
             if self.failing_regions.contains(&region.id) {
-                return Err(EnergyApiError::ApiError { message: "Simulated failure".to_string() });
+                return Err(EnergyApiError::ApiError {
+                    message: "Simulated failure".to_string(),
+                });
             }
             let value = self.intensities.get(&region.id).copied().unwrap_or(200.0);
             Ok(CarbonIntensity {
@@ -778,7 +780,7 @@ mod tests {
         let mut client = MockEnergyClient::new();
         // Simulate failure for us-west
         client.set_failing("us-west");
-        
+
         let cache = CarbonIntensityCache::new(300);
         let router = CarbonRouter::new(config, client, cache);
 
@@ -795,7 +797,7 @@ mod tests {
 
         // us-west should NOT be in scores (or if it was previously, it remains old - here it's new so it's missing)
         let greenest = router.select_greenest_region().await;
-        // Only us-east (350.0) is available effectively? 
+        // Only us-east (350.0) is available effectively?
         // Wait, refresh_carbon_data populates region_scores only on success or cache hit.
         // So us-west (failing) will not be in region_scores map.
         // us-east (350) is < 500 (default max), so it is selectable.
@@ -807,10 +809,10 @@ mod tests {
         let config = CarbonRouterConfig::default();
         let mut client = MockEnergyClient::new();
         // Set API value to be HIGH (350.0) for "us-west" to prove it's NOT used
-        client.intensities.insert("us-west".to_string(), 350.0); 
+        client.intensities.insert("us-west".to_string(), 350.0);
 
         let cache = CarbonIntensityCache::new(300);
-        
+
         // Manually inject LOW (50.0) value into cache for us-west
         let region = Region::new("us-west", "US West");
         let cached_intensity = CarbonIntensity {

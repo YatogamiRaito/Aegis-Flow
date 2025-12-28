@@ -1056,7 +1056,7 @@ mod tests {
     fn test_complete_handshake_optional_cert_valid() {
         let config = MtlsConfig {
             require_client_cert: false, // Optional
-            pqc_enabled: true, // Need enabled for handshake
+            pqc_enabled: true,          // Need enabled for handshake
             ..Default::default()
         };
         let mut auth = MtlsAuthenticator::new(config).unwrap();
@@ -1064,10 +1064,12 @@ mod tests {
 
         // Generate a valid client cert
         let mut params = rcgen::CertificateParams::default();
-        params.distinguished_name.push(rcgen::DnType::CommonName, "optional-client");
+        params
+            .distinguished_name
+            .push(rcgen::DnType::CommonName, "optional-client");
         // Add SANs if needed, though for this test CN check is what failed
         // params.subject_alt_names = vec![rcgen::SanType::DnsName("optional-client".to_string())];
-        
+
         let key_pair = rcgen::KeyPair::generate().unwrap();
         let client_cert = params.self_signed(&key_pair).unwrap();
         let client_der = client_cert.der().to_vec();
