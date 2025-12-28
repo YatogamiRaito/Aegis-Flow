@@ -278,18 +278,18 @@ mod tests {
         let registry = ServiceRegistry::new(LoadBalanceStrategy::RoundRobin);
         let ep1: SocketAddr = "127.0.0.1:8080".parse().unwrap();
         registry.register("restore-service", vec![ep1]).await;
-        
+
         // Fail it
         for _ in 0..3 {
             registry.mark_failed("restore-service", ep1).await;
         }
-        
+
         assert_eq!(registry.healthy_count("restore-service").await, 0);
         assert!(registry.get_endpoint("restore-service").await.is_none());
-        
+
         // Restore it
         registry.mark_healthy("restore-service", ep1).await;
-        
+
         assert_eq!(registry.healthy_count("restore-service").await, 1);
         assert!(registry.get_endpoint("restore-service").await.is_some());
     }
@@ -299,9 +299,9 @@ mod tests {
         let registry = ServiceRegistry::new(LoadBalanceStrategy::Random);
         let ep1: SocketAddr = "127.0.0.1:8080".parse().unwrap();
         let ep2: SocketAddr = "127.0.0.1:8081".parse().unwrap();
-        
+
         registry.register("random-service", vec![ep1, ep2]).await;
-        
+
         // Should return one of them
         let picked = registry.get_endpoint("random-service").await.unwrap();
         assert!(picked == ep1 || picked == ep2);
@@ -312,7 +312,7 @@ mod tests {
         // Currently implements simple fallback, just verifying it doesn't panic
         let registry = ServiceRegistry::new(LoadBalanceStrategy::LeastConnections);
         let ep1: SocketAddr = "127.0.0.1:8080".parse().unwrap();
-        
+
         registry.register("lc-service", vec![ep1]).await;
         assert_eq!(registry.get_endpoint("lc-service").await.unwrap(), ep1);
     }
@@ -322,17 +322,20 @@ mod tests {
         let registry = ServiceRegistry::new(LoadBalanceStrategy::WeightedRoundRobin);
         let ep1: SocketAddr = "127.0.0.1:8080".parse().unwrap();
         let ep2: SocketAddr = "127.0.0.1:8081".parse().unwrap();
-        
+
         registry.register("weighted-service", vec![ep1, ep2]).await;
-        
+
         // Fail ep1
         for _ in 0..3 {
             registry.mark_failed("weighted-service", ep1).await;
         }
-        
+
         // Should always pick ep2 (ep1 weight becomes 0)
         for _ in 0..10 {
-            assert_eq!(registry.get_endpoint("weighted-service").await.unwrap(), ep2);
+            assert_eq!(
+                registry.get_endpoint("weighted-service").await.unwrap(),
+                ep2
+            );
         }
     }
 }

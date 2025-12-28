@@ -1,11 +1,11 @@
 use aegis_proxy::{HttpProxy, HttpProxyConfig};
-use std::net::SocketAddr;
-use std::time::Duration;
-use tokio::net::TcpListener;
 use bytes::Bytes;
 use http_body_util::{BodyExt, Empty};
 use hyper::Request;
 use hyper_util::rt::TokioIo;
+use std::net::SocketAddr;
+use std::time::Duration;
+use tokio::net::TcpListener;
 use tokio::net::TcpStream;
 
 /// Tokio executor for Hyper
@@ -30,14 +30,12 @@ async fn get_free_port() -> u16 {
 #[tokio::test]
 async fn test_http_proxy_metrics_endpoint() {
     // 1. Initialize metrics (ignore errors if already initialized)
-    let _ = std::panic::catch_unwind(|| {
-        aegis_proxy::metrics::init_metrics()
-    });
+    let _ = std::panic::catch_unwind(|| aegis_proxy::metrics::init_metrics());
 
     // 2. Setup Proxy Config
     let proxy_port = get_free_port().await;
     let proxy_addr: SocketAddr = format!("127.0.0.1:{}", proxy_port).parse().unwrap();
-    
+
     let config = HttpProxyConfig {
         listen_addr: proxy_addr,
         upstream_addr: "127.0.0.1:9090".to_string(),
@@ -50,20 +48,25 @@ async fn test_http_proxy_metrics_endpoint() {
     // 3. Start Proxy in background
     let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
     let proxy_handle = tokio::spawn(async move {
-        proxy.run_with_shutdown(async { shutdown_rx.await.ok(); }).await
+        proxy
+            .run_with_shutdown(async {
+                shutdown_rx.await.ok();
+            })
+            .await
     });
 
     // Give it a moment to start
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     // 4. Use hyper directly for HTTP/2 prior knowledge
-    let stream = TcpStream::connect(proxy_addr).await.expect("Failed to connect");
+    let stream = TcpStream::connect(proxy_addr)
+        .await
+        .expect("Failed to connect");
     let io = TokioIo::new(stream);
 
-    let (mut sender, conn) = hyper::client::conn::http2::handshake(
-        TokioExecutor,
-        io,
-    ).await.expect("HTTP/2 handshake failed");
+    let (mut sender, conn) = hyper::client::conn::http2::handshake(TokioExecutor, io)
+        .await
+        .expect("HTTP/2 handshake failed");
 
     tokio::spawn(async move {
         if let Err(e) = conn.await {
@@ -76,7 +79,10 @@ async fn test_http_proxy_metrics_endpoint() {
         .uri("/health")
         .body(Empty::<Bytes>::new())
         .unwrap();
-    let resp = sender.send_request(req).await.expect("Failed to send request");
+    let resp = sender
+        .send_request(req)
+        .await
+        .expect("Failed to send request");
     assert_eq!(resp.status(), 200);
 
     let body_bytes = resp.into_body().collect().await.unwrap().to_bytes();
@@ -87,7 +93,10 @@ async fn test_http_proxy_metrics_endpoint() {
         .uri("/metrics")
         .body(Empty::<Bytes>::new())
         .unwrap();
-    let resp = sender.send_request(req).await.expect("Failed to send metrics request");
+    let resp = sender
+        .send_request(req)
+        .await
+        .expect("Failed to send metrics request");
     assert_eq!(resp.status(), 200);
 
     let body_bytes = resp.into_body().collect().await.unwrap().to_bytes();

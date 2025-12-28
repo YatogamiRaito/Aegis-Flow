@@ -277,35 +277,38 @@ mod tests {
     fn test_server_complete_invalid_ciphertext() {
         let config = PqcTlsConfig::default();
         let handshake = PqcHandshake::new(config);
-        
+
         // 1. Setup "Good" Client (Key B)
         let client_h = PqcHandshake::new(PqcTlsConfig::default());
         let (pk_b, _) = client_h.server_init().unwrap();
         let (ct_for_b, client_chan) = client_h.client_complete(&pk_b).unwrap();
-        
+
         // 2. Setup "Bad" Server (Key A)
         let (_, sk_a_state) = handshake.server_init().unwrap();
-        
+
         // 3. Try to complete handshake on Server A using Ciphertext for B
         // This attempts to decapsulate ct_for_b using sk_a
         let result = handshake.server_complete(&ct_for_b, sk_a_state);
-        
+
         if let Ok(bad_server_chan) = result {
             // Implicit rejection scenario: handshake succeeded with garbage key
             let plaintext = b"Secret";
             let encrypted = client_chan.encrypt(plaintext).unwrap();
-            
+
             // Decrypt should fail (AEAD tag mismatch)
             let decrypt_result = bad_server_chan.decrypt(&encrypted);
-            assert!(decrypt_result.is_err(), "Decryption should fail when keys mismatch");
+            assert!(
+                decrypt_result.is_err(),
+                "Decryption should fail when keys mismatch"
+            );
         } else {
-             // Explicit rejection scenario
-             assert!(result.is_err());
+            // Explicit rejection scenario
+            assert!(result.is_err());
         }
 
         // Test explicit invalid ciphertext structure check if possible
         // (Just to use from_bytes and suppress unused warning if necessary, or omit)
-        let _ = HybridCiphertext::from_bytes(&[0u8; 100]); 
+        let _ = HybridCiphertext::from_bytes(&[0u8; 100]);
     }
 
     #[test]

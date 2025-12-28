@@ -259,7 +259,7 @@ mod tests {
 
     #[test]
     fn test_missing_sn() {
-        // Technically this parser might allow empty name if SN is missing, 
+        // Technically this parser might allow empty name if SN is missing,
         // but let's check what it does.
         // Implementation check: name defaults to empty string, and it ONLY pushes if !name.is_empty()
         let header_text = "@SQ	LN:1000";

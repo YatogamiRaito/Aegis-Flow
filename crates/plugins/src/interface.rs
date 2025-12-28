@@ -182,4 +182,41 @@ mod tests {
         let headers = resp.modified_headers.unwrap();
         assert_eq!(headers.get("x-plugin").unwrap(), "processed");
     }
+
+    #[test]
+    fn test_plugin_request_with_body() {
+        let body = b"test body".to_vec();
+        let req = PluginRequest::new("req-2", "POST", "/submit").with_body(body.clone());
+        assert_eq!(req.body, Some(body));
+    }
+
+    #[test]
+    fn test_plugin_response_stop() {
+        let resp = PluginResponse::stop();
+        assert!(!resp.continue_processing);
+        assert!(resp.immediate_response.is_none());
+    }
+
+    #[test]
+    fn test_plugin_result_creation() {
+        let result = PluginResult {
+            plugin_name: "auth".to_string(),
+            execution_time_us: 150,
+            response: PluginResponse::continue_request(),
+        };
+        assert_eq!(result.plugin_name, "auth");
+        assert_eq!(result.execution_time_us, 150);
+        assert!(result.response.continue_processing);
+    }
+
+    #[test]
+    fn test_immediate_response_struct() {
+        let imm = ImmediateResponse {
+            status: 200,
+            body: "OK".to_string(),
+            headers: HashMap::new(),
+        };
+        assert_eq!(imm.status, 200);
+        assert_eq!(imm.body, "OK");
+    }
 }

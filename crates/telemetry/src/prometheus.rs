@@ -105,8 +105,8 @@ mod tests {
 
     #[test]
     fn test_concurrent_recording() {
-        use std::thread;
         use std::sync::Arc;
+        use std::thread;
 
         let exporter = Arc::new(EnergyPrometheusExporter::new());
         let mut handles = vec![];

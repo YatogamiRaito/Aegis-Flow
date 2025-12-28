@@ -550,11 +550,14 @@ upstream_addr: "test:8080"
 
     #[test]
     fn test_save_to_file() {
-        let config = ProxyConfig { port: 5555, ..Default::default() };
-        
+        let config = ProxyConfig {
+            port: 5555,
+            ..Default::default()
+        };
+
         let file = NamedTempFile::with_suffix(".json").unwrap();
         config.save_to_file(file.path()).unwrap();
-        
+
         let loaded = ProxyConfig::load_from_file(file.path()).unwrap();
         assert_eq!(loaded.port, 5555);
     }
@@ -564,26 +567,26 @@ upstream_addr: "test:8080"
         let mut file = NamedTempFile::with_suffix(".yaml").unwrap();
         let initial_yaml = "port: 1111\nupstream_addr: \"backend:1\"\n";
         file.write_all(initial_yaml.as_bytes()).unwrap();
-        
+
         // Ensure mtime is set (sometimes fast tests run within same mtime granularity)
         let manager = ConfigManager::from_file(file.path()).unwrap();
         assert_eq!(manager.get().port, 1111);
-        
+
         // Wait a bit to ensure mtime change is detectable (filesystems vary)
         std::thread::sleep(std::time::Duration::from_millis(50));
-        
+
         // Modify file
         let new_yaml = "port: 2222\nupstream_addr: \"backend:2\"\n";
         // To update mtime, we must re-open with write
         let mut f = std::fs::File::create(file.path()).unwrap();
         f.write_all(new_yaml.as_bytes()).unwrap();
-        f.sync_all().unwrap(); 
-        
+        f.sync_all().unwrap();
+
         // Reload
         let reloaded = manager.reload().unwrap();
         assert!(reloaded);
         assert_eq!(manager.get().port, 2222);
-        
+
         // Reload again (no change)
         let reloaded_again = manager.reload().unwrap();
         assert!(!reloaded_again);
@@ -591,8 +594,11 @@ upstream_addr: "test:8080"
 
     #[test]
     fn test_validation_missing_upstream() {
-        let config = ProxyConfig { upstream_addr: "".to_string(), ..Default::default() };
-        
+        let config = ProxyConfig {
+            upstream_addr: "".to_string(),
+            ..Default::default()
+        };
+
         match config.validate() {
             Err(ConfigError::ValidationError(msg)) => assert!(msg.contains("Upstream address")),
             _ => panic!("Expected ValidationError"),

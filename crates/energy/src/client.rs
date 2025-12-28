@@ -411,7 +411,9 @@ mod tests {
         let result = client.get_carbon_intensity(&region).await;
 
         match result {
-            Err(EnergyApiError::RateLimitExceeded { retry_after_seconds }) => {
+            Err(EnergyApiError::RateLimitExceeded {
+                retry_after_seconds,
+            }) => {
                 assert_eq!(retry_after_seconds, 120);
             }
             _ => panic!("Expected RateLimitExceeded error"),
@@ -463,8 +465,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client =
-            ElectricityMapsClient::new("key".to_string()).with_base_url(mock_server.uri());
+        let client = ElectricityMapsClient::new("key".to_string()).with_base_url(mock_server.uri());
 
         let region = Region::new("DE", "Germany");
         let result = client.get_carbon_intensity(&region).await;

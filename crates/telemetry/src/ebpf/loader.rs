@@ -135,11 +135,11 @@ mod tests {
     fn test_double_unload() {
         let loader = EbpfLoader::new();
         loader.load().unwrap();
-        
+
         // First unload
         assert!(loader.unload().is_ok());
         assert!(!loader.is_loaded());
-        
+
         // Second unload should be fine (idempotent)
         assert!(loader.unload().is_ok());
         assert!(!loader.is_loaded());
@@ -148,10 +148,10 @@ mod tests {
     #[test]
     fn test_consecutive_loads() {
         let loader = EbpfLoader::new();
-        
+
         loader.load().unwrap();
         assert!(loader.is_loaded());
-        
+
         // Loading again shouldn't fail (though implementation detail: usually fine)
         loader.load().unwrap();
         assert!(loader.is_loaded());

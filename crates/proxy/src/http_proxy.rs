@@ -60,7 +60,10 @@ impl HttpProxy {
     }
 
     /// Run the proxy server with a shutdown signal
-    pub async fn run_with_shutdown(&self, shutdown: impl std::future::Future<Output = ()>) -> Result<()> {
+    pub async fn run_with_shutdown(
+        &self,
+        shutdown: impl std::future::Future<Output = ()>,
+    ) -> Result<()> {
         let listener = TcpListener::bind(self.config.listen_addr).await?;
 
         info!("🌐 HTTP/2 Proxy listening on {}", self.config.listen_addr);

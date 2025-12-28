@@ -377,7 +377,7 @@ mod tests {
     struct SlowReader<R> {
         inner: R,
     }
-    
+
     impl<R: tokio::io::AsyncRead + Unpin> tokio::io::AsyncRead for SlowReader<R> {
         fn poll_read(
             mut self: Pin<&mut Self>,
@@ -388,13 +388,13 @@ mod tests {
             if buf.remaining() == 0 {
                 return Poll::Ready(Ok(()));
             }
-            
+
             // Create a small buffer of size 1
             let mut small_buf = [0u8; 1];
             let mut read_buf = tokio::io::ReadBuf::new(&mut small_buf);
-            
+
             ready!(Pin::new(&mut self.inner).poll_read(cx, &mut read_buf))?;
-            
+
             let n = read_buf.filled().len();
             if n > 0 {
                 buf.put_slice(read_buf.filled());
@@ -407,7 +407,7 @@ mod tests {
     async fn test_partial_reads_handling() {
         let key = [0x55u8; 32];
         let payload = b"Stress Test Payload";
-        
+
         let mut network_buffer = Vec::new();
         {
             let mut cursor = std::io::Cursor::new(&mut network_buffer);
@@ -419,10 +419,10 @@ mod tests {
         let cursor = std::io::Cursor::new(network_buffer);
         let slow_reader = SlowReader { inner: cursor };
         let mut reader = EncryptedStream::new(slow_reader, &key);
-        
+
         let mut buf = Vec::new();
         reader.read_to_end(&mut buf).await.unwrap();
-        
+
         assert_eq!(buf, payload);
     }
 
@@ -430,14 +430,14 @@ mod tests {
     async fn test_invalid_frame_header() {
         let key = [0x66u8; 32];
         let mut network_buffer = Vec::new();
-        
+
         // Write invalid length (too small)
         network_buffer.extend_from_slice(&(10u32.to_be_bytes())); // < OVERHEAD
         network_buffer.extend_from_slice(&[0u8; 10]); // junk data
-        
+
         let cursor = std::io::Cursor::new(network_buffer);
         let mut reader = EncryptedStream::new(cursor, &key);
-        
+
         let mut buf = [0u8; 32];
         let err = reader.read(&mut buf).await.unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::InvalidData);
@@ -449,21 +449,21 @@ mod tests {
         let key = [0x77u8; 32];
         let payload = b"Data";
         let mut network_buffer = Vec::new();
-        
+
         {
             let mut cursor = std::io::Cursor::new(&mut network_buffer);
             let mut writer = EncryptedStream::new(&mut cursor, &key);
             writer.write_all(payload).await.unwrap();
             writer.flush().await.unwrap();
         }
-        
+
         // Truncate the buffer by 1 byte
         let len = network_buffer.len();
         network_buffer.truncate(len - 1);
-        
+
         let cursor = std::io::Cursor::new(network_buffer);
         let mut reader = EncryptedStream::new(cursor, &key);
-        
+
         let mut buf = Vec::new();
         let err = reader.read_to_end(&mut buf).await.unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::UnexpectedEof);

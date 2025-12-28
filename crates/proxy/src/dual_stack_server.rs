@@ -96,7 +96,10 @@ impl DualStackServer {
     }
 
     /// Run with shutdown signal
-    pub async fn run_with_shutdown(&self, shutdown: impl std::future::Future<Output = ()>) -> Result<()> {
+    pub async fn run_with_shutdown(
+        &self,
+        shutdown: impl std::future::Future<Output = ()>,
+    ) -> Result<()> {
         info!("🚀 Starting Dual-Stack Server (HTTP/2 + HTTP/3)");
 
         let alt_svc = self.alt_svc_header();
@@ -119,9 +122,12 @@ impl DualStackServer {
             info!("🌐 Starting HTTP/2 server on {}", http2_config.listen_addr);
 
             let proxy = HttpProxy::new(http2_config);
-            if let Err(e) = proxy.run_with_shutdown(async move {
-                rx_h2.recv().await.ok();
-            }).await {
+            if let Err(e) = proxy
+                .run_with_shutdown(async move {
+                    rx_h2.recv().await.ok();
+                })
+                .await
+            {
                 error!("❌ HTTP/2 server error: {}", e);
             }
         });
@@ -135,9 +141,12 @@ impl DualStackServer {
             );
 
             let quic_server = QuicServer::new(quic_config, proxy_config2);
-            if let Err(e) = quic_server.run_with_shutdown(async move {
-                rx_h3.recv().await.ok();
-            }).await {
+            if let Err(e) = quic_server
+                .run_with_shutdown(async move {
+                    rx_h3.recv().await.ok();
+                })
+                .await
+            {
                 error!("❌ HTTP/3 server error: {}", e);
             }
         });
@@ -229,7 +238,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_dual_stack_lifecycle() {
-        use tokio::time::{timeout, Duration};
+        use tokio::time::{Duration, timeout};
 
         // Use random ports
         let http2_config = HttpProxyConfig {
@@ -247,7 +256,7 @@ mod tests {
         let certified_key = generate_simple_self_signed(subject_alt_names).unwrap();
         let cert_pem = certified_key.cert.pem();
         let key_pem = certified_key.key_pair.serialize_pem();
-        
+
         // Use temp files (mocking fs not easy here, so write to disk)
         // Or refactor QuicConfig to accept bytes? (QuicConfig accepts paths)
         // Let's write to random temp files
@@ -256,7 +265,7 @@ mod tests {
         let key_path = temp_dir.path().join("server.key");
         std::fs::write(&cert_path, cert_pem).unwrap();
         std::fs::write(&key_path, key_pem).unwrap();
-        
+
         quic_config.cert_path = cert_path.to_str().unwrap().to_string();
         quic_config.key_path = key_path.to_str().unwrap().to_string();
 
@@ -269,19 +278,21 @@ mod tests {
 
         let server = DualStackServer::new(config, ProxyConfig::default());
         let (tx, rx) = tokio::sync::oneshot::channel();
-        
+
         let handle = tokio::spawn(async move {
-            server.run_with_shutdown(async {
-                rx.await.ok();
-            }).await
+            server
+                .run_with_shutdown(async {
+                    rx.await.ok();
+                })
+                .await
         });
-        
+
         // Give it time to start
         tokio::time::sleep(Duration::from_millis(100)).await;
-        
+
         // Shutdown
         tx.send(()).unwrap();
-        
+
         let result = timeout(Duration::from_secs(2), handle).await;
         assert!(result.is_ok(), "Server shutdown timed out");
         assert!(result.unwrap().unwrap().is_ok(), "Server failed to run");
@@ -294,33 +305,33 @@ mod tests {
             cert_path: "/non/existent/path.crt".to_string(), // Should fail
             ..Default::default()
         };
-        
+
         let config = DualStackConfig {
             http2_config: HttpProxyConfig::default(),
             quic_config,
             ..Default::default()
         };
-        
+
         let server = DualStackServer::new(config, ProxyConfig::default());
-        
+
         // It should fail fast (QuicServer checks certs on run)
         let result = server.run_with_shutdown(std::future::pending()).await;
-        
+
         // Wait, QUIC server is spawned in background. So run() returns Ok immediately if spawn succeeds.
-        // But run checks certs inside run_with_shutdown. 
+        // But run checks certs inside run_with_shutdown.
         // No, QuicServer::run checks certs. But here we call QuicServer::new and then spawn a task that calls run.
         // So the error happens in the background task.
         // dual_stack_server.rs: run_with_shutdown spawns tasks and then selects.
         // If background task fails, does it return Err?
-        // tokio::select! waits for handle. 
-        // Logic: 
-        // result = http3_handle => if let Err(e) = result 
+        // tokio::select! waits for handle.
+        // Logic:
+        // result = http3_handle => if let Err(e) = result
         // This only catches JoinError (panic/cancellation).
         // What if quic_server.run() returns Err?
         // Log error and task finishes.
         // So run_with_shutdown returns Ok(()).
         // This means we verify that it *doesn't panic* and logs error.
-        
+
         // To verify it handles error gracefully:
         assert!(result.is_ok());
     }
