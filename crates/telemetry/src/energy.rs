@@ -200,4 +200,32 @@ mod tests {
         let metrics = EnergyMetrics::new("/health", "GET");
         assert_eq!(metrics.joules_per_byte(), 0.0);
     }
+
+    #[test]
+    fn test_energy_breakdown_default() {
+        let breakdown = EnergyBreakdown::default();
+        assert_eq!(breakdown.cpu_joules, 0.0);
+        assert_eq!(breakdown.memory_joules, 0.0);
+        assert_eq!(breakdown.network_joules, 0.0);
+        assert_eq!(breakdown.storage_joules, 0.0);
+        assert_eq!(breakdown.total(), 0.0);
+    }
+
+    #[test]
+    fn test_energy_source_default() {
+        let source: EnergySource = Default::default();
+        assert_eq!(source, EnergySource::Software);
+    }
+
+    #[test]
+    fn test_energy_metrics_with_duration() {
+        let metrics = EnergyMetrics::new("/api", "POST").with_duration(Duration::from_millis(100));
+        assert_eq!(metrics.duration, Duration::from_millis(100));
+    }
+
+    #[test]
+    fn test_energy_metrics_with_cpu_cycles() {
+        let metrics = EnergyMetrics::new("/api", "GET").with_cpu_cycles(1_000_000);
+        assert_eq!(metrics.cpu_cycles, Some(1_000_000));
+    }
 }

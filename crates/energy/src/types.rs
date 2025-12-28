@@ -189,4 +189,58 @@ mod tests {
         assert!(valid.is_valid());
         assert!(!expired.is_valid());
     }
+
+    #[test]
+    fn test_energy_api_error_display() {
+        let auth_err = EnergyApiError::AuthenticationError;
+        assert!(format!("{}", auth_err).contains("authentication"));
+
+        let rate_err = EnergyApiError::RateLimitExceeded {
+            retry_after_seconds: 60,
+        };
+        assert!(format!("{}", rate_err).contains("60"));
+
+        let region_err = EnergyApiError::RegionNotFound {
+            region_id: "TEST".to_string(),
+        };
+        assert!(format!("{}", region_err).contains("TEST"));
+
+        let parse_err = EnergyApiError::ParseError("invalid json".to_string());
+        assert!(format!("{}", parse_err).contains("invalid json"));
+
+        let api_err = EnergyApiError::ApiError {
+            message: "server error".to_string(),
+        };
+        assert!(format!("{}", api_err).contains("server error"));
+
+        let config_err = EnergyApiError::ConfigError("missing key".to_string());
+        assert!(format!("{}", config_err).contains("missing key"));
+    }
+
+    #[test]
+    fn test_energy_api_provider_default() {
+        let provider: EnergyApiProvider = Default::default();
+        assert_eq!(provider, EnergyApiProvider::WattTime);
+    }
+
+    #[test]
+    fn test_carbon_intensity_clamping() {
+        let region = Region::new("TEST", "Test");
+        let very_high = CarbonIntensity {
+            region,
+            value: 1000.0, // Above max (800)
+            timestamp: chrono::Utc::now(),
+            valid_for_seconds: 300,
+            rating: None,
+        };
+        // Should be clamped to 1.0
+        assert_eq!(very_high.normalized_score(), 1.0);
+    }
+
+    #[test]
+    fn test_region_without_coordinates() {
+        let region = Region::new("TEST", "Test Region");
+        assert!(region.latitude.is_none());
+        assert!(region.longitude.is_none());
+    }
 }
