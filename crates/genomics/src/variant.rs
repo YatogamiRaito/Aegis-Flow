@@ -60,6 +60,12 @@ impl VariantRecord {
         self.filter = Some(filter.to_string());
         self
     }
+
+    /// Set info field
+    pub fn with_info(mut self, info: &str) -> Self {
+        self.info = Some(info.to_string());
+        self
+    }
 }
 
 /// Builder for creating Arrow RecordBatch from variants
@@ -237,5 +243,71 @@ mod tests {
             builder.push(VariantRecord::new(&format!("chr{}", i), i * 100, "A", "T"));
         }
         assert_eq!(builder.len(), 22);
+    }
+
+    #[test]
+    fn test_variant_record_with_info() {
+        let record = VariantRecord::new("chr1", 100, "A", "T")
+            .with_info("DP=50;AF=0.25");
+        assert_eq!(record.info, Some("DP=50;AF=0.25".to_string()));
+    }
+
+    #[test]
+    fn test_variant_record_all_fields() {
+        let record = VariantRecord::new("chrX", 500, "GGG", "TTT")
+            .with_id("rs12345")
+            .with_qual(100.5)
+            .with_filter("PASS")
+            .with_info("DP=100");
+        
+        assert_eq!(record.chrom, "chrX");
+        assert_eq!(record.pos, 500);
+        assert_eq!(record.ref_allele, "GGG");
+        assert_eq!(record.alt_allele, "TTT");
+        assert!(record.id.is_some());
+        assert!(record.qual.is_some());
+        assert!(record.filter.is_some());
+        assert!(record.info.is_some());
+    }
+
+    #[test]
+    fn test_builder_push_multiple() {
+        let mut builder = VariantBatchBuilder::new();
+        
+        for i in 1..=10 {
+            builder.push(VariantRecord::new("chr1", i * 1000, "A", "G"));
+        }
+        
+        assert_eq!(builder.len(), 10);
+        assert!(!builder.is_empty());
+    }
+
+    #[test]
+    fn test_variant_record_minimal() {
+        let record = VariantRecord::new("chr1", 1, "A", "T");
+        assert!(record.id.is_none());
+        assert!(record.qual.is_none());
+        assert!(record.filter.is_none());
+        assert!(record.info.is_none());
+    }
+
+    #[test]
+    fn test_builder_capacity_growth() {
+        let mut builder = VariantBatchBuilder::with_capacity(2);
+        
+        // Push more than capacity
+        for i in 0..5 {
+            builder.push(VariantRecord::new("chr1", i, "A", "T"));
+        }
+        
+        assert_eq!(builder.len(), 5);
+    }
+
+    #[test]
+    fn test_variant_record_debug_format() {
+        let record = VariantRecord::new("chr1", 100, "A", "T");
+        let debug_str = format!("{:?}", record);
+        assert!(debug_str.contains("chr1"));
+        assert!(debug_str.contains("100"));
     }
 }

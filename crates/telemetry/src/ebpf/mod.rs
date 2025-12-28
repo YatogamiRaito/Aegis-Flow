@@ -75,4 +75,66 @@ mod tests {
         let parsed = extract_kernel_version(version);
         assert_eq!(parsed, Some((5, 15)));
     }
+
+    #[test]
+    #[cfg(feature = "ebpf")]
+    fn test_kernel_version_parsing_old_kernel() {
+        let version = "Linux version 4.19.0-25-generic";
+        let parsed = extract_kernel_version(version);
+        assert_eq!(parsed, Some((4, 19)));
+    }
+
+    #[test]
+    #[cfg(feature = "ebpf")]
+    fn test_kernel_version_parsing_new_kernel() {
+        let version = "Linux version 6.2.0-39-generic";
+        let parsed = extract_kernel_version(version);
+        assert_eq!(parsed, Some((6, 2)));
+    }
+
+    #[test]
+    #[cfg(feature = "ebpf")]
+    fn test_kernel_version_parsing_invalid() {
+        let version = "Invalid version string";
+        let parsed = extract_kernel_version(version);
+        assert_eq!(parsed, None);
+    }
+
+    #[test]
+    #[cfg(feature = "ebpf")]
+    fn test_kernel_version_parsing_missing_parts() {
+        let version = "Linux version";
+        let parsed = extract_kernel_version(version);
+        assert_eq!(parsed, None);
+    }
+
+    #[test]
+    #[cfg(feature = "ebpf")]
+    fn test_kernel_version_parsing_malformed() {
+        let version = "Linux version abc.def.ghi";
+        let parsed = extract_kernel_version(version);
+        assert_eq!(parsed, None);
+    }
+
+    #[test]
+    #[cfg(not(feature = "ebpf"))]
+    fn test_ebpf_disabled_returns_false() {
+        assert!(!is_ebpf_available());
+    }
+
+    #[test]
+    #[cfg(feature = "ebpf")]
+    fn test_kernel_version_exact_5_8() {
+        let version = "Linux version 5.8.0-generic";
+        let parsed = extract_kernel_version(version);
+        assert_eq!(parsed, Some((5, 8)));
+    }
+
+    #[test]
+    #[cfg(feature = "ebpf")]
+    fn test_kernel_version_with_extra_info() {
+        let version = "Linux version 5.15.0-76-generic (buildd@lcy02-amd64-080) (gcc (Ubuntu 11.3.0-1ubuntu1~22.04.1) 11.3.0, GNU ld (GNU Binutils for Ubuntu) 2.38) #83-Ubuntu SMP Thu Jun 15 19:16:32 UTC 2023";
+        let parsed = extract_kernel_version(version);
+        assert_eq!(parsed, Some((5, 15)));
+    }
 }

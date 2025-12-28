@@ -139,4 +139,67 @@ mod tests {
         assert_eq!(SchemaType::Variant, SchemaType::Variant);
         assert_ne!(SchemaType::Variant, SchemaType::Alignment);
     }
+
+    #[test]
+    fn test_variant_schema_field_names() {
+        let schema = GenomicSchema::variant();
+        let fields = schema.field_names();
+        assert_eq!(fields.len(), 8);
+        assert!(fields.contains(&"ref"));
+        assert!(fields.contains(&"alt"));
+        assert!(fields.contains(&"qual"));
+    }
+
+    #[test]
+    fn test_alignment_schema_field_names() {
+        let schema = GenomicSchema::alignment();
+        let fields = schema.field_names();
+        assert_eq!(fields.len(), 11);
+        assert!(fields.contains(&"cigar"));
+        assert!(fields.contains(&"qual_str"));
+    }
+
+    #[test]
+    fn test_sequence_schema_fields() {
+        let schema = GenomicSchema::sequence();
+        assert!(schema.field_names().contains(&"name"));
+        assert!(schema.field_names().contains(&"sequence"));
+        assert!(schema.field_names().contains(&"quality"));
+    }
+
+    #[test]
+    fn test_genomic_schema_clone() {
+        let schema1 = GenomicSchema::variant();
+        let schema2 = schema1.clone();
+        assert_eq!(schema1.schema_type, schema2.schema_type);
+        assert_eq!(schema1.field_names(), schema2.field_names());
+    }
+
+    #[test]
+    fn test_schema_type_debug() {
+        let variant = SchemaType::Variant;
+        let alignment = SchemaType::Alignment;
+        let debug_v = format!("{:?}", variant);
+        let debug_a = format!("{:?}", alignment);
+        assert!(debug_v.contains("Variant"));
+        assert!(debug_a.contains("Alignment"));
+    }
+
+    #[test]
+    fn test_schema_type_copy() {
+        let st1 = SchemaType::Sequence;
+        let st2 = st1;
+        assert_eq!(st1, st2);
+    }
+
+    #[test]
+    fn test_all_schema_types() {
+        let variant = GenomicSchema::variant();
+        let alignment = GenomicSchema::alignment();
+        let sequence = GenomicSchema::sequence();
+        
+        assert_eq!(variant.schema_type, SchemaType::Variant);
+assert_eq!(alignment.schema_type, SchemaType::Alignment);
+        assert_eq!(sequence.schema_type, SchemaType::Sequence);
+    }
 }
