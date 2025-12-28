@@ -710,4 +710,14 @@ mod tests {
         assert_eq!(err.kind(), io::ErrorKind::UnexpectedEof);
         assert!(err.to_string().contains("Incomplete frame"));
     }
+
+    #[tokio::test]
+    async fn test_stream_flush_propagation() {
+        let key = [0xDDu8; 32];
+        let stream = Vec::new();
+        let mut enc_stream = EncryptedStream::new(stream, &key);
+
+        // Flush should not error on Vec
+        enc_stream.flush().await.unwrap();
+    }
 }

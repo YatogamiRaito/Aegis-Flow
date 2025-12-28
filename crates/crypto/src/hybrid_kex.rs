@@ -431,4 +431,23 @@ mod tests {
         assert!(debug_str.contains("REDACTED"));
         assert!(debug_str.contains("HybridSecretKey"));
     }
+
+    #[test]
+    fn test_hybrid_public_key_clone() {
+        let kex = HybridKeyExchange::new();
+        let (pk, _) = kex.generate_keypair().unwrap();
+        let cloned = pk.clone();
+        assert_eq!(pk.x25519, cloned.x25519);
+        assert_eq!(pk.mlkem, cloned.mlkem);
+    }
+
+    #[test]
+    fn test_hybrid_ciphertext_clone() {
+        let kex = HybridKeyExchange::new();
+        let (pk, _) = kex.generate_keypair().unwrap();
+        let (ct, _) = kex.encapsulate(&pk).unwrap();
+        let cloned = ct.clone();
+        assert_eq!(ct.x25519_ephemeral, cloned.x25519_ephemeral);
+        assert_eq!(ct.mlkem_ciphertext, cloned.mlkem_ciphertext);
+    }
 }

@@ -243,4 +243,28 @@ mod tests {
         assert_eq!(stats.min, 50.0);
         assert_eq!(stats.max, 50.0);
     }
+
+    #[test]
+    fn test_filter_by_region_boundaries() {
+        let analytics = create_test_analytics();
+        // Test exact boundaries
+        let count = analytics.filter_by_region("chr1", 100, 200).unwrap();
+        assert_eq!(count, 2);
+
+        // Test no matches
+        let count = analytics.filter_by_region("chr1", 500, 600).unwrap();
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn test_variant_analytics_large_dataset() {
+        let mut builder = VariantBatchBuilder::new();
+        for i in 0..1000 {
+            builder.push(
+                VariantRecord::new("chr1", i * 10, "A", "T").with_qual(50.0 + (i % 50) as f64),
+            );
+        }
+        let analytics = VariantAnalytics::from_builder(&builder).unwrap();
+        assert_eq!(analytics.count(), 1000);
+    }
 }

@@ -391,4 +391,23 @@ mod tests {
         let decrypted = channel.decrypt(&ciphertext).unwrap();
         assert_eq!(decrypted, plaintext);
     }
+
+    #[test]
+    fn test_pqc_tls_config_clone() {
+        let config = PqcTlsConfig {
+            pqc_enabled: true,
+            mtls_required: false,
+            algorithm: PqcAlgorithm::HybridMlKem1024,
+        };
+        let cloned = config.clone();
+        assert_eq!(config.pqc_enabled, cloned.pqc_enabled);
+        assert_eq!(config.algorithm, cloned.algorithm);
+    }
+
+    #[test]
+    fn test_pqc_algorithm_cloning() {
+        let alg = PqcAlgorithm::HybridMlKem768;
+        let copied = alg; // PqcAlgorithm is Copy
+        assert_eq!(alg, copied);
+    }
 }
