@@ -727,4 +727,23 @@ mod tests {
         let result = server.run().await;
         assert!(result.is_err());
     }
+
+    #[tokio::test]
+    async fn test_process_stream_garbage_data() {
+        // Send garbage data that doesn't look like HTTP/3
+        let request = vec![0xFF, 0x00, 0xAA, 0xBB];
+        let mut recv = std::io::Cursor::new(request);
+        let mut send = Vec::new();
+
+        let result = QuicServer::process_stream(&mut recv, &mut send, "backend".to_string()).await;
+        
+        // Should handle gracefully (likely default path or return ok)
+        assert!(result.is_ok());
+        
+        // If it wrote something, it's likely a HTTP/3 response (even if error)
+        if !send.is_empty() {
+             let response = String::from_utf8(send).unwrap();
+             assert!(response.contains("HTTP/3"));
+        }
+    }
 }

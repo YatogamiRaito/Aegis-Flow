@@ -428,4 +428,51 @@ mod tests {
         // Typically fails with EACCES
         assert!(result.is_err());
     }
+
+    #[tokio::test]
+    async fn test_handle_request_health() {
+        use http_body_util::Empty;
+        let req = Request::builder()
+            .method(Method::GET)
+            .uri("/health")
+            .body(Empty::<Bytes>::new())
+            .unwrap();
+
+        let resp = handle_request(req, "upstream").await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_handle_request_ready() {
+        use http_body_util::Empty;
+        let req = Request::builder()
+            .method(Method::GET)
+            .uri("/ready")
+            .body(Empty::<Bytes>::new())
+            .unwrap();
+
+        let resp = handle_request(req, "upstream").await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // Optionally verify body content
+        use http_body_util::BodyExt;
+        let body_bytes = resp.into_body().collect().await.unwrap().to_bytes();
+        let body_str = String::from_utf8(body_bytes.to_vec()).unwrap();
+        assert!(body_str.contains("ready"));
+    }
+
+    #[tokio::test]
+    async fn test_handle_request_various_methods() {
+        use http_body_util::Empty;
+        for method in [Method::PUT, Method::DELETE, Method::PATCH, Method::OPTIONS] {
+            let req = Request::builder()
+                .method(method.clone())
+                .uri("/some/path")
+                .body(Empty::<Bytes>::new())
+                .unwrap();
+
+            let resp = handle_request(req, "upstream").await.unwrap();
+            assert_eq!(resp.status(), StatusCode::OK);
+        }
+    }
 }

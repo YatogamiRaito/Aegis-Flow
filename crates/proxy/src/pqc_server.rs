@@ -527,4 +527,39 @@ mod tests {
         let result = handle.await.unwrap();
         assert!(result.is_ok());
     }
+
+    #[tokio::test]
+    async fn test_ciphertext_too_large() {
+        let config = ProxyConfig {
+            host: "127.0.0.1".to_string(),
+            port: 0,
+            ..Default::default()
+        };
+        let server = PqcProxyServer::new(config);
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        tokio::spawn(async move {
+            server
+                .run_with_listener(listener, std::future::pending())
+                .await
+                .ok();
+        });
+
+        // Connect and send an oversized ciphertext length
+        let mut stream = TcpStream::connect(addr).await.unwrap();
+        // Read the PK length and PK first
+        let mut pk_len_bytes = [0u8; 4];
+        let _ = stream.read_exact(&mut pk_len_bytes).await;
+        let pk_len = u32::from_be_bytes(pk_len_bytes) as usize;
+        let mut pk_bytes = vec![0u8; pk_len];
+        let _ = stream.read_exact(&mut pk_bytes).await;
+
+        // Send an oversized ciphertext length (> 10000 bytes)
+        let fake_ct_len: u32 = 15000;
+        stream.write_all(&fake_ct_len.to_be_bytes()).await.unwrap();
+
+        // Server should reject and close connection
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
 }

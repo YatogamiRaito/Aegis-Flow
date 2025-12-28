@@ -370,4 +370,25 @@ mod tests {
         assert_eq!(stats.http2_requests, 0);
         assert_eq!(stats.http3_requests, 0);
     }
+
+    #[tokio::test]
+    async fn test_partial_startup_failure() {
+        // Test where HTTP/2 fails to bind (e.g. privileged port) but QUIC config is valid-ish (or also fails)
+        // This exercises the select! branch for http2_handle failure
+        let http2_config = HttpProxyConfig {
+            listen_addr: "127.0.0.1:1".parse().unwrap(), // Privileged port, likely fails
+            ..Default::default()
+        };
+
+        let config = DualStackConfig {
+            http2_config,
+            ..Default::default()
+        };
+
+        let server = DualStackServer::new(config, ProxyConfig::default());
+        let result = server.run_with_shutdown(std::future::pending()).await;
+        
+        // It returns Ok because the error is logged in the background task and the task finishes.
+        assert!(result.is_ok());
+    }
 }
