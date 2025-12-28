@@ -58,6 +58,7 @@ chrono = { version = "0.4", features = ["serde"] }
 num_cpus = "1.16"
 tempfile = "3.15"
 rcgen.workspace = true
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
 
 [[bin]]
 name = "aegis-proxy"

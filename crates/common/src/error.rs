@@ -43,10 +43,29 @@ mod tests {
 
     #[test]
     fn test_error_display() {
-        let err = AegisError::Crypto("key exchange failed".to_string());
         assert_eq!(
-            format!("{}", err),
-            "Cryptographic error: key exchange failed"
+            format!("{}", AegisError::Crypto("fail".to_string())),
+            "Cryptographic error: fail"
+        );
+        assert_eq!(
+            format!("{}", AegisError::Network("fail".to_string())),
+            "Network error: fail"
+        );
+        assert_eq!(
+            format!("{}", AegisError::Config("fail".to_string())),
+            "Configuration error: fail"
+        );
+        assert_eq!(
+            format!("{}", AegisError::Tee("fail".to_string())),
+            "TEE error: fail"
+        );
+        assert_eq!(
+            format!("{}", AegisError::Attestation("fail".to_string())),
+            "Attestation error: fail"
+        );
+        assert_eq!(
+            format!("{}", AegisError::Internal("fail".to_string())),
+            "Internal error: fail"
         );
     }
 
@@ -55,5 +74,7 @@ mod tests {
         let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
         let aegis_err: AegisError = io_err.into();
         assert!(matches!(aegis_err, AegisError::Io(_)));
+        // Verify IO error display as well
+        assert!(format!("{}", aegis_err).contains("file not found"));
     }
 }
