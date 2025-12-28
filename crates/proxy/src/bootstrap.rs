@@ -34,12 +34,9 @@ pub async fn bootstrap() -> Result<()> {
     let health_metrics = Some(metrics_handle.clone());
 
     tokio::spawn(async move {
-        if let Err(e) = crate::health_server::run_health_server(
-            health_config,
-            health_lifecycle,
-            health_metrics,
-        )
-        .await
+        if let Err(e) =
+            crate::health_server::run_health_server(health_config, health_lifecycle, health_metrics)
+                .await
         {
             tracing::error!("Health server failed: {}", e);
         }
