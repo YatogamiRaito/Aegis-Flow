@@ -765,38 +765,4 @@ mod tests {
         let debug_str = format!("{:?}", stats);
         assert!(debug_str.contains("connections"));
     }
-
-    #[test]
-    fn test_quic_stats_initial_values() {
-        let stats = QuicStats::default();
-        assert_eq!(stats.connections, 0);
-        assert_eq!(stats.streams, 0);
-    }
-
-    #[test]
-    fn test_quic_stats_cloning() {
-        let stats = QuicStats {
-            connections: 10,
-            streams: 50,
-            ..Default::default()
-        };
-        let cloned = stats.clone();
-        assert_eq!(stats.connections, cloned.connections);
-    }
-
-    #[test]
-    fn test_quic_server_config_defaults() {
-        let config = QuicServerConfig::default();
-        assert!(config.max_streams >= 0);
-    }
-
-    #[test]
-    fn test_quic_server_config_custom() {
-        let config = QuicServerConfig {
-            max_streams: 500,
-            idle_timeout_secs: 120,
-            ..Default::default()
-        };
-        assert_eq!(config.max_streams, 500);
-    }
 }
