@@ -990,7 +990,7 @@ upstream_addr: "test:8080"
     }
 
     #[test]
-    fn test_proxy_config_clone() {
+    fn test_proxy_config_clone_fields() {
         let config1 = ProxyConfig::default();
         let config2 = config1.clone();
         assert_eq!(config1.port, config2.port);
