@@ -398,4 +398,25 @@ mod tests {
             "Server should close connection on malformed ciphertext"
         );
     }
+
+    #[test]
+    fn test_pqc_proxy_server_creation() {
+        let config = ProxyConfig {
+            host: "127.0.0.1".to_string(),
+            port: 8443,
+            pqc_enabled: true,
+            ..Default::default()
+        };
+        let server = PqcProxyServer::new(config);
+        // Just verify it creates successfully
+        let _ = format!("{:p}", &server);
+    }
+
+    #[test]
+    fn test_get_tokio_io() {
+        use tokio::io::duplex;
+        let (client, _server) = duplex(1024);
+        let io = get_tokio_io(client);
+        let _ = io;
+    }
 }

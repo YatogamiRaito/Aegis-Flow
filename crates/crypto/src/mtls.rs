@@ -310,6 +310,7 @@ impl MtlsAuthenticator {
 }
 
 /// mTLS Handler for certificate operations (legacy interface)
+#[derive(Debug)]
 pub struct MtlsHandler {
     config: MtlsConfig,
 }
@@ -684,5 +685,127 @@ mod tests {
         assert_eq!(AuthState::Unauthenticated, AuthState::Unauthenticated);
         assert_eq!(AuthState::Authenticated, AuthState::Authenticated);
         assert_ne!(AuthState::Unauthenticated, AuthState::Authenticated);
+    }
+
+    #[test]
+    fn test_auth_state_failed_message() {
+        let state = AuthState::Failed("Custom error message".to_string());
+        let debug = format!("{:?}", state);
+        assert!(debug.contains("Custom error message"));
+    }
+
+    #[test]
+    fn test_verification_result_creation() {
+        let result = VerificationResult {
+            verified: true,
+            subject_cn: Some("test-client".to_string()),
+            fingerprint: "abc123".to_string(),
+            expires_at: 1234567890,
+        };
+        assert!(result.verified);
+        assert_eq!(result.subject_cn, Some("test-client".to_string()));
+        assert_eq!(result.fingerprint, "abc123");
+        assert_eq!(result.expires_at, 1234567890);
+    }
+
+    #[test]
+    fn test_verification_result_failed() {
+        let result = VerificationResult {
+            verified: false,
+            subject_cn: None,
+            fingerprint: "".to_string(),
+            expires_at: 0,
+        };
+        assert!(!result.verified);
+        assert!(result.subject_cn.is_none());
+    }
+
+    #[test]
+    fn test_verification_result_clone() {
+        let result = VerificationResult {
+            verified: true,
+            subject_cn: Some("clone-test".to_string()),
+            fingerprint: "fingerprint".to_string(),
+            expires_at: 9999,
+        };
+        let cloned = result.clone();
+        assert_eq!(result.verified, cloned.verified);
+        assert_eq!(result.subject_cn, cloned.subject_cn);
+    }
+
+    #[test]
+    fn test_mtls_handler_validate_paths_missing() {
+        let config = MtlsConfig {
+            cert_path: "/nonexistent/cert.crt".to_string(),
+            key_path: "/nonexistent/key.pem".to_string(),
+            ..Default::default()
+        };
+        let handler = MtlsHandler::new(config);
+        let result = handler.validate_paths();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_complete_handshake_connection_not_found() {
+        let config = MtlsConfig::default();
+        let auth = MtlsAuthenticator::new(config).unwrap();
+
+        // Create a dummy ciphertext
+        let dummy_ct = crate::HybridCiphertext::from_bytes(&[0u8; 100]);
+
+        if let Ok(ct) = dummy_ct {
+            let result = auth.complete_handshake(99999, &ct, None);
+            assert!(result.is_err());
+        }
+    }
+
+    #[test]
+    fn test_get_client_state_not_found() {
+        let config = MtlsConfig::default();
+        let auth = MtlsAuthenticator::new(config).unwrap();
+
+        let result = auth.get_client_state(12345);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_disconnect_success() {
+        let config = MtlsConfig::default();
+        let auth = MtlsAuthenticator::new(config).unwrap();
+
+        let (conn_id, _) = auth.accept_connection().unwrap();
+        let result = auth.disconnect(conn_id);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_authenticated_count_with_connections() {
+        let config = MtlsConfig::default();
+        let auth = MtlsAuthenticator::new(config).unwrap();
+
+        // Accept multiple connections
+        let _ = auth.accept_connection();
+        let _ = auth.accept_connection();
+
+        // None are authenticated yet
+        assert_eq!(auth.authenticated_count(), 0);
+    }
+
+    #[test]
+    fn test_mtls_config_with_ca_path() {
+        let config = MtlsConfig {
+            ca_path: Some("/custom/ca.crt".to_string()),
+            ..Default::default()
+        };
+        assert!(config.ca_path.is_some());
+        assert!(config.ca_path.unwrap().contains("ca.crt"));
+    }
+
+    #[test]
+    fn test_authenticated_client_debug() {
+        let client = AuthenticatedClient::new(999);
+        let debug = format!("{:?}", client);
+        assert!(debug.contains("999"));
+        assert!(debug.contains("Unauthenticated"));
     }
 }

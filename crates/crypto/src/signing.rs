@@ -1073,4 +1073,60 @@ mod tests {
         let invalid_pk = vec![0u8; alg.public_key_size() - 1];
         assert!(MlDsaVerifier::new(invalid_pk, alg).is_err());
     }
+
+    #[test]
+    fn test_mldsa_algorithm_properties() {
+        // Test name
+        assert_eq!(MlDsaAlgorithm::MlDsa44.name(), "ML-DSA-44");
+        assert_eq!(MlDsaAlgorithm::MlDsa65.name(), "ML-DSA-65");
+        assert_eq!(MlDsaAlgorithm::MlDsa87.name(), "ML-DSA-87");
+
+        // Test security level
+        assert_eq!(MlDsaAlgorithm::MlDsa44.security_level(), 2);
+        assert_eq!(MlDsaAlgorithm::MlDsa65.security_level(), 3);
+        assert_eq!(MlDsaAlgorithm::MlDsa87.security_level(), 5);
+
+        // Test public key sizes
+        assert_eq!(MlDsaAlgorithm::MlDsa44.public_key_size(), 1312);
+        assert_eq!(MlDsaAlgorithm::MlDsa65.public_key_size(), 1952);
+        assert_eq!(MlDsaAlgorithm::MlDsa87.public_key_size(), 2592);
+
+        // Test signature sizes
+        assert_eq!(MlDsaAlgorithm::MlDsa44.signature_size_approx(), 2420);
+        assert_eq!(MlDsaAlgorithm::MlDsa65.signature_size_approx(), 3309);
+        assert_eq!(MlDsaAlgorithm::MlDsa87.signature_size_approx(), 4627);
+    }
+
+    #[test]
+    fn test_mldsa_algorithm_default() {
+        let default = MlDsaAlgorithm::default();
+        assert_eq!(default, MlDsaAlgorithm::MlDsa65);
+    }
+
+    #[test]
+    fn test_mldsa_algorithm_clone() {
+        let alg = MlDsaAlgorithm::MlDsa87;
+        let copied = alg; // MlDsaAlgorithm implements Copy
+        assert_eq!(alg, copied);
+    }
+
+    #[test]
+    fn test_signer_algorithm_accessor() {
+        let signer44 = MlDsa44Signer::generate().unwrap();
+        assert_eq!(signer44.algorithm(), MlDsaAlgorithm::MlDsa44);
+
+        let signer65 = MlDsa65Signer::generate().unwrap();
+        assert_eq!(signer65.algorithm(), MlDsaAlgorithm::MlDsa65);
+
+        let signer87 = MlDsa87Signer::generate().unwrap();
+        assert_eq!(signer87.algorithm(), MlDsaAlgorithm::MlDsa87);
+    }
+
+    #[test]
+    fn test_verifier_algorithm_accessor() {
+        let signer = MlDsa65Signer::generate().unwrap();
+        let verifier =
+            MlDsaVerifier::new(signer.public_key().to_vec(), MlDsaAlgorithm::MlDsa65).unwrap();
+        assert_eq!(verifier.algorithm(), MlDsaAlgorithm::MlDsa65);
+    }
 }
