@@ -565,4 +565,32 @@ mod tests {
         manager.mark_unhealthy().await;
         assert!(!manager.health_status().await.is_ready());
     }
+
+    #[tokio::test]
+    async fn test_lifecycle_initial_state() {
+        let manager = LifecycleManager::new();
+        assert!(!manager.is_ready());
+        assert!(!manager.is_shutting_down());
+        assert_eq!(manager.active_connections(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_lifecycle_ready_state() {
+        let manager = Arc::new(LifecycleManager::new());
+        manager.mark_ready().await;
+        assert!(manager.is_ready());
+    }
+
+    #[test]
+    fn test_lifecycle_manager_active_connections() {
+        let manager = Arc::new(LifecycleManager::new());
+        assert_eq!(manager.active_connections(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_lifecycle_shutdown_state() {
+        let manager = Arc::new(LifecycleManager::new());
+        manager.initiate_shutdown();
+        assert!(manager.is_shutting_down());
+    }
 }
