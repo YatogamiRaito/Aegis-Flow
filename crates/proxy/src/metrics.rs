@@ -189,5 +189,60 @@ mod tests {
     }
 
     // Note: Functions like record_request, record_handshake etc. require
-    // a metrics recorder to be installed. These are tested in integration tests.
+    // a metrics recorder to be installed. However, calling them without a recorder
+    // is safe (no-op) and serves to verify the code paths are reachable and don't panic.
+    
+    #[test]
+    fn test_record_request_execution() {
+        // Exercise the function to ensure no panics and improve coverage
+        record_request("GET", "/test", 200, 0.1);
+        record_request("POST", "/api/v1/data", 201, 0.5);
+    }
+
+    #[test]
+    fn test_record_handshake_execution() {
+        record_handshake("ML-KEM-768", 0.05, true);
+        record_handshake("ML-KEM-1024", 0.08, false);
+    }
+
+    #[test]
+    fn test_connection_metrics_execution() {
+        set_active_connections(10.0);
+        increment_connections();
+        decrement_connections();
+    }
+
+    #[test]
+    fn test_io_metrics_execution() {
+        record_bytes(1024, 2048);
+    }
+
+    #[test]
+    fn test_encryption_metrics_execution() {
+        record_encryption("encrypt");
+        record_encryption("decrypt");
+    }
+
+    #[test]
+    fn test_error_metrics_execution() {
+        record_error("timeout");
+        record_error("connection_reset");
+    }
+
+    #[test]
+    fn test_carbon_metrics_execution() {
+        update_carbon_intensity("us-east-1", 400.0);
+        record_energy_impact(100.0, 40.0, "eu-central-1");
+    }
+
+    #[test]
+    fn test_deferred_jobs_execution() {
+        update_deferred_jobs(5);
+    }
+    
+    #[test]
+    fn test_get_metrics_handle() {
+        // Should be None or Some depending on test order/init, but shouldn't panic
+        let _ = get_metrics_handle();
+    }
 }

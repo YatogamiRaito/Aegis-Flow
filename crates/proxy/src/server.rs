@@ -14,40 +14,59 @@ pub async fn run(config: ProxyConfig) -> Result<()> {
 
     info!("🎯 Aegis-Flow proxy is ready to accept connections");
 
+    run_with_listener(listener, std::future::pending()).await
+}
+
+/// Run with provided listener and shutdown signal
+pub async fn run_with_listener(
+    listener: TcpListener,
+    shutdown: impl std::future::Future<Output = ()>,
+) -> Result<()> {
+    tokio::pin!(shutdown);
+
     loop {
-        match listener.accept().await {
-            Ok((mut socket, peer_addr)) => {
-                info!("📥 New connection from: {}", peer_addr);
+        tokio::select! {
+            accept_result = listener.accept() => {
+                match accept_result {
+                    Ok((mut socket, peer_addr)) => {
+                        info!("📥 New connection from: {}", peer_addr);
 
-                tokio::spawn(async move {
-                    let mut buf = [0u8; 4096];
+                        tokio::spawn(async move {
+                            let mut buf = [0u8; 4096];
 
-                    loop {
-                        match socket.read(&mut buf).await {
-                            Ok(0) => {
-                                info!("📤 Connection closed: {}", peer_addr);
-                                break;
-                            }
-                            Ok(n) => {
-                                // Echo server for MVP
-                                if let Err(e) = socket.write_all(&buf[..n]).await {
-                                    error!("❌ Write error: {}", e);
-                                    break;
+                            loop {
+                                match socket.read(&mut buf).await {
+                                    Ok(0) => {
+                                        info!("📤 Connection closed: {}", peer_addr);
+                                        break;
+                                    }
+                                    Ok(n) => {
+                                        // Echo server for MVP
+                                        if let Err(e) = socket.write_all(&buf[..n]).await {
+                                            error!("❌ Write error: {}", e);
+                                            break;
+                                        }
+                                    }
+                                    Err(e) => {
+                                        error!("❌ Read error: {}", e);
+                                        break;
+                                    }
                                 }
                             }
-                            Err(e) => {
-                                error!("❌ Read error: {}", e);
-                                break;
-                            }
-                        }
+                        });
                     }
-                });
+                    Err(e) => {
+                        warn!("⚠️ Accept error: {}", e);
+                    }
+                }
             }
-            Err(e) => {
-                warn!("⚠️ Accept error: {}", e);
+            _ = &mut shutdown => {
+                info!("🛑 Shutting down proxy server");
+                break;
             }
         }
     }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -71,14 +90,13 @@ mod tests {
             .unwrap();
         let addr = listener.local_addr().unwrap();
 
-        // Spawn server task
-        tokio::spawn(async move {
-            if let Ok((mut socket, _)) = listener.accept().await {
-                let mut buf = [0u8; 1024];
-                if let Ok(n) = socket.read(&mut buf).await {
-                    let _ = socket.write_all(&buf[..n]).await;
-                }
-            }
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        
+        // Spawn server task with graceful shutdown
+        let handle = tokio::spawn(async move {
+            run_with_listener(listener, async {
+                rx.await.ok();
+            }).await
         });
 
         // Connect client
@@ -92,5 +110,8 @@ mod tests {
 
         assert!(result.is_ok());
         assert_eq!(&response, test_data);
+        
+        tx.send(()).unwrap();
+        handle.await.unwrap().unwrap();
     }
 }
