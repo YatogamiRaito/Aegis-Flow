@@ -385,4 +385,85 @@ mod tests {
         let strategy: LoadBalanceStrategy = Default::default();
         assert_eq!(strategy, LoadBalanceStrategy::RoundRobin);
     }
+
+    #[tokio::test]
+    async fn test_get_endpoint_round_robin() {
+        let registry = ServiceRegistry::new(LoadBalanceStrategy::RoundRobin);
+        let addrs: Vec<SocketAddr> = vec![
+            "127.0.0.1:8080".parse().unwrap(),
+            "127.0.0.1:8081".parse().unwrap(),
+        ];
+        registry.register("test-svc", addrs.clone()).await;
+
+        let ep1 = registry.get_endpoint("test-svc").await.unwrap();
+        let ep2 = registry.get_endpoint("test-svc").await.unwrap();
+        assert!(addrs.contains(&ep1));
+        assert!(addrs.contains(&ep2));
+    }
+
+    #[tokio::test]
+    async fn test_get_endpoint_random() {
+        let registry = ServiceRegistry::new(LoadBalanceStrategy::Random);
+        let addrs: Vec<SocketAddr> = vec![
+            "127.0.0.1:8080".parse().unwrap(),
+            "127.0.0.1:8081".parse().unwrap(),
+        ];
+        registry.register("test-svc", addrs.clone()).await;
+
+        let ep = registry.get_endpoint("test-svc").await.unwrap();
+        assert!(addrs.contains(&ep));
+    }
+
+    #[tokio::test]
+    async fn test_get_endpoint_least_connections() {
+        let registry = ServiceRegistry::new(LoadBalanceStrategy::LeastConnections);
+        let addrs: Vec<SocketAddr> = vec!["127.0.0.1:8080".parse().unwrap()];
+        registry.register("test-svc", addrs.clone()).await;
+
+        let ep = registry.get_endpoint("test-svc").await.unwrap();
+        assert_eq!(ep, addrs[0]);
+    }
+
+    #[tokio::test]
+    async fn test_get_endpoint_weighted_round_robin() {
+        let registry = ServiceRegistry::new(LoadBalanceStrategy::WeightedRoundRobin);
+        let addrs: Vec<SocketAddr> = vec![
+            "127.0.0.1:8080".parse().unwrap(),
+            "127.0.0.1:8081".parse().unwrap(),
+        ];
+        registry.register("test-svc", addrs.clone()).await;
+
+        let ep = registry.get_endpoint("test-svc").await.unwrap();
+        assert!(addrs.contains(&ep));
+    }
+
+    #[tokio::test]
+    async fn test_get_endpoint_no_healthy() {
+        let registry = ServiceRegistry::new(LoadBalanceStrategy::RoundRobin);
+        let addr: SocketAddr = "127.0.0.1:8080".parse().unwrap();
+        registry.register("test-svc", vec![addr]).await;
+
+        // Mark as failed 3 times
+        for _ in 0..3 {
+            registry.mark_failed("test-svc", addr).await;
+        }
+
+        let result = registry.get_endpoint("test-svc").await;
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_mark_healthy_after_failed() {
+        let registry = ServiceRegistry::new(LoadBalanceStrategy::RoundRobin);
+        let addr: SocketAddr = "127.0.0.1:8080".parse().unwrap();
+        registry.register("test-svc", vec![addr]).await;
+
+        for _ in 0..3 {
+            registry.mark_failed("test-svc", addr).await;
+        }
+        assert!(registry.get_endpoint("test-svc").await.is_none());
+
+        registry.mark_healthy("test-svc", addr).await;
+        assert!(registry.get_endpoint("test-svc").await.is_some());
+    }
 }
