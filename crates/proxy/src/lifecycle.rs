@@ -416,4 +416,32 @@ mod tests {
         // Let the shutdown complete
         let _ = shutdown_handle.await;
     }
+
+    #[test]
+    fn test_with_drain_timeout() {
+        let manager = LifecycleManager::new().with_drain_timeout(Duration::from_secs(60));
+        assert_eq!(manager.drain_timeout, Duration::from_secs(60));
+    }
+
+    #[test]
+    fn test_health_response_builders() {
+        let response = HealthResponse::from_status(HealthStatus::Healthy)
+            .with_uptime(Duration::from_secs(100))
+            .with_connections(5)
+            .with_version("1.0.0");
+
+        assert_eq!(response.uptime_seconds, Some(100));
+        assert_eq!(response.connections, Some(5));
+        assert_eq!(response.version, Some("1.0.0".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_mark_unhealthy() {
+        let manager = LifecycleManager::new();
+        manager.mark_ready().await;
+        assert!(manager.health_status().await.is_ready());
+
+        manager.mark_unhealthy().await;
+        assert_eq!(manager.health_status().await, HealthStatus::Unhealthy);
+    }
 }
