@@ -282,4 +282,40 @@ mod tests {
         assert_eq!(report.breakdown.cpu_joules, 10.0);
         assert_eq!(report.breakdown.network_joules, 20.0);
     }
+
+    #[test]
+    fn test_ebpf_request_data_default() {
+        let data = EbpfRequestData::default();
+        assert_eq!(data.cpu_cycles, 0);
+        assert_eq!(data.network_tx_bytes, 0);
+        assert_eq!(data.network_rx_bytes, 0);
+        assert_eq!(data.block_read_bytes, 0);
+        assert_eq!(data.block_write_bytes, 0);
+        assert_eq!(data.memory_pages, 0);
+    }
+
+    #[test]
+    fn test_energy_coefficients_default() {
+        let coeffs = EnergyCoefficients::default();
+        assert!(coeffs.joules_per_cycle > 0.0);
+        assert!(coeffs.joules_per_network_byte > 0.0);
+        assert!(coeffs.joules_per_block_byte > 0.0);
+        assert!(coeffs.joules_per_memory_page > 0.0);
+    }
+
+    #[test]
+    fn test_finish_nonexistent_request() {
+        let metrics = EbpfMetrics::new();
+        let result = metrics.finish_request("nonexistent", "/", "GET", Duration::from_secs(1));
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_total_network_bytes_accumulates() {
+        let metrics = EbpfMetrics::new();
+        metrics.start_request("r1");
+        metrics.record_network("r1", 100, 50);
+        metrics.record_network("r1", 50, 50);
+        assert_eq!(metrics.total_network_bytes(), 250);
+    }
 }

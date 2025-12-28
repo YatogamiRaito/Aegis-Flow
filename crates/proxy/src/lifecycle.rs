@@ -486,4 +486,12 @@ mod tests {
         // Connections still active
         assert_eq!(manager.active_connections(), 1);
     }
+
+    #[test]
+    fn test_health_response_to_json() {
+        let response = HealthResponse::from_status(HealthStatus::Healthy);
+        let json = response.to_json();
+        assert!(json.contains("healthy"));
+        assert!(json.contains("ready"));
+    }
 }

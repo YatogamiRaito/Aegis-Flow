@@ -335,4 +335,39 @@ mod tests {
         // To verify it handles error gracefully:
         assert!(result.is_ok());
     }
+
+    #[test]
+    fn test_dual_stack_config_default() {
+        let config = DualStackConfig::default();
+        assert!(config.advertise_h3);
+        assert_eq!(config.quic_port, 443);
+    }
+
+    #[test]
+    fn test_alt_svc_header_disabled() {
+        let config = DualStackConfig {
+            advertise_h3: false,
+            ..Default::default()
+        };
+        assert!(config.alt_svc_header().is_empty());
+    }
+
+    #[test]
+    fn test_alt_svc_header_custom_port() {
+        let config = DualStackConfig {
+            advertise_h3: true,
+            quic_port: 8443,
+            ..Default::default()
+        };
+        let header = config.alt_svc_header();
+        assert!(header.contains("8443"));
+        assert!(header.contains("h3"));
+    }
+
+    #[test]
+    fn test_dual_stack_stats_default() {
+        let stats = DualStackStats::default();
+        assert_eq!(stats.http2_requests, 0);
+        assert_eq!(stats.http3_requests, 0);
+    }
 }

@@ -338,4 +338,51 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn test_endpoint_creation() {
+        let addr: SocketAddr = "127.0.0.1:8080".parse().unwrap();
+        let endpoint = Endpoint::new(addr);
+        assert!(endpoint.healthy);
+        assert_eq!(endpoint.failures, 0);
+        assert_eq!(endpoint.weight, 100);
+    }
+
+    #[test]
+    fn test_endpoint_mark_failed() {
+        let addr: SocketAddr = "127.0.0.1:8080".parse().unwrap();
+        let mut endpoint = Endpoint::new(addr);
+
+        endpoint.mark_failed();
+        assert_eq!(endpoint.failures, 1);
+        assert!(endpoint.healthy); // Still healthy with 1 failure
+
+        endpoint.mark_failed();
+        endpoint.mark_failed();
+        assert_eq!(endpoint.failures, 3);
+        assert!(!endpoint.healthy); // Unhealthy after 3 failures
+        assert_eq!(endpoint.weight, 0);
+    }
+
+    #[test]
+    fn test_endpoint_mark_healthy() {
+        let addr: SocketAddr = "127.0.0.1:8080".parse().unwrap();
+        let mut endpoint = Endpoint::new(addr);
+
+        for _ in 0..3 {
+            endpoint.mark_failed();
+        }
+        assert!(!endpoint.healthy);
+
+        endpoint.mark_healthy();
+        assert!(endpoint.healthy);
+        assert_eq!(endpoint.failures, 0);
+        assert_eq!(endpoint.weight, 100);
+    }
+
+    #[test]
+    fn test_load_balance_strategy_default() {
+        let strategy: LoadBalanceStrategy = Default::default();
+        assert_eq!(strategy, LoadBalanceStrategy::RoundRobin);
+    }
 }
