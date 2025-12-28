@@ -1210,9 +1210,9 @@ mod tests {
         let signer65 = MlDsa65Signer::generate().unwrap();
         let signer87 = MlDsa87Signer::generate().unwrap();
 
-        assert!(signer44.public_key().len() > 0);
-        assert!(signer65.public_key().len() > 0);
-        assert!(signer87.public_key().len() > 0);
+        assert!(!signer44.public_key().is_empty());
+        assert!(!signer65.public_key().is_empty());
+        assert!(!signer87.public_key().is_empty());
 
         // Different key sizes
         assert!(signer65.public_key().len() > signer44.public_key().len());

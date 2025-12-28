@@ -918,4 +918,44 @@ mod tests {
         let debug = format!("{:?}", platform);
         assert!(debug.contains("None"));
     }
+
+    #[test]
+    fn test_tee_platform_name() {
+        assert_eq!(TeePlatform::IntelSgx.name(), "Intel SGX");
+        assert_eq!(TeePlatform::IntelTdx.name(), "Intel TDX");
+        assert_eq!(TeePlatform::AmdSevSnp.name(), "AMD SEV-SNP");
+        assert_eq!(TeePlatform::None.name(), "None (Simulation)");
+    }
+
+    #[test]
+    fn test_tee_platform_is_tee() {
+        assert!(TeePlatform::IntelSgx.is_tee());
+        assert!(TeePlatform::IntelTdx.is_tee());
+        assert!(TeePlatform::AmdSevSnp.is_tee());
+        assert!(!TeePlatform::None.is_tee());
+    }
+
+    #[test]
+    fn test_attestation_quote_new() {
+        let quote = AttestationQuote::new(
+            TeePlatform::None,
+            vec![1, 2, 3],
+            vec![4, 5, 6],
+            vec![7, 8, 9],
+        );
+
+        assert_eq!(quote.platform, TeePlatform::None);
+        assert_eq!(quote.quote_bytes, vec![1, 2, 3]);
+        assert_eq!(quote.nonce, vec![4, 5, 6]);
+        assert!(quote.signature.is_none());
+    }
+
+    #[test]
+    fn test_attestation_quote_with_signature() {
+        let quote = AttestationQuote::new(TeePlatform::IntelSgx, vec![1, 2, 3], vec![], vec![])
+            .with_signature(vec![10, 20, 30]);
+
+        assert!(quote.signature.is_some());
+        assert_eq!(quote.signature.unwrap(), vec![10, 20, 30]);
+    }
 }
