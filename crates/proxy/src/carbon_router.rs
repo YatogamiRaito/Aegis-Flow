@@ -659,7 +659,7 @@ mod tests {
     }
 
     #[test]
-    fn test_region_score_creation() {
+    fn test_region_score_fields() {
         let score = RegionScore {
             region_id: "us-west-2".to_string(),
             carbon_intensity: 150.0,
@@ -671,7 +671,7 @@ mod tests {
     }
 
     #[test]
-    fn test_region_score_clone() {
+    fn test_region_score_cloning() {
         let score = RegionScore {
             region_id: "eu-central".to_string(),
             carbon_intensity: 100.0,

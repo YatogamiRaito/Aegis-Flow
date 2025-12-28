@@ -621,7 +621,7 @@ mod tests {
     }
 
     #[test]
-    fn test_health_status_display() {
+    fn test_health_status_display_all() {
         assert_eq!(format!("{}", HealthStatus::Healthy), "healthy");
         assert_eq!(format!("{}", HealthStatus::Starting), "starting");
         assert_eq!(format!("{}", HealthStatus::Draining), "draining");
