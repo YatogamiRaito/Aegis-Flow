@@ -604,4 +604,26 @@ upstream_addr: "test:8080"
             _ => panic!("Expected ValidationError"),
         }
     }
+
+    #[test]
+    fn test_tls_config_default() {
+        let tls = TlsConfig::default();
+        assert!(tls.enabled);
+        assert!(tls.cert_path.contains("server.crt"));
+        assert!(tls.key_path.contains("server.key"));
+        assert!(tls.ca_path.is_none());
+        assert!(!tls.require_client_cert);
+    }
+
+    #[test]
+    fn test_log_config_default() {
+        let log = LogConfig::default();
+        assert_eq!(log.level, "info");
+        assert!(!log.json_format);
+    }
+
+    #[test]
+    fn test_config_format_no_extension() {
+        assert_eq!(ConfigFormat::from_path(Path::new("config")), None);
+    }
 }
