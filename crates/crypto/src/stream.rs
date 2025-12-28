@@ -532,7 +532,7 @@ mod tests {
             // But if fail_after_bytes is small, we might write 0?
             // If fail_after_bytes > written, n > 0 (assuming buf > 0)
 
-            if n == 0 && buf.len() > 0 {
+            if n == 0 && !buf.is_empty() {
                 if self.fail_mode_write_zero {
                     return Poll::Ready(Ok(0));
                 } else {
@@ -612,13 +612,12 @@ mod tests {
         let mut stream = EncryptedStream::new(writer, &key);
         let result = stream.write_all(payload).await;
 
-        if result.is_ok() {
+        if let Ok(()) = result {
             let flush_res = stream.flush().await;
             assert!(flush_res.is_err());
             assert_eq!(flush_res.unwrap_err().kind(), io::ErrorKind::BrokenPipe);
-        } else {
-            assert!(result.is_err());
-            assert_eq!(result.unwrap_err().kind(), io::ErrorKind::BrokenPipe);
+        } else if let Err(e) = result {
+            assert_eq!(e.kind(), io::ErrorKind::BrokenPipe);
         }
     }
     struct FailingReader {

@@ -1063,7 +1063,7 @@ mod tests {
 
         // Test HybridSigningPublicKey::from_bytes errors
         assert!(HybridSigningPublicKey::from_bytes(&[]).is_err());
-        assert!(HybridSigningPublicKey::from_bytes(&vec![0u8; 31]).is_err());
+        assert!(HybridSigningPublicKey::from_bytes(&[0u8; 31]).is_err());
     }
 
     #[test]

@@ -527,11 +527,8 @@ mod tests {
         // Should fail because client cert is required but None provided
         let result = auth.complete_handshake(conn_id, &dummy_ct, None);
         assert!(result.is_err());
-        match result {
-            Err(AegisError::Crypto(msg)) => {
-                assert_eq!(msg, "Client certificate required but not provided")
-            }
-            _ => {} // Might be PQC error if logic reaches there first, so we just check is_err
+        if let Err(AegisError::Crypto(msg)) = result {
+            assert_eq!(msg, "Client certificate required but not provided")
         }
     }
 

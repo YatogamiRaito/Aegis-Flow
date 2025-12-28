@@ -468,11 +468,13 @@ mod tests {
         std::fs::write(&key_path, &key).unwrap();
 
         // 3. Configure server
-        let mut config = QuicConfig::default();
-        config.bind_address = "127.0.0.1:0".to_string(); // Random port
-        config.cert_path = cert_path.to_str().unwrap().to_string();
-        config.key_path = key_path.to_str().unwrap().to_string();
-        config.pqc_enabled = false;
+        let config = QuicConfig {
+            bind_address: "127.0.0.1:0".to_string(),
+            cert_path: cert_path.to_str().unwrap().to_string(),
+            key_path: key_path.to_str().unwrap().to_string(),
+            pqc_enabled: false,
+            ..Default::default()
+        };
 
         let proxy_config = ProxyConfig::default();
         let server = QuicServer::new(config, proxy_config);

@@ -536,6 +536,6 @@ mod tests {
             CertManager::generate_self_signed("test", &["invalid san string".to_string()], 1)
                 .unwrap();
         // Should just skip it and succeed
-        assert!(cert.len() > 0);
+        assert!(!cert.is_empty());
     }
 }

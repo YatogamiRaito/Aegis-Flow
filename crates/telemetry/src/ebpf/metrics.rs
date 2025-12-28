@@ -246,11 +246,13 @@ mod tests {
 
     #[test]
     fn test_request_data_calculations() {
-        let mut data = EbpfRequestData::default();
-        data.network_tx_bytes = 100;
-        data.network_rx_bytes = 200;
-        data.block_read_bytes = 50;
-        data.block_write_bytes = 50;
+        let data = EbpfRequestData {
+            network_tx_bytes: 100,
+            network_rx_bytes: 200,
+            block_read_bytes: 50,
+            block_write_bytes: 50,
+            ..Default::default()
+        };
 
         assert_eq!(data.total_network_bytes(), 300);
         assert_eq!(data.total_block_bytes(), 100);
