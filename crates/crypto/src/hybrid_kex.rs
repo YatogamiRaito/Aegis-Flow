@@ -450,4 +450,42 @@ mod tests {
         assert_eq!(ct.x25519_ephemeral, cloned.x25519_ephemeral);
         assert_eq!(ct.mlkem_ciphertext, cloned.mlkem_ciphertext);
     }
+
+    #[test]
+    fn test_public_key_to_bytes() {
+        let kex = HybridKeyExchange::new();
+        let (pk, _) = kex.generate_keypair().unwrap();
+        let bytes = pk.to_bytes();
+
+        assert!(!bytes.is_empty());
+        assert!(bytes.len() > 32); // x25519 + mlkem
+    }
+
+    #[test]
+    fn test_public_key_roundtrip() {
+        let kex = HybridKeyExchange::new();
+        let (pk1, _) = kex.generate_keypair().unwrap();
+        let bytes = pk1.to_bytes();
+        let pk2 = HybridPublicKey::from_bytes(&bytes).unwrap();
+
+        assert_eq!(pk1.x25519, pk2.x25519);
+        assert_eq!(pk1.mlkem, pk2.mlkem);
+    }
+
+    #[test]
+    fn test_public_key_from_short_bytes() {
+        let short_bytes = vec![0u8; 16]; // too short
+        let result = HybridPublicKey::from_bytes(&short_bytes);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_shared_secret_equality() {
+        let kex = HybridKeyExchange::new();
+        let (pk, sk) = kex.generate_keypair().unwrap();
+        let (ct, ss_enc) = kex.encapsulate(&pk).unwrap();
+        let ss_dec = kex.decapsulate(&sk, &ct).unwrap();
+
+        assert_eq!(ss_enc, ss_dec);
+    }
 }

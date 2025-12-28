@@ -593,4 +593,64 @@ mod tests {
             assert!(eps.contains(&selected.unwrap()));
         }
     }
+
+    #[test]
+    fn test_endpoint_new() {
+        let addr: SocketAddr = "127.0.0.1:8080".parse().unwrap();
+        let ep = Endpoint::new(addr);
+
+        assert_eq!(ep.addr, addr);
+        assert!(ep.healthy);
+        assert_eq!(ep.failures, 0);
+        assert_eq!(ep.weight, 100);
+    }
+
+    #[test]
+    fn test_endpoint_mark_failed() {
+        let addr: SocketAddr = "127.0.0.1:8080".parse().unwrap();
+        let mut ep = Endpoint::new(addr);
+
+        ep.mark_failed();
+        assert_eq!(ep.failures, 1);
+        assert!(ep.healthy); // Still healthy after 1 failure
+
+        ep.mark_failed();
+        ep.mark_failed();
+        assert!(!ep.healthy); // Unhealthy after 3 failures
+        assert_eq!(ep.weight, 0);
+    }
+
+    #[test]
+    fn test_endpoint_mark_healthy() {
+        let addr: SocketAddr = "127.0.0.1:8080".parse().unwrap();
+        let mut ep = Endpoint::new(addr);
+
+        // Make unhealthy first
+        for _ in 0..3 {
+            ep.mark_failed();
+        }
+        assert!(!ep.healthy);
+
+        ep.mark_healthy();
+        assert!(ep.healthy);
+        assert_eq!(ep.failures, 0);
+    }
+
+    #[test]
+    fn test_endpoint_debug() {
+        let addr: SocketAddr = "127.0.0.1:8080".parse().unwrap();
+        let ep = Endpoint::new(addr);
+        let debug = format!("{:?}", ep);
+        assert!(debug.contains("Endpoint"));
+    }
+
+    #[test]
+    fn test_endpoint_clone() {
+        let addr: SocketAddr = "127.0.0.1:9000".parse().unwrap();
+        let ep1 = Endpoint::new(addr);
+        let ep2 = ep1.clone();
+
+        assert_eq!(ep1.addr, ep2.addr);
+        assert_eq!(ep1.healthy, ep2.healthy);
+    }
 }
