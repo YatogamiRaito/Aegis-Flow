@@ -232,11 +232,15 @@ mod tests {
         use tokio::time::{timeout, Duration};
 
         // Use random ports
-        let mut http2_config = HttpProxyConfig::default();
-        http2_config.listen_addr = "127.0.0.1:0".parse().unwrap();
+        let http2_config = HttpProxyConfig {
+            listen_addr: "127.0.0.1:0".parse().unwrap(),
+            ..Default::default()
+        };
 
-        let mut quic_config = QuicConfig::default();
-        quic_config.bind_address = "127.0.0.1:0".to_string();
+        let mut quic_config = QuicConfig {
+            bind_address: "127.0.0.1:0".to_string(),
+            ..Default::default()
+        };
         // Need certs for QUIC
         use rcgen::generate_simple_self_signed;
         let subject_alt_names = vec!["localhost".to_string()];
@@ -286,8 +290,10 @@ mod tests {
     #[tokio::test]
     async fn test_dual_stack_error_handling() {
         // Test with invalid config (e.g., binding to privileged port 80 without sudo, or invalid cert path)
-        let mut quic_config = QuicConfig::default();
-        quic_config.cert_path = "/non/existent/path.crt".to_string(); // Should fail
+        let quic_config = QuicConfig {
+            cert_path: "/non/existent/path.crt".to_string(), // Should fail
+            ..Default::default()
+        };
         
         let config = DualStackConfig {
             http2_config: HttpProxyConfig::default(),

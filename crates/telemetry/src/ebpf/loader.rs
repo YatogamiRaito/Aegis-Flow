@@ -128,8 +128,32 @@ mod tests {
     #[test]
     fn test_mock_mode() {
         let loader = EbpfLoader::new();
-        // In test environment, likely mock mode
-        // Just verify it doesn't panic
         let _ = loader.is_mock();
+    }
+
+    #[test]
+    fn test_double_unload() {
+        let loader = EbpfLoader::new();
+        loader.load().unwrap();
+        
+        // First unload
+        assert!(loader.unload().is_ok());
+        assert!(!loader.is_loaded());
+        
+        // Second unload should be fine (idempotent)
+        assert!(loader.unload().is_ok());
+        assert!(!loader.is_loaded());
+    }
+
+    #[test]
+    fn test_consecutive_loads() {
+        let loader = EbpfLoader::new();
+        
+        loader.load().unwrap();
+        assert!(loader.is_loaded());
+        
+        // Loading again shouldn't fail (though implementation detail: usually fine)
+        loader.load().unwrap();
+        assert!(loader.is_loaded());
     }
 }

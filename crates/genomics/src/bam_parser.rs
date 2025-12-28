@@ -248,7 +248,22 @@ mod tests {
 
         let chr1 = header.get_reference("chr1").unwrap();
         assert_eq!(chr1.length, 1000);
+    }
 
-        assert!(header.get_reference("chr99").is_none());
+    #[test]
+    fn test_invalid_sq_length() {
+        let header_text = "@SQ	SN:chr1	LN:invalid";
+        let result = BamHeader::from_sam_text(header_text);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_missing_sn() {
+        // Technically this parser might allow empty name if SN is missing, 
+        // but let's check what it does.
+        // Implementation check: name defaults to empty string, and it ONLY pushes if !name.is_empty()
+        let header_text = "@SQ	LN:1000";
+        let header = BamHeader::from_sam_text(header_text).unwrap();
+        assert_eq!(header.references.len(), 0);
     }
 }

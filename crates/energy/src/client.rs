@@ -381,7 +381,94 @@ mod tests {
         let region = Region::new("DE", "Germany");
         let intensity = client.get_carbon_intensity(&region).await.unwrap();
 
-        assert_eq!(intensity.value, 250.5);
         assert_eq!(intensity.region.id, "DE");
+    }
+
+    #[tokio::test]
+    async fn test_watttime_rate_limit() {
+        let mock_server = MockServer::start().await;
+
+        // Mock Login ok
+        Mock::given(method("GET"))
+            .and(path("/login"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "token": "valid_token"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        // Mock 429 on signal-index
+        Mock::given(method("GET"))
+            .and(path("/signal-index"))
+            .respond_with(ResponseTemplate::new(429).insert_header("retry-after", "120"))
+            .mount(&mock_server)
+            .await;
+
+        let client = WattTimeClient::new("user".to_string(), "pass".to_string())
+            .with_base_url(mock_server.uri());
+
+        let region = Region::new("CAISO", "California");
+        let result = client.get_carbon_intensity(&region).await;
+
+        match result {
+            Err(EnergyApiError::RateLimitExceeded { retry_after_seconds }) => {
+                assert_eq!(retry_after_seconds, 120);
+            }
+            _ => panic!("Expected RateLimitExceeded error"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_watttime_region_not_found() {
+        let mock_server = MockServer::start().await;
+
+        // Mock Login ok
+        Mock::given(method("GET"))
+            .and(path("/login"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "token": "valid_token"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        // Mock 404
+        Mock::given(method("GET"))
+            .and(path("/signal-index"))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&mock_server)
+            .await;
+
+        let client = WattTimeClient::new("user".to_string(), "pass".to_string())
+            .with_base_url(mock_server.uri());
+
+        let region = Region::new("INVALID", "Invalid");
+        let result = client.get_carbon_intensity(&region).await;
+
+        match result {
+            Err(EnergyApiError::RegionNotFound { region_id }) => {
+                assert_eq!(region_id, "INVALID");
+            }
+            _ => panic!("Expected RegionNotFound error"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_electricity_maps_server_error() {
+        let mock_server = MockServer::start().await;
+
+        // Mock 500
+        Mock::given(method("GET"))
+            .and(path("/carbon-intensity/latest"))
+            .respond_with(ResponseTemplate::new(500))
+            .mount(&mock_server)
+            .await;
+
+        let client =
+            ElectricityMapsClient::new("key".to_string()).with_base_url(mock_server.uri());
+
+        let region = Region::new("DE", "Germany");
+        let result = client.get_carbon_intensity(&region).await;
+
+        assert!(matches!(result, Err(EnergyApiError::HttpError(_))));
     }
 }

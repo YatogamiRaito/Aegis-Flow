@@ -550,8 +550,7 @@ upstream_addr: "test:8080"
 
     #[test]
     fn test_save_to_file() {
-        let mut config = ProxyConfig::default();
-        config.port = 5555;
+        let config = ProxyConfig { port: 5555, ..Default::default() };
         
         let file = NamedTempFile::with_suffix(".json").unwrap();
         config.save_to_file(file.path()).unwrap();
@@ -592,8 +591,7 @@ upstream_addr: "test:8080"
 
     #[test]
     fn test_validation_missing_upstream() {
-        let mut config = ProxyConfig::default();
-        config.upstream_addr = "".to_string();
+        let config = ProxyConfig { upstream_addr: "".to_string(), ..Default::default() };
         
         match config.validate() {
             Err(ConfigError::ValidationError(msg)) => assert!(msg.contains("Upstream address")),

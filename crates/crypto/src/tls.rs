@@ -305,7 +305,7 @@ mod tests {
 
         // Test explicit invalid ciphertext structure check if possible
         // (Just to use from_bytes and suppress unused warning if necessary, or omit)
-        let _ = HybridCiphertext::from_bytes(&vec![0u8; 100]); 
+        let _ = HybridCiphertext::from_bytes(&[0u8; 100]); 
     }
 
     #[test]

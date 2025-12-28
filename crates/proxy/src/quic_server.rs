@@ -364,10 +364,12 @@ mod tests {
         fs::write(cert_path, &cert_pem).unwrap();
         fs::write(key_path, &key_pem).unwrap();
 
-        let mut config = QuicConfig::default();
-        config.bind_address = "127.0.0.1:0".to_string(); // Random port
-        config.cert_path = cert_path.to_string();
-        config.key_path = key_path.to_string();
+        let config = QuicConfig {
+            bind_address: "127.0.0.1:0".to_string(), // Random port
+            cert_path: cert_path.to_string(),
+            key_path: key_path.to_string(),
+            ..Default::default()
+        };
 
         let proxy_config = ProxyConfig::default();
         let server = QuicServer::new(config, proxy_config);

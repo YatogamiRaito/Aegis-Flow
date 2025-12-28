@@ -152,7 +152,31 @@ chr1	100	.	A	T	99.0	PASS	DP=50
         let reader = Cursor::new(vcf_data);
         let parser = VcfParser::new();
         let builder = parser.parse(reader).unwrap();
-
         assert_eq!(builder.len(), 1);
+    }
+
+    #[test]
+    fn test_truncated_line() {
+        let vcf_data = "#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO\nchr1	100	rs123";
+        let reader = Cursor::new(vcf_data);
+        let parser = VcfParser::new();
+        let builder = parser.parse(reader);
+        // Should error because truncated line has < 8 fields
+        match builder {
+            Err(GenomicsError::InvalidFormat(msg)) => assert!(msg.contains("fields")),
+            _ => panic!("Expected InvalidFormat error"),
+        }
+    }
+
+    #[test]
+    fn test_invalid_position() {
+        let vcf_data = "#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO\nchr1	invalid	.	A	T	.	.	.";
+        let reader = Cursor::new(vcf_data);
+        let parser = VcfParser::new();
+        let builder = parser.parse(reader);
+        match builder {
+            Err(GenomicsError::ParseError(msg)) => assert!(msg.contains("Invalid position")),
+            _ => panic!("Expected ParseError"),
+        }
     }
 }

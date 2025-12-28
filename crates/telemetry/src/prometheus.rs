@@ -102,4 +102,28 @@ mod tests {
         let exporter = EnergyPrometheusExporter::new();
         exporter.record_totals(100, 0.5);
     }
+
+    #[test]
+    fn test_concurrent_recording() {
+        use std::thread;
+        use std::sync::Arc;
+
+        let exporter = Arc::new(EnergyPrometheusExporter::new());
+        let mut handles = vec![];
+
+        for i in 0..10 {
+            let exp_clone = exporter.clone();
+            handles.push(thread::spawn(move || {
+                let metrics = EnergyMetrics::new("/api", "POST")
+                    .with_breakdown(EnergyBreakdown::new(0.001, 0.0, 0.0, 0.0));
+                exp_clone.record(&metrics);
+                // Also record totals
+                exp_clone.record_totals(i, 0.1 * i as f64);
+            }));
+        }
+
+        for handle in handles {
+            handle.join().unwrap();
+        }
+    }
 }

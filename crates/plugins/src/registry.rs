@@ -243,7 +243,7 @@ mod tests {
 
     #[test]
     fn test_reload_plugin_lifecycle() {
-        use std::io::Write;
+
         
         let registry = create_test_registry();
         
