@@ -822,4 +822,29 @@ mod tests {
         assert_eq!(config.default_threshold, cloned.default_threshold);
         assert_eq!(config.max_queue_size, cloned.max_queue_size);
     }
+
+    #[tokio::test]
+    async fn test_refresh_intensities() {
+        let client = MockClient { intensity: 123.0 };
+        let cache = CarbonIntensityCache::new(300);
+        let scheduler = GreenWaitScheduler::new(GreenWaitConfig::default(), client, cache);
+
+        // Submit a job to add a region to tracking
+        let job = DeferredJob::new(
+            "refresh-test",
+            JobPriority::Normal,
+            Region::new("eu-test", "EU Test"),
+            100.0,
+            vec![],
+        );
+        scheduler.submit(job).await;
+
+        // Recently submitted job triggers intensity check if not cached, or just queues it.
+        // refresh_intensities() specifically updates cached values.
+        
+        scheduler.refresh_intensities().await;
+
+        // Since MockClient returns fixed intensity, we verify it updated the map
+        assert_eq!(scheduler.get_region_intensity("eu-test").await, Some(123.0));
+    }
 }
