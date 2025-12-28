@@ -284,4 +284,28 @@ mod tests {
         // Should be IO error or NotFound
         assert!(result.is_err());
     }
+
+    #[test]
+    fn test_unload_nonexistent() {
+        let registry = create_test_registry();
+        let result = registry.unload_plugin("never_loaded");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_with_plugin_dir() {
+        let registry = create_test_registry().with_plugin_dir(PathBuf::from("/tmp/plugins"));
+        // Just verify it doesn't panic
+        assert_eq!(registry.plugin_count(), 0);
+    }
+
+    #[test]
+    fn test_has_plugin() {
+        let registry = create_test_registry();
+        let wasm_bytes = wat::parse_str("(module)").unwrap();
+
+        assert!(!registry.has_plugin("test_has"));
+        registry.load_plugin_bytes("test_has", &wasm_bytes).unwrap();
+        assert!(registry.has_plugin("test_has"));
+    }
 }

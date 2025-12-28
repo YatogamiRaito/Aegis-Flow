@@ -422,4 +422,80 @@ mod tests {
         // us-east (350) is above threshold
         assert!(!router.is_region_green("us-east").await);
     }
+
+    #[tokio::test]
+    async fn test_get_sorted_regions() {
+        let config = CarbonRouterConfig::default();
+        let client = MockEnergyClient::new();
+        let cache = CarbonIntensityCache::new(300);
+        let router = CarbonRouter::new(config, client, cache);
+
+        for region_id in ["us-west", "us-east", "eu-west"] {
+            router
+                .register_region(Region {
+                    id: region_id.to_string(),
+                    name: region_id.to_string(),
+                    latitude: None,
+                    longitude: None,
+                })
+                .await;
+        }
+        router.refresh_carbon_data().await.unwrap();
+
+        let sorted = router.get_sorted_regions().await;
+        assert_eq!(sorted.len(), 3);
+        // Should be sorted by carbon intensity: us-west (50) < eu-west (150) < us-east (350)
+        assert_eq!(sorted[0].region_id, "us-west");
+        assert_eq!(sorted[2].region_id, "us-east");
+    }
+
+    #[tokio::test]
+    async fn test_get_region_intensity() {
+        let config = CarbonRouterConfig::default();
+        let client = MockEnergyClient::new();
+        let cache = CarbonIntensityCache::new(300);
+        let router = CarbonRouter::new(config, client, cache);
+
+        router
+            .register_region(Region {
+                id: "us-west".to_string(),
+                name: "US West".to_string(),
+                latitude: None,
+                longitude: None,
+            })
+            .await;
+        router.refresh_carbon_data().await.unwrap();
+
+        let intensity = router.get_region_intensity("us-west").await;
+        assert!(intensity.is_some());
+        assert_eq!(intensity.unwrap(), 50.0);
+
+        let unknown = router.get_region_intensity("unknown-region").await;
+        assert!(unknown.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_is_region_green_unknown() {
+        let config = CarbonRouterConfig::default();
+        let client = MockEnergyClient::new();
+        let cache = CarbonIntensityCache::new(300);
+        let router = CarbonRouter::new(config, client, cache);
+
+        // Unknown region should return false
+        assert!(!router.is_region_green("unknown").await);
+    }
+
+    #[tokio::test]
+    async fn test_config_clone() {
+        let config = CarbonRouterConfig {
+            enabled: true,
+            threshold: 200.0,
+            carbon_weight: 0.8,
+            max_intensity: 600.0,
+            ..Default::default()
+        };
+        let cloned = config.clone();
+        assert_eq!(cloned.threshold, 200.0);
+        assert_eq!(cloned.carbon_weight, 0.8);
+    }
 }
