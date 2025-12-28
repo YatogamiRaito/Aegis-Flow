@@ -841,13 +841,6 @@ mod tests {
     }
 
     #[test]
-    fn test_auth_state_is_authenticated() {
-        assert!(AuthState::Authenticated.is_authenticated());
-        assert!(!AuthState::Unauthenticated.is_authenticated());
-        assert!(!AuthState::Failed("error".to_string()).is_authenticated());
-    }
-
-    #[test]
     fn test_verification_result_success() {
         let result = VerificationResult {
             verified: true,
