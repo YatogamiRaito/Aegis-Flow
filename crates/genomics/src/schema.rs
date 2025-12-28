@@ -125,4 +125,18 @@ mod tests {
         assert_eq!(schema.schema_type, SchemaType::Sequence);
         assert_eq!(schema.schema.fields().len(), 4);
     }
+
+    #[test]
+    fn test_schema_arrow_schema_clone() {
+        let schema = GenomicSchema::variant();
+        let arrow1 = schema.arrow_schema();
+        let arrow2 = schema.arrow_schema();
+        assert_eq!(arrow1.fields().len(), arrow2.fields().len());
+    }
+
+    #[test]
+    fn test_schema_type_equality() {
+        assert_eq!(SchemaType::Variant, SchemaType::Variant);
+        assert_ne!(SchemaType::Variant, SchemaType::Alignment);
+    }
 }

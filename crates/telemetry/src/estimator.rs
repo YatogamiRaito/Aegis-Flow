@@ -269,11 +269,41 @@ mod tests {
         };
         let estimator = EnergyEstimator::with_model(model);
 
-        let (_, metrics) = estimator.measure("/test", "GET", || {
+        let (_, metrics) = estimator.measure("/test", "GET", ||  {
             std::thread::sleep(Duration::from_micros(100));
         });
 
         // Higher energy with custom model
         assert!(metrics.total_joules() > 0.0);
+    }
+
+    #[test]
+    fn test_estimator_concurrent_access() {
+        use std::sync::Arc;
+        use std::thread;
+        
+        let estimator = Arc::new(EnergyEstimator::new());
+        let mut handles = vec![];
+
+        for _ in 0..5 {
+            let est_clone = Arc::clone(&estimator);
+            let handle = thread::spawn(move || {
+                est_clone.measure("/test", "GET", || ());
+            });
+            handles.push(handle);
+        }
+
+        for handle in handles {
+            handle.join().unwrap();
+        }
+
+        assert_eq!(estimator.request_count(), 5);
+    }
+
+    #[test]
+    fn test_energy_model_default() {
+        let model = EnergyModel::default();
+        assert!(model.joules_per_cycle > 0.0);
+        assert!(model.joules_per_memory_byte > 0.0);
     }
 }

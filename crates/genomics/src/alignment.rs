@@ -255,4 +255,21 @@ mod tests {
         let batch = builder.build().unwrap();
         assert_eq!(batch.num_rows(), 0);
     }
+
+    #[test]
+    fn test_alignment_record_clone() {
+        let record = AlignmentRecord::new("read1", 0, 100, "ACGT")
+            .with_rname("chr1")
+            .with_mapq(60);
+        let cloned = record.clone();
+        assert_eq!(record.qname, cloned.qname);
+        assert_eq!(record.pos, cloned.pos);
+    }
+
+    #[test]
+    fn test_alignment_record_quality() {
+        let mut record = AlignmentRecord::new("read1", 0, 100, "ACGT");
+        record.qual = "IIII".to_string();
+        assert_eq!(record.qual, "IIII");
+    }
 }

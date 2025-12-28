@@ -228,4 +228,21 @@ mod tests {
         let metrics = EnergyMetrics::new("/api", "GET").with_cpu_cycles(1_000_000);
         assert_eq!(metrics.cpu_cycles, Some(1_000_000));
     }
+
+    #[test]
+    fn test_energy_breakdown_individual_components() {
+        let breakdown = EnergyBreakdown::new(0.01, 0.02, 0.03, 0.04);
+        assert_eq!(breakdown.cpu_joules, 0.01);
+        assert_eq!(breakdown.memory_joules, 0.02);
+        assert_eq!(breakdown.network_joules, 0.03);
+        assert_eq!(breakdown.storage_joules, 0.04);
+    }
+
+    #[test]
+    fn test_carbon_calculation_zero_intensity() {
+        let metrics = EnergyMetrics::new("/api", "POST")
+            .with_breakdown(EnergyBreakdown::new(1.0, 0.0, 0.0, 0.0));
+        let carbon = metrics.carbon_grams(0.0);
+        assert_eq!(carbon, 0.0);
+    }
 }
