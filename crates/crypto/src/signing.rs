@@ -1169,7 +1169,7 @@ mod tests {
     fn test_verifier_cross_algorithm_fail() {
         let signer44 = MlDsa44Signer::generate().unwrap();
         let message = b"test";
-        let sig44 = signer44.sign(message).unwrap();
+        let _sig44 = signer44.sign(message).unwrap();
 
         // Try to verify with wrong algorithm verifier
         let verifier65 =

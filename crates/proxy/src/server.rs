@@ -222,4 +222,35 @@ mod tests {
         let result = run(config).await;
         assert!(result.is_err());
     }
+
+    #[tokio::test]
+    async fn test_handle_connection_zero_bytes() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        tokio::spawn(async move {
+            run_with_listener(listener, std::future::pending())
+                .await
+                .ok();
+        });
+
+        // Connect and immediately close
+        let _client = TcpStream::connect(addr).await.unwrap();
+        // Client closes without sending data
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+
+    #[test]
+    fn test_proxy_config_default() {
+        let config = ProxyConfig::default();
+        assert_eq!(config.host, "0.0.0.0");
+        assert_eq!(config.port, 8080);
+    }
+
+    #[tokio::test]
+    async fn test_run_with_listener_immediate_shutdown() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let result = run_with_listener(listener, async {}).await;
+        assert!(result.is_ok());
+    }
 }
