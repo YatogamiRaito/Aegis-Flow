@@ -620,4 +620,35 @@ mod tests {
         let weight = router.get_routing_weight("us-east").await;
         assert_eq!(weight, 0); // No traffic to high-carbon regions
     }
+
+    #[tokio::test]
+    async fn test_router_empty_regions() {
+        let config = CarbonRouterConfig::default();
+        let client = MockEnergyClient::new();
+        let cache = CarbonIntensityCache::new(300);
+        let router = CarbonRouter::new(config, client, cache);
+
+        // No regions registered
+        let regions = router.get_green_regions().await;
+        assert!(regions.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_router_config_debug() {
+        let config = CarbonRouterConfig::default();
+        let debug_str = format!("{:?}", config);
+        assert!(debug_str.contains("CarbonRouterConfig"));
+    }
+
+    #[tokio::test]
+    async fn test_router_refresh_empty() {
+        let config = CarbonRouterConfig::default();
+        let client = MockEnergyClient::new();
+        let cache = CarbonIntensityCache::new(300);
+        let router = CarbonRouter::new(config, client, cache);
+
+        // Refresh with no regions should work
+        let result = router.refresh_carbon_data().await;
+        assert!(result.is_ok());
+    }
 }
