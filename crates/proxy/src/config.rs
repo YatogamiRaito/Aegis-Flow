@@ -748,4 +748,102 @@ upstream_addr: "test:8080"
         assert!(debug_str.contains("IoError"));
         assert!(debug_str.contains("test io"));
     }
+
+    #[test]
+    fn test_apply_env_overrides_host() {
+        // SAFETY: This is a single-threaded test
+        unsafe {
+            std::env::set_var("AEGIS_HOST", "192.168.1.1");
+        }
+        let mut config = ProxyConfig::default();
+        config.apply_env_overrides();
+        assert_eq!(config.host, "192.168.1.1");
+        unsafe {
+            std::env::remove_var("AEGIS_HOST");
+        }
+    }
+
+    #[test]
+    fn test_apply_env_overrides_port() {
+        // SAFETY: This is a single-threaded test
+        unsafe {
+            std::env::set_var("AEGIS_PORT", "9090");
+        }
+        let mut config = ProxyConfig::default();
+        config.apply_env_overrides();
+        assert_eq!(config.port, 9090);
+        unsafe {
+            std::env::remove_var("AEGIS_PORT");
+        }
+    }
+
+    #[test]
+    fn test_apply_env_overrides_upstream() {
+        // SAFETY: This is a single-threaded test
+        unsafe {
+            std::env::set_var("AEGIS_UPSTREAM", "http://backend:8080");
+        }
+        let mut config = ProxyConfig::default();
+        config.apply_env_overrides();
+        assert_eq!(config.upstream_addr, "http://backend:8080");
+        unsafe {
+            std::env::remove_var("AEGIS_UPSTREAM");
+        }
+    }
+
+    #[test]
+    fn test_apply_env_overrides_tls_enabled() {
+        // SAFETY: This is a single-threaded test
+        unsafe {
+            std::env::set_var("AEGIS_TLS_ENABLED", "true");
+        }
+        let mut config = ProxyConfig::default();
+        config.apply_env_overrides();
+        assert!(config.tls_enabled);
+        unsafe {
+            std::env::remove_var("AEGIS_TLS_ENABLED");
+        }
+    }
+
+    #[test]
+    fn test_apply_env_overrides_pqc_enabled() {
+        // SAFETY: This is a single-threaded test
+        unsafe {
+            std::env::set_var("AEGIS_PQC_ENABLED", "false");
+        }
+        let mut config = ProxyConfig::default();
+        config.apply_env_overrides();
+        assert!(!config.pqc_enabled);
+        unsafe {
+            std::env::remove_var("AEGIS_PQC_ENABLED");
+        }
+    }
+
+    #[test]
+    fn test_apply_env_overrides_worker_threads() {
+        // SAFETY: This is a single-threaded test
+        unsafe {
+            std::env::set_var("AEGIS_WORKER_THREADS", "8");
+        }
+        let mut config = ProxyConfig::default();
+        config.apply_env_overrides();
+        assert_eq!(config.worker_threads, 8);
+        unsafe {
+            std::env::remove_var("AEGIS_WORKER_THREADS");
+        }
+    }
+
+    #[test]
+    fn test_apply_env_overrides_log_level() {
+        // SAFETY: This is a single-threaded test
+        unsafe {
+            std::env::set_var("AEGIS_LOG_LEVEL", "debug");
+        }
+        let mut config = ProxyConfig::default();
+        config.apply_env_overrides();
+        assert_eq!(config.logging.level, "debug");
+        unsafe {
+            std::env::remove_var("AEGIS_LOG_LEVEL");
+        }
+    }
 }
