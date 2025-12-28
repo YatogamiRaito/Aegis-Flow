@@ -90,10 +90,12 @@ async fn test_quic_config_default_values() {
 async fn test_quic_server_creation_with_defaults() {
     let (_temp_dir, cert_path, key_path) = create_test_certs();
 
-    let mut config = QuicConfig::default();
-    config.cert_path = cert_path.to_string_lossy().to_string();
-    config.key_path = key_path.to_string_lossy().to_string();
-    config.bind_address = "127.0.0.1:0".to_string();
+    let config = QuicConfig {
+        cert_path: cert_path.to_string_lossy().to_string(),
+        key_path: key_path.to_string_lossy().to_string(),
+        bind_address: "127.0.0.1:0".to_string(),
+        ..QuicConfig::default()
+    };
 
     let proxy_config = ProxyConfig::default();
     let server = QuicServer::new(config, proxy_config);
@@ -104,13 +106,13 @@ async fn test_quic_server_creation_with_defaults() {
 
 #[tokio::test]
 async fn test_quic_stats_tracking() {
-    let mut stats = QuicStats::default();
-
-    // Simulate connection and stream handling
-    stats.connections_accepted = 5;
-    stats.streams_handled = 20;
-    stats.active_connections = 3;
-    stats.zero_rtt_connections = 2;
+    // Create stats with specific values
+    let stats = QuicStats {
+        connections_accepted: 5,
+        streams_handled: 20,
+        active_connections: 3,
+        zero_rtt_connections: 2,
+    };
 
     assert_eq!(stats.connections_accepted, 5);
     assert_eq!(stats.streams_handled, 20);
