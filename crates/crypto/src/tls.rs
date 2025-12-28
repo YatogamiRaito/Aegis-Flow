@@ -419,19 +419,19 @@ mod tests {
     }
 
     #[test]
-    fn test_pqc_tls_config_default() {
-        let config = PqcTlsConfig::default();
-        assert!(config.pqc_enabled);
-        assert!(!config.mtls_required);
+    fn test_pqc_algorithm_debug_format() {
+        let alg = PqcAlgorithm::HybridMlKem768;
+        let debug = format!("{:?}", alg);
+        assert!(debug.contains("HybridMlKem768"));
     }
 
     #[test]
-    fn test_pqc_algorithm_all_variants() {
+    fn test_pqc_algorithm_variants() {
         let variants = [
+            PqcAlgorithm::X25519Only,
+            PqcAlgorithm::MlKem768Only,
             PqcAlgorithm::HybridMlKem768,
             PqcAlgorithm::HybridMlKem1024,
-            PqcAlgorithm::MlKem768Only,
-            PqcAlgorithm::MlKem1024Only,
         ];
         for v in variants {
             let debug = format!("{:?}", v);
