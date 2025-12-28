@@ -494,4 +494,23 @@ mod tests {
         assert!(json.contains("healthy"));
         assert!(json.contains("ready"));
     }
+
+    #[test]
+    fn test_health_response_with_version() {
+        let response =
+            HealthResponse::from_status(HealthStatus::Healthy).with_version("1.0.0".to_string());
+        assert_eq!(response.version.unwrap(), "1.0.0");
+    }
+
+    #[test]
+    fn test_health_response_with_all_fields() {
+        let response = HealthResponse::from_status(HealthStatus::Healthy)
+            .with_uptime(Duration::from_secs(3600))
+            .with_connections(100)
+            .with_version("0.14.0".to_string());
+
+        assert_eq!(response.uptime_seconds, Some(3600));
+        assert_eq!(response.connections, Some(100));
+        assert_eq!(response.version, Some("0.14.0".to_string()));
+    }
 }

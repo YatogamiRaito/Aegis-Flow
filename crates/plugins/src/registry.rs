@@ -360,4 +360,37 @@ mod tests {
         assert!(info.enabled);
         assert!(info.path.as_os_str().is_empty()); // Path is empty for bytes-loaded plugins
     }
+
+    #[test]
+    fn test_reload_nonexistent_path() {
+        let registry = create_test_registry();
+        let wasm_bytes = wat::parse_str("(module)").unwrap();
+
+        let path = std::env::temp_dir().join("to_be_deleted.wasm");
+        std::fs::write(&path, &wasm_bytes).unwrap();
+
+        registry.load_plugin(&path).unwrap();
+        let name = path.file_stem().unwrap().to_str().unwrap();
+
+        // Delete the file
+        std::fs::remove_file(&path).unwrap();
+
+        // Reload should not fail the registry state but log/return Ok or Err depending on path existence check
+        let result = registry.reload_plugin(name);
+        assert!(result.is_ok()); // Current impl returns Ok(()) if path doesn't exist
+    }
+
+    #[test]
+    fn test_plugin_info_debug_clone() {
+        let info = PluginInfo {
+            name: "test".to_string(),
+            path: PathBuf::from("/tmp/test.wasm"),
+            enabled: true,
+            loaded_at: std::time::SystemTime::now(),
+        };
+        let cloned = info.clone();
+        assert_eq!(info.name, cloned.name);
+        let debug_str = format!("{:?}", info);
+        assert!(debug_str.contains("PluginInfo"));
+    }
 }

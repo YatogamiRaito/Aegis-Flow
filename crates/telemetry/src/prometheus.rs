@@ -147,4 +147,20 @@ mod tests {
         // Test division by zero protection
         exporter.record_totals(0, 0.0);
     }
+
+    #[test]
+    fn test_init_idempotency() {
+        // Calling init multiple times should be safe due to Once
+        init_energy_metrics();
+        init_energy_metrics();
+    }
+
+    #[test]
+    fn test_record_extreme_values() {
+        let exporter = EnergyPrometheusExporter::new();
+        let metrics = EnergyMetrics::new("/api", "POST")
+            .with_bytes(u64::MAX)
+            .with_cpu_cycles(u64::MAX);
+        exporter.record(&metrics);
+    }
 }

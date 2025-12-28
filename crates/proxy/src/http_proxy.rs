@@ -319,4 +319,27 @@ mod tests {
             assert_eq!(config.max_concurrent_streams, streams);
         }
     }
+    #[tokio::test]
+    async fn test_proxy_graceful_shutdown() {
+        let config = HttpProxyConfig {
+            listen_addr: "127.0.0.1:0".parse().unwrap(),
+            ..Default::default()
+        };
+        let proxy = HttpProxy::new(config);
+
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let handle = tokio::spawn(async move {
+            proxy
+                .run_with_shutdown(async {
+                    rx.await.ok();
+                })
+                .await
+        });
+
+        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+        tx.send(()).unwrap();
+
+        let result = tokio::time::timeout(tokio::time::Duration::from_secs(2), handle).await;
+        assert!(result.is_ok());
+    }
 }

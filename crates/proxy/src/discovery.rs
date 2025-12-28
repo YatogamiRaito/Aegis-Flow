@@ -255,19 +255,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_list_services() {
-        let registry = ServiceRegistry::new(LoadBalanceStrategy::RoundRobin);
-        registry
-            .register("service-a", vec!["127.0.0.1:8080".parse().unwrap()])
-            .await;
-        registry
-            .register("service-b", vec!["127.0.0.1:9090".parse().unwrap()])
-            .await;
-
-        let services = registry.list_services().await;
-        assert_eq!(services.len(), 2);
-    }
-    #[tokio::test]
     async fn test_empty_registry_lookup() {
         let registry = ServiceRegistry::new(LoadBalanceStrategy::RoundRobin);
         assert!(registry.get_endpoint("non-existent").await.is_none());
@@ -465,5 +452,30 @@ mod tests {
 
         registry.mark_healthy("test-svc", addr).await;
         assert!(registry.get_endpoint("test-svc").await.is_some());
+    }
+    #[tokio::test]
+    async fn test_list_services_registry() {
+        let registry = ServiceRegistry::new(LoadBalanceStrategy::RoundRobin);
+        registry
+            .register("svc1", vec!["127.0.0.1:8080".parse().unwrap()])
+            .await;
+        registry
+            .register("svc2", vec!["127.0.0.1:8081".parse().unwrap()])
+            .await;
+
+        let services = registry.list_services().await;
+        assert_eq!(services.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_weighted_round_robin_varying_weights() {
+        let registry = ServiceRegistry::new(LoadBalanceStrategy::WeightedRoundRobin);
+        let ep1: SocketAddr = "127.0.0.1:8080".parse().unwrap();
+        let ep2: SocketAddr = "127.0.0.1:8081".parse().unwrap();
+
+        registry.register("weighted", vec![ep1, ep2]).await;
+
+        let ep = registry.get_endpoint("weighted").await.unwrap();
+        assert!(ep == ep1 || ep == ep2);
     }
 }

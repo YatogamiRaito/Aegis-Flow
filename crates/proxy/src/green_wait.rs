@@ -750,4 +750,76 @@ mod tests {
         assert_eq!(stats.by_priority[3], 1); // Low
         assert_eq!(stats.by_priority[4], 1); // Background
     }
+
+    #[tokio::test]
+    async fn test_queue_full_rejection() {
+        let client = MockClient { intensity: 500.0 };
+        let cache = CarbonIntensityCache::new(300);
+        let config = GreenWaitConfig {
+            max_queue_size: 2,
+            ..Default::default()
+        };
+        let scheduler = GreenWaitScheduler::new(config, client, cache);
+        scheduler.update_region_intensity("us-west", 500.0).await;
+
+        // Fill queue
+        for i in 0..2 {
+            let job = DeferredJob::new(
+                format!("job-{}", i),
+                JobPriority::Normal,
+                Region::new("us-west", "US West"),
+                10.0,
+                vec![],
+            );
+            let result = scheduler.submit(job).await;
+            assert!(matches!(result, ScheduleResult::Queued { .. }));
+        }
+
+        // Try to add one more
+        let job = DeferredJob::new(
+            "overflow",
+            JobPriority::Normal,
+            Region::new("us-west", "US West"),
+            10.0,
+            vec![],
+        );
+        let result = scheduler.submit(job).await;
+        assert!(matches!(result, ScheduleResult::QueueFull));
+    }
+
+    #[tokio::test]
+    async fn test_process_ready_jobs_green_window() {
+        let client = MockClient { intensity: 50.0 };
+        let cache = CarbonIntensityCache::new(300);
+        let scheduler = GreenWaitScheduler::new(GreenWaitConfig::default(), client, cache);
+
+        // Set high intensity initially so job gets queued
+        scheduler.update_region_intensity("us-west", 500.0).await;
+
+        let job = DeferredJob::new(
+            "green-test",
+            JobPriority::Normal,
+            Region::new("us-west", "US West"),
+            100.0,
+            vec![],
+        );
+        scheduler.submit(job).await;
+        assert_eq!(scheduler.queue_length().await, 1);
+
+        // Now lower intensity below threshold
+        scheduler.update_region_intensity("us-west", 50.0).await;
+
+        let ready = scheduler.process_ready_jobs().await;
+        assert_eq!(ready.len(), 1);
+        assert_eq!(ready[0].id, "green-test");
+        assert_eq!(scheduler.queue_length().await, 0);
+    }
+
+    #[tokio::test]
+    async fn test_green_wait_config_clone() {
+        let config = GreenWaitConfig::default();
+        let cloned = config.clone();
+        assert_eq!(config.default_threshold, cloned.default_threshold);
+        assert_eq!(config.max_queue_size, cloned.max_queue_size);
+    }
 }

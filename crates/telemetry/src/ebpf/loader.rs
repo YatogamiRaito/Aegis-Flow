@@ -168,4 +168,9 @@ mod tests {
         loader.load().unwrap();
         assert!(loader.is_loaded());
     }
+    #[test]
+    fn test_loader_default() {
+        let loader = EbpfLoader::default();
+        assert!(!loader.is_loaded());
+    }
 }

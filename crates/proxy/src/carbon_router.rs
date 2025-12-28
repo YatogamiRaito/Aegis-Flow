@@ -557,4 +557,22 @@ mod tests {
         assert!(router.is_enabled());
         assert_eq!(router.threshold(), 150.0);
     }
+
+    #[tokio::test]
+    async fn test_register_and_get_regions() {
+        let config = CarbonRouterConfig::default();
+        let client = MockEnergyClient::new();
+        let cache = CarbonIntensityCache::new(300);
+        let router = CarbonRouter::new(config, client, cache);
+
+        router
+            .register_region(Region::new("us-east", "US East"))
+            .await;
+        router
+            .register_region(Region::new("eu-west", "EU West"))
+            .await;
+
+        let regions = router.get_regions().await;
+        assert_eq!(regions.len(), 2);
+    }
 }

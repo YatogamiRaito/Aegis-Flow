@@ -612,6 +612,14 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_quic_server_stats_access() {
+        let proxy_config = ProxyConfig::default();
+        let server = QuicServer::with_defaults(proxy_config);
+        let stats = server.stats().await;
+        assert_eq!(stats.connections_accepted, 0);
+    }
+
+    #[tokio::test]
     async fn test_quic_server_run_fails_without_keys() {
         // Generate a cert but no key
         let temp_dir =
