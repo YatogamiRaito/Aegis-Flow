@@ -426,7 +426,7 @@ mod tests {
     }
 
     #[test]
-    fn test_pqc_algorithm_variants() {
+    fn test_pqc_algorithm_all_four() {
         let variants = [
             PqcAlgorithm::X25519Only,
             PqcAlgorithm::MlKem768Only,
