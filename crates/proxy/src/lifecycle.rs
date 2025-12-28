@@ -453,14 +453,14 @@ mod tests {
         tokio::spawn(async move {
             m1.initiate_shutdown().await;
         });
-        
+
         // Give it a moment to set the flag
         tokio::time::sleep(Duration::from_millis(10)).await;
-        
+
         // Second shutdown - should return immediately (already in progress)
         // We can check if is_shutting_down is true
         assert!(manager.is_shutting_down());
-        
+
         // Call proper should finish quickly
         manager.initiate_shutdown().await;
     }
@@ -468,20 +468,21 @@ mod tests {
     #[tokio::test]
     async fn test_drain_timeout_enforcement() {
         // Setup manager with short timeout
-        let manager = Arc::new(LifecycleManager::new().with_drain_timeout(Duration::from_millis(100)));
-        
+        let manager =
+            Arc::new(LifecycleManager::new().with_drain_timeout(Duration::from_millis(100)));
+
         // Simulate a stuck connection (increment but never decrement)
         manager.connection_started();
-        
+
         let start = Instant::now();
         manager.initiate_shutdown().await;
         let elapsed = start.elapsed();
-        
+
         // Should have waited at least 100ms
         assert!(elapsed >= Duration::from_millis(100));
         // But shouldn't wait forever
         assert!(elapsed < Duration::from_millis(500));
-        
+
         // Connections still active
         assert_eq!(manager.active_connections(), 1);
     }

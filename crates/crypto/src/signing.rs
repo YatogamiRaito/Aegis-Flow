@@ -1033,4 +1033,44 @@ mod tests {
         assert!(debug_str.contains("REDACTED"));
         assert!(!debug_str.contains(&format!("{:?}", signer.secret_key)));
     }
+
+    #[test]
+    fn test_signing_error_paths() {
+        // Test invalid public key size for MlDsa44Signer
+        let pks = MlDsaAlgorithm::MlDsa44.public_key_size();
+        let invalid_pk = vec![0u8; pks - 1];
+        let sk = vec![0u8; 100]; // Dummy SK size doesn't matter for this check
+        assert!(MlDsa44Signer::from_keys(invalid_pk, sk).is_err());
+
+        // Test invalid public key size for MlDsa65Signer
+        let pks = MlDsaAlgorithm::MlDsa65.public_key_size();
+        let invalid_pk = vec![0u8; pks + 1];
+        assert!(MlDsa65Signer::from_keys(invalid_pk, vec![]).is_err());
+
+        // Test invalid public key size for MlDsa87Signer
+        let _pks = MlDsaAlgorithm::MlDsa87.public_key_size();
+        let invalid_pk = vec![0u8; 10];
+        assert!(MlDsa87Signer::from_keys(invalid_pk, vec![]).is_err());
+
+        // Test HybridSignature::from_bytes errors
+        assert!(HybridSignature::from_bytes(&[]).is_err()); // Empty
+        assert!(HybridSignature::from_bytes(&[0x00, 0x01]).is_err()); // Wrong tag (0x01 is valid, but length short)
+        assert!(HybridSignature::from_bytes(&[0x02, 0x00]).is_err()); // Wrong tag (0x02 invalid)
+
+        let mut short_sig = vec![HYBRID_SIGNATURE_TAG];
+        short_sig.extend_from_slice(&[0u8; 63]); // 1 byte short for Ed25519
+        assert!(HybridSignature::from_bytes(&short_sig).is_err());
+
+        // Test HybridSigningPublicKey::from_bytes errors
+        assert!(HybridSigningPublicKey::from_bytes(&[]).is_err());
+        assert!(HybridSigningPublicKey::from_bytes(&vec![0u8; 31]).is_err());
+    }
+
+    #[test]
+    fn test_verifier_construction_errors() {
+        // Test invalid public key size for MlDsaVerifier
+        let alg = MlDsaAlgorithm::MlDsa44;
+        let invalid_pk = vec![0u8; alg.public_key_size() - 1];
+        assert!(MlDsaVerifier::new(invalid_pk, alg).is_err());
+    }
 }

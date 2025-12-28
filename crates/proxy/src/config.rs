@@ -667,4 +667,58 @@ upstream_addr: "test:8080"
             _ => panic!("Expected ParseError"),
         }
     }
+
+    #[test]
+    fn test_parse_invalid_toml() {
+        let content = "key = "; // Incomplete
+        let result = ProxyConfig::parse(content, ConfigFormat::Toml);
+        match result {
+            Err(ConfigError::ParseError(msg)) => assert!(msg.contains("TOML")),
+            _ => panic!("Expected ParseError"),
+        }
+    }
+
+    #[test]
+    fn test_config_error_display() {
+        assert_eq!(
+            format!("{}", ConfigError::IoError("e".into())),
+            "IO error: e"
+        );
+        assert_eq!(
+            format!("{}", ConfigError::ParseError("e".into())),
+            "Parse error: e"
+        );
+        assert_eq!(
+            format!("{}", ConfigError::ValidationError("e".into())),
+            "Validation error: e"
+        );
+        assert_eq!(
+            format!("{}", ConfigError::UnsupportedFormat("p".into())),
+            "Unsupported config format: p"
+        );
+    }
+
+    #[test]
+    fn test_save_to_file_failure() {
+        let config = ProxyConfig::default();
+
+        // Unsupported format
+        let path = Path::new("test.txt");
+        assert!(matches!(
+            config.save_to_file(path),
+            Err(ConfigError::UnsupportedFormat(_))
+        ));
+
+        // IO Error (directory not writable or invalid path)
+        // Using a directory as file path usually fails
+        let dir = tempfile::tempdir().unwrap();
+        let _path = dir.path(); // Is a directory
+        // Writing to a directory path usually fails on Linux
+        // But to be sure, let's use a path under a non-existent directory
+        let bad_path = Path::new("/non_existent_dir_12345/config.json");
+        assert!(matches!(
+            config.save_to_file(bad_path),
+            Err(ConfigError::IoError(_))
+        ));
+    }
 }

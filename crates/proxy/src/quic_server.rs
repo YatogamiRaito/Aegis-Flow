@@ -236,10 +236,18 @@ impl QuicServer {
 
     /// Handle a single bidirectional stream with HTTP/3 handler
     async fn handle_stream(stream: BidirectionalStream, upstream: String) -> Result<()> {
-        use crate::http3_handler::{Http3Config, Http3Handler, Http3Request};
-        use bytes::Bytes;
+        let (recv, send) = stream.split();
+        Self::process_stream(recv, send, upstream).await
+    }
 
-        let (mut recv, mut send) = stream.split();
+    /// Process stream logic (generic for testing)
+    async fn process_stream<R, W>(mut recv: R, mut send: W, upstream: String) -> Result<()>
+    where
+        R: tokio::io::AsyncRead + Unpin,
+        W: tokio::io::AsyncWrite + Unpin,
+    {
+        use crate::http3_handler::{Http3Config, Http3Handler, Http3Request};
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
         // Create HTTP/3 handler
         let handler = Http3Handler::new(Http3Config::default(), upstream);
@@ -247,10 +255,16 @@ impl QuicServer {
         // Read request data
         // Pre-allocate for typical request size
         let mut request_data = Vec::with_capacity(4096);
+        let mut buf = [0u8; 4096];
 
         // Collect request bytes
-        while let Ok(Some(chunk)) = recv.receive().await {
-            request_data.extend_from_slice(&chunk);
+        loop {
+            let n = recv.read(&mut buf).await?;
+            if n == 0 {
+                break;
+            }
+            request_data.extend_from_slice(&buf[..n]);
+
             // Limit request size
             if request_data.len() > 16 * 1024 * 1024 {
                 warn!("Request too large, dropping");
@@ -277,12 +291,15 @@ impl QuicServer {
 
         // Send response status line
         let status_line = format!("HTTP/3 {} OK\r\n\r\n", response.status);
-        send.send(Bytes::from(status_line)).await?;
+        send.write_all(status_line.as_bytes()).await?;
 
         // Send response body
         if !response.body.is_empty() {
-            send.send(response.body).await?;
+             send.write_all(&response.body).await?;
         }
+        
+        // Ensure flushed
+        send.flush().await?;
 
         debug!("✅ Response sent with status {}", response.status);
         Ok(())
@@ -488,7 +505,35 @@ mod tests {
         // Cleanup
         let _ = std::fs::remove_dir_all(temp_dir);
 
-        assert!(result.is_ok(), "Server shutdown timed out");
         assert!(result.unwrap().unwrap().is_ok(), "Server run failed");
+    }
+
+    #[tokio::test]
+    async fn test_process_stream_valid() {
+        let request = b"GET / HTTP/1.1\r\nHost: localhost\r\n\r\n";
+        let mut recv = std::io::Cursor::new(request);
+        let mut send = Vec::new();
+        
+        let result = QuicServer::process_stream(&mut recv, &mut send, "backend".to_string()).await;
+        assert!(result.is_ok());
+        
+        let response = String::from_utf8(send).unwrap();
+        assert!(response.contains("HTTP/3"));
+        // Status might be 200 or 502 depending on "backend" connectivity, but it should output a response
+    }
+
+    #[tokio::test]
+    async fn test_process_stream_large_request() {
+        // Create a reader that yields 17MB of data
+        // We use a Cursor over a zeroed vec
+        let data = vec![0u8; 17 * 1024 * 1024]; 
+        let mut recv = std::io::Cursor::new(data);
+        let mut send = Vec::new();
+        
+        let result = QuicServer::process_stream(&mut recv, &mut send, "backend".to_string()).await;
+        assert!(result.is_ok());
+        
+        // Should return early due to size limit, writing nothing to send
+        assert!(send.is_empty());
     }
 }
