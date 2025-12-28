@@ -191,7 +191,7 @@ chr1	100	.	A	T	99.0	PASS	DP=50
 
     #[test]
     fn test_vcf_parser_default() {
-        let parser = VcfParser::default();
+        let parser = VcfParser;
         let vcf_data =
             "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\nchr1\t100\t.\tA\tT\t99.0\tPASS\tDP=50";
         let reader = Cursor::new(vcf_data);
