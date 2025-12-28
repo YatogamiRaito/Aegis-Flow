@@ -655,6 +655,51 @@ mod tests {
     }
 
     #[test]
+    fn test_endpoint_initial_state() {
+        let addr: SocketAddr = "127.0.0.1:8080".parse().unwrap();
+        let ep = Endpoint::new(addr);
+
+        assert!(ep.healthy);
+        assert_eq!(ep.failures, 0);
+        assert_eq!(ep.weight, 100);
+    }
+
+    #[test]
+    fn test_endpoint_mark_failed_once() {
+        let addr: SocketAddr = "127.0.0.1:8080".parse().unwrap();
+        let mut ep = Endpoint::new(addr);
+
+        ep.mark_failed();
+        assert_eq!(ep.failures, 1);
+        assert!(ep.healthy); // Still healthy after 1 failure
+    }
+
+    #[test]
+    fn test_endpoint_mark_failed_twice() {
+        let addr: SocketAddr = "127.0.0.1:8080".parse().unwrap();
+        let mut ep = Endpoint::new(addr);
+
+        ep.mark_failed();
+        ep.mark_failed();
+        assert_eq!(ep.failures, 2);
+        assert!(ep.healthy); // Still healthy after 2 failures
+    }
+
+    #[test]
+    fn test_endpoint_mark_failed_three_times() {
+        let addr: SocketAddr = "127.0.0.1:8080".parse().unwrap();
+        let mut ep = Endpoint::new(addr);
+
+        ep.mark_failed();
+        ep.mark_failed();
+        ep.mark_failed();
+
+        assert_eq!(ep.failures, 3);
+        assert!(!ep.healthy); // Unhealthy after 3 failures
+        assert_eq!(ep.weight, 0);
+    }
+
+    #[test]
     fn test_load_balance_strategy_debug() {
         let strategy = LoadBalanceStrategy::RoundRobin;
         let debug_str = format!("{:?}", strategy);
