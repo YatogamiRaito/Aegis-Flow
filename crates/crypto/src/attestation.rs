@@ -806,4 +806,83 @@ mod tests {
         assert!(TeePlatform::AmdSevSnp.is_tee());
         assert!(!TeePlatform::None.is_tee());
     }
+
+    #[test]
+    fn test_quote_from_bytes_invalid_quote_length() {
+        // Create bytes with platform and valid nonce/user_data but invalid quote length
+        let mut bytes = Vec::new();
+        bytes.push(0u8); // Platform = IntelSgx
+
+        // Nonce length (4) + nonce
+        bytes.extend_from_slice(&4u32.to_le_bytes());
+        bytes.extend_from_slice(b"test");
+
+        // User data length (4) + data
+        bytes.extend_from_slice(&4u32.to_le_bytes());
+        bytes.extend_from_slice(b"data");
+
+        // Quote length that exceeds remaining bytes
+        bytes.extend_from_slice(&1000u32.to_le_bytes());
+
+        let result = AttestationQuote::from_bytes(&bytes);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_quote_from_bytes_missing_timestamp() {
+        let mut bytes = Vec::new();
+        bytes.push(0u8); // Platform
+
+        // Nonce
+        bytes.extend_from_slice(&2u32.to_le_bytes());
+        bytes.extend_from_slice(b"no");
+
+        // User data
+        bytes.extend_from_slice(&2u32.to_le_bytes());
+        bytes.extend_from_slice(b"ud");
+
+        // Quote (short)
+        bytes.extend_from_slice(&2u32.to_le_bytes());
+        bytes.extend_from_slice(b"qt");
+
+        // No timestamp
+
+        let result = AttestationQuote::from_bytes(&bytes);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_tee_capabilities_best_platform() {
+        let caps = TeeCapabilities {
+            sgx: false,
+            sgx2: false,
+            tdx: false,
+            sev: false,
+            sev_es: false,
+            sev_snp: false,
+        };
+        assert_eq!(caps.best_platform(), TeePlatform::None);
+        assert!(!caps.any_available());
+
+        let caps2 = TeeCapabilities {
+            sgx: true,
+            sgx2: false,
+            tdx: false,
+            sev: false,
+            sev_es: false,
+            sev_snp: false,
+        };
+        assert_eq!(caps2.best_platform(), TeePlatform::IntelSgx);
+        assert!(caps2.any_available());
+    }
+
+    #[test]
+    fn test_verify_quote_nonce_mismatch() {
+        let provider = AttestationProvider::new();
+        let quote = provider.generate_quote(b"nonce1", b"data").unwrap();
+
+        // Verify with different nonce
+        let result = provider.verify_quote(&quote, b"nonce2").unwrap();
+        assert!(!result);
+    }
 }

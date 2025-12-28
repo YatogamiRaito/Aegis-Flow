@@ -600,4 +600,59 @@ mod tests {
             let _ = format!("{:?}", state);
         }
     }
+
+    #[test]
+    fn test_authenticated_count() {
+        let config = MtlsConfig::default();
+        let auth = MtlsAuthenticator::new(config).unwrap();
+
+        // Initially zero
+        assert_eq!(auth.authenticated_count(), 0);
+
+        // Accept a connection (unauthenticated)
+        let (conn_id, _) = auth.accept_connection().unwrap();
+
+        // Still zero because not authenticated
+        assert_eq!(auth.authenticated_count(), 0);
+
+        // Disconnect
+        auth.disconnect(conn_id).ok();
+    }
+
+    #[test]
+    fn test_is_pqc_enabled() {
+        let config = MtlsConfig {
+            pqc_enabled: true,
+            ..Default::default()
+        };
+        let auth = MtlsAuthenticator::new(config).unwrap();
+        assert!(auth.is_pqc_enabled());
+
+        let config2 = MtlsConfig {
+            pqc_enabled: false,
+            ..Default::default()
+        };
+        let auth2 = MtlsAuthenticator::new(config2).unwrap();
+        assert!(!auth2.is_pqc_enabled());
+    }
+
+    #[test]
+    fn test_cert_manager_access() {
+        let config = MtlsConfig::default();
+        let auth = MtlsAuthenticator::new(config).unwrap();
+
+        // Just verify we can access cert_manager
+        let _cm = auth.cert_manager();
+    }
+
+    #[test]
+    fn test_authenticated_client_new() {
+        let client = AuthenticatedClient::new(12345);
+        assert_eq!(client.connection_id, 12345);
+        assert!(client.cert.is_none());
+        assert_eq!(client.state, AuthState::Unauthenticated);
+        assert!(client.channel.is_none());
+        assert!(client.authenticated_at.is_none());
+        assert!(!client.is_authenticated());
+    }
 }
