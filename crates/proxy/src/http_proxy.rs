@@ -280,4 +280,43 @@ mod tests {
         assert_eq!(proxy.config.listen_addr, config.listen_addr);
         assert_eq!(proxy.config.upstream_addr, config.upstream_addr);
     }
+
+    #[test]
+    fn test_config_upstream_variations() {
+        let upstreams = [
+            "localhost:8080",
+            "192.168.1.1:9000",
+            "backend.local:443",
+            "[::1]:8080",
+        ];
+        for upstream in upstreams {
+            let config = HttpProxyConfig {
+                upstream_addr: upstream.to_string(),
+                ..Default::default()
+            };
+            assert_eq!(config.upstream_addr, upstream);
+        }
+    }
+
+    #[test]
+    fn test_config_window_size_variations() {
+        for size in [16384, 32768, 65535, 131070] {
+            let config = HttpProxyConfig {
+                initial_window_size: size,
+                ..Default::default()
+            };
+            assert_eq!(config.initial_window_size, size);
+        }
+    }
+
+    #[test]
+    fn test_config_concurrent_streams_variations() {
+        for streams in [10, 50, 100, 500] {
+            let config = HttpProxyConfig {
+                max_concurrent_streams: streams,
+                ..Default::default()
+            };
+            assert_eq!(config.max_concurrent_streams, streams);
+        }
+    }
 }

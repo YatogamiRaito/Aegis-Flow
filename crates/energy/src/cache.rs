@@ -220,4 +220,29 @@ mod tests {
         let cache = CarbonIntensityCache::default();
         assert_eq!(cache.default_ttl(), Duration::from_secs(300));
     }
+
+    #[tokio::test]
+    async fn test_cache_get_nonexistent() {
+        let cache = CarbonIntensityCache::new(60);
+        let region = Region::new("NONEXISTENT", "Nonexistent");
+        let result = cache.get(&region).await;
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_cache_put_overwrite() {
+        let cache = CarbonIntensityCache::new(60);
+        let region = Region::new("OVR", "Overwrite Test");
+
+        let mut intensity1 = create_test_intensity("OVR", 100.0);
+        intensity1.region = region.clone();
+        cache.put(intensity1).await;
+
+        let mut intensity2 = create_test_intensity("OVR", 200.0);
+        intensity2.region = region.clone();
+        cache.put(intensity2).await;
+
+        let result = cache.get(&region).await.unwrap();
+        assert_eq!(result.value, 200.0); // Should be overwritten
+    }
 }

@@ -319,4 +319,48 @@ mod tests {
             "Cryptographic error: Ciphertext too short"
         );
     }
+
+    #[test]
+    fn test_cipher_algorithm_variants() {
+        assert_ne!(
+            CipherAlgorithm::Aes256Gcm,
+            CipherAlgorithm::ChaCha20Poly1305
+        );
+    }
+
+    #[test]
+    fn test_encryption_key_clone() {
+        let key = EncryptionKey::from_raw([0xAB; 32], CipherAlgorithm::Aes256Gcm);
+        let cloned = key.clone();
+        assert_eq!(key.as_bytes(), cloned.as_bytes());
+        assert_eq!(key.algorithm(), cloned.algorithm());
+    }
+
+    #[test]
+    fn test_chacha20_cipher() {
+        let key = EncryptionKey::from_raw([0xCC; 32], CipherAlgorithm::ChaCha20Poly1305);
+        let cipher = Cipher::new(key);
+
+        let plaintext = b"ChaCha20 test message";
+        let ciphertext = cipher.encrypt(plaintext).unwrap();
+        let decrypted = cipher.decrypt(&ciphertext).unwrap();
+
+        assert_eq!(&decrypted, plaintext);
+    }
+
+    #[test]
+    fn test_cipher_different_keys_different_ciphertexts() {
+        let key1 = EncryptionKey::from_raw([0x11; 32], CipherAlgorithm::Aes256Gcm);
+        let key2 = EncryptionKey::from_raw([0x22; 32], CipherAlgorithm::Aes256Gcm);
+
+        let cipher1 = Cipher::new(key1);
+        let cipher2 = Cipher::new(key2);
+
+        let plaintext = b"Same message";
+        let ct1 = cipher1.encrypt(plaintext).unwrap();
+        let ct2 = cipher2.encrypt(plaintext).unwrap();
+
+        // Ciphertexts should be different due to different keys
+        assert_ne!(ct1, ct2);
+    }
 }

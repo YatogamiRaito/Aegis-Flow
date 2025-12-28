@@ -77,4 +77,40 @@ mod tests {
         // Verify IO error display as well
         assert!(format!("{}", aegis_err).contains("file not found"));
     }
+
+    #[test]
+    fn test_error_debug() {
+        let err = AegisError::Crypto("test crypto error".to_string());
+        let debug_str = format!("{:?}", err);
+        assert!(debug_str.contains("Crypto"));
+        assert!(debug_str.contains("test crypto error"));
+    }
+
+    #[test]
+    fn test_all_error_variants() {
+        let errors = [
+            AegisError::Crypto("c".to_string()),
+            AegisError::Network("n".to_string()),
+            AegisError::Config("cfg".to_string()),
+            AegisError::Tee("tee".to_string()),
+            AegisError::Attestation("att".to_string()),
+            AegisError::Internal("int".to_string()),
+        ];
+
+        for err in errors {
+            let display = format!("{}", err);
+            assert!(!display.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_error_io_kind() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "access denied");
+        let aegis_err: AegisError = io_err.into();
+        if let AegisError::Io(e) = aegis_err {
+            assert_eq!(e.kind(), std::io::ErrorKind::PermissionDenied);
+        } else {
+            panic!("Expected Io variant");
+        }
+    }
 }

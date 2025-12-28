@@ -538,4 +538,58 @@ mod tests {
         // Should just skip it and succeed
         assert!(!cert.is_empty());
     }
+
+    #[test]
+    fn test_cert_type_variants() {
+        assert_ne!(CertType::RootCa, CertType::IntermediateCa);
+        assert_ne!(CertType::IntermediateCa, CertType::EndEntity);
+        assert_ne!(CertType::RootCa, CertType::EndEntity);
+    }
+
+    #[test]
+    fn test_parsed_cert_debug() {
+        let now = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        let cert = ParsedCert {
+            subject_cn: "debug-test".to_string(),
+            issuer_cn: "ca".to_string(),
+            serial: "123".to_string(),
+            not_before: now - 86400,
+            not_after: now + 86400,
+            cert_type: CertType::EndEntity,
+            fingerprint: "abc123".to_string(),
+            san: vec!["example.com".to_string()],
+            der_bytes: vec![0u8; 10],
+        };
+
+        let debug_str = format!("{:?}", cert);
+        assert!(debug_str.contains("debug-test"));
+        assert!(debug_str.contains("EndEntity"));
+    }
+
+    #[test]
+    fn test_parsed_cert_san() {
+        let now = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        let cert = ParsedCert {
+            subject_cn: "san-test".to_string(),
+            issuer_cn: "ca".to_string(),
+            serial: "456".to_string(),
+            not_before: now - 86400,
+            not_after: now + 86400,
+            cert_type: CertType::EndEntity,
+            fingerprint: "def456".to_string(),
+            san: vec!["*.example.com".to_string(), "localhost".to_string()],
+            der_bytes: vec![],
+        };
+
+        assert_eq!(cert.san.len(), 2);
+        assert!(cert.san.contains(&"localhost".to_string()));
+    }
 }

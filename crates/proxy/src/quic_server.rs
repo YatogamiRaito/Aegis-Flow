@@ -538,4 +538,44 @@ mod tests {
         // Should return early due to size limit, writing nothing to send
         assert!(send.is_empty());
     }
+
+    #[test]
+    fn test_quic_config_custom() {
+        let config = QuicConfig {
+            bind_address: "127.0.0.1:8443".to_string(),
+            cert_path: "/custom/path.crt".to_string(),
+            key_path: "/custom/key.pem".to_string(),
+            enable_0rtt: false,
+            max_streams: 200,
+            idle_timeout_secs: 60,
+            pqc_enabled: false,
+        };
+        assert_eq!(config.bind_address, "127.0.0.1:8443");
+        assert!(!config.enable_0rtt);
+        assert!(!config.pqc_enabled);
+        assert_eq!(config.max_streams, 200);
+        assert_eq!(config.idle_timeout_secs, 60);
+    }
+
+    #[test]
+    fn test_quic_config_clone() {
+        let config = QuicConfig::default();
+        let cloned = config.clone();
+        assert_eq!(config.bind_address, cloned.bind_address);
+        assert_eq!(config.cert_path, cloned.cert_path);
+        assert_eq!(config.max_streams, cloned.max_streams);
+    }
+
+    #[test]
+    fn test_quic_stats_clone() {
+        let stats = QuicStats {
+            connections_accepted: 100,
+            streams_handled: 500,
+            active_connections: 10,
+            zero_rtt_connections: 50,
+        };
+        let cloned = stats.clone();
+        assert_eq!(cloned.connections_accepted, 100);
+        assert_eq!(cloned.streams_handled, 500);
+    }
 }

@@ -721,4 +721,31 @@ upstream_addr: "test:8080"
             Err(ConfigError::IoError(_))
         ));
     }
+
+    #[test]
+    fn test_proxy_config_default() {
+        let config = ProxyConfig::default();
+        assert_eq!(config.host, "0.0.0.0");
+        assert_eq!(config.port, 8443);
+    }
+
+    #[test]
+    fn test_proxy_config_clone() {
+        let config = ProxyConfig {
+            host: "127.0.0.1".to_string(),
+            port: 3000,
+            ..Default::default()
+        };
+        let cloned = config.clone();
+        assert_eq!(config.host, cloned.host);
+        assert_eq!(config.port, cloned.port);
+    }
+
+    #[test]
+    fn test_config_error_debug() {
+        let err = ConfigError::IoError("test io".to_string());
+        let debug_str = format!("{:?}", err);
+        assert!(debug_str.contains("IoError"));
+        assert!(debug_str.contains("test io"));
+    }
 }
