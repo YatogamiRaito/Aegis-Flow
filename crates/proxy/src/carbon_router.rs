@@ -498,4 +498,63 @@ mod tests {
         assert_eq!(cloned.threshold, 200.0);
         assert_eq!(cloned.carbon_weight, 0.8);
     }
+
+    #[test]
+    fn test_config_default() {
+        let config = CarbonRouterConfig::default();
+        assert!(!config.enabled);
+        assert_eq!(config.threshold, 200.0);
+        assert_eq!(config.max_intensity, 500.0);
+        assert!(config.prefer_renewable);
+        assert_eq!(config.carbon_weight, 0.5);
+    }
+
+    #[test]
+    fn test_config_debug() {
+        let config = CarbonRouterConfig::default();
+        let debug = format!("{:?}", config);
+        assert!(debug.contains("threshold"));
+        assert!(debug.contains("carbon_weight"));
+    }
+
+    #[test]
+    fn test_region_score_creation() {
+        let score = RegionScore {
+            region_id: "test-region".to_string(),
+            carbon_intensity: 150.0,
+            score: 0.3,
+            recommended: true,
+        };
+        assert_eq!(score.region_id, "test-region");
+        assert_eq!(score.carbon_intensity, 150.0);
+        assert!(score.recommended);
+    }
+
+    #[test]
+    fn test_region_score_clone() {
+        let score = RegionScore {
+            region_id: "clone-test".to_string(),
+            carbon_intensity: 100.0,
+            score: 0.2,
+            recommended: false,
+        };
+        let cloned = score.clone();
+        assert_eq!(cloned.region_id, score.region_id);
+        assert_eq!(cloned.carbon_intensity, score.carbon_intensity);
+    }
+
+    #[tokio::test]
+    async fn test_is_enabled_and_threshold() {
+        let config = CarbonRouterConfig {
+            enabled: true,
+            threshold: 150.0,
+            ..Default::default()
+        };
+        let client = MockEnergyClient::new();
+        let cache = CarbonIntensityCache::new(300);
+        let router = CarbonRouter::new(config, client, cache);
+
+        assert!(router.is_enabled());
+        assert_eq!(router.threshold(), 150.0);
+    }
 }

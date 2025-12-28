@@ -578,4 +578,51 @@ mod tests {
         assert_eq!(cloned.connections_accepted, 100);
         assert_eq!(cloned.streams_handled, 500);
     }
+
+    #[test]
+    fn test_check_certificates_missing_cert() {
+        let config = QuicConfig {
+            cert_path: "/nonexistent/cert.crt".to_string(),
+            key_path: "/nonexistent/key.pem".to_string(),
+            ..Default::default()
+        };
+        let server = QuicServer::new(config, ProxyConfig::default());
+        let result = server.check_certificates();
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("certificate not found")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_quic_server_run_fails_without_certs() {
+        let config = QuicConfig {
+            bind_address: "127.0.0.1:0".to_string(),
+            cert_path: "/does/not/exist.crt".to_string(),
+            key_path: "/does/not/exist.key".to_string(),
+            ..Default::default()
+        };
+        let server = QuicServer::new(config, ProxyConfig::default());
+
+        let result = server.run_with_shutdown(async {}).await;
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_quic_config_debug() {
+        let config = QuicConfig::default();
+        let debug_str = format!("{:?}", config);
+        assert!(debug_str.contains("bind_address"));
+        assert!(debug_str.contains("cert_path"));
+    }
+
+    #[test]
+    fn test_quic_stats_debug() {
+        let stats = QuicStats::default();
+        let debug_str = format!("{:?}", stats);
+        assert!(debug_str.contains("connections_accepted"));
+    }
 }
