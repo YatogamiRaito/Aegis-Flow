@@ -542,6 +542,14 @@ mod tests {
     }
 
     #[test]
+    fn test_tee_platform_names() {
+        assert_eq!(TeePlatform::IntelSgx.name(), "Intel SGX");
+        assert_eq!(TeePlatform::IntelTdx.name(), "Intel TDX");
+        assert_eq!(TeePlatform::AmdSevSnp.name(), "AMD SEV-SNP");
+        assert_eq!(TeePlatform::None.name(), "None (Simulation)");
+    }
+
+    #[test]
     fn test_attestation_quote_creation() {
         let quote = AttestationQuote::new(
             TeePlatform::IntelSgx,
@@ -574,12 +582,55 @@ mod tests {
     }
 
     #[test]
+    fn test_attestation_quote_serialization_all_platforms() {
+        for platform in [
+            TeePlatform::IntelSgx,
+            TeePlatform::IntelTdx,
+            TeePlatform::AmdSevSnp,
+            TeePlatform::None,
+        ] {
+            let original = AttestationQuote::new(
+                platform,
+                b"quote".to_vec(),
+                b"nonce".to_vec(),
+                b"data".to_vec(),
+            );
+
+            let bytes = original.to_bytes();
+            let recovered = AttestationQuote::from_bytes(&bytes).unwrap();
+            assert_eq!(recovered.platform, platform);
+        }
+    }
+
+    #[test]
+    fn test_attestation_quote_from_bytes_error_short() {
+        let too_short = vec![0u8; 10];
+        assert!(AttestationQuote::from_bytes(&too_short).is_err());
+    }
+
+    #[test]
     fn test_enclave_identity() {
         let identity = EnclaveIdentity::new([1u8; 32], [2u8; 32], 1, 1, false);
 
         assert!(identity.is_production());
         assert!(identity.verify_mrenclave(&[1u8; 32]));
         assert!(!identity.verify_mrenclave(&[0u8; 32]));
+    }
+
+    #[test]
+    fn test_enclave_identity_debug_mode() {
+        let debug_identity = EnclaveIdentity::new([1u8; 32], [2u8; 32], 1, 1, true);
+        assert!(!debug_identity.is_production());
+    }
+
+    #[test]
+    fn test_enclave_identity_mrsigner() {
+        let identity = EnclaveIdentity::new([1u8; 32], [2u8; 32], 42, 5, false);
+
+        assert!(identity.verify_mrsigner(&[2u8; 32]));
+        assert!(!identity.verify_mrsigner(&[0u8; 32]));
+        assert_eq!(identity.product_id, 42);
+        assert_eq!(identity.svn, 5);
     }
 
     #[test]
@@ -594,6 +645,40 @@ mod tests {
                 | TeePlatform::IntelTdx
                 | TeePlatform::AmdSevSnp
         ));
+    }
+
+    #[test]
+    fn test_tee_capabilities_default() {
+        let caps = TeeCapabilities::default();
+        assert!(!caps.any_available());
+        assert_eq!(caps.best_platform(), TeePlatform::None);
+    }
+
+    #[test]
+    fn test_tee_capabilities_priority() {
+        // TDX has highest priority
+        let caps = TeeCapabilities {
+            sgx: true,
+            tdx: true,
+            sev_snp: true,
+            ..Default::default()
+        };
+        assert_eq!(caps.best_platform(), TeePlatform::IntelTdx);
+
+        // SGX is second
+        let caps = TeeCapabilities {
+            sgx: true,
+            sev_snp: true,
+            ..Default::default()
+        };
+        assert_eq!(caps.best_platform(), TeePlatform::IntelSgx);
+
+        // SEV-SNP is third
+        let caps = TeeCapabilities {
+            sev_snp: true,
+            ..Default::default()
+        };
+        assert_eq!(caps.best_platform(), TeePlatform::AmdSevSnp);
     }
 
     #[test]
@@ -615,6 +700,26 @@ mod tests {
     }
 
     #[test]
+    fn test_attestation_provider_default() {
+        let provider = AttestationProvider::default();
+        assert!(matches!(
+            provider.platform(),
+            TeePlatform::None
+                | TeePlatform::IntelSgx
+                | TeePlatform::IntelTdx
+                | TeePlatform::AmdSevSnp
+        ));
+    }
+
+    #[test]
+    fn test_attestation_provider_debug() {
+        let provider = AttestationProvider::new();
+        let debug_str = format!("{:?}", provider);
+        assert!(debug_str.contains("AttestationProvider"));
+        assert!(debug_str.contains("platform"));
+    }
+
+    #[test]
     fn test_quote_with_signature() {
         let quote = AttestationQuote::new(
             TeePlatform::None,
@@ -627,4 +732,46 @@ mod tests {
         assert!(quote.signature.is_some());
         assert_eq!(quote.signature.unwrap(), b"signature");
     }
+
+    #[test]
+    fn test_quote_signature_serialization() {
+        let original = AttestationQuote::new(
+            TeePlatform::None,
+            b"quote".to_vec(),
+            b"nonce".to_vec(),
+            b"data".to_vec(),
+        )
+        .with_signature(b"my_signature".to_vec());
+
+        let bytes = original.to_bytes();
+        let recovered = AttestationQuote::from_bytes(&bytes).unwrap();
+
+        assert!(recovered.signature.is_some());
+        assert_eq!(recovered.signature.unwrap(), b"my_signature");
+    }
+
+    #[test]
+    fn test_attestation_provider_capabilities() {
+        let provider = AttestationProvider::new();
+        let caps = provider.capabilities();
+
+        // Just check it returns a valid reference
+        let _ = caps.any_available();
+    }
+
+    #[test]
+    fn test_quote_freshness() {
+        let quote = AttestationQuote::new(
+            TeePlatform::None,
+            b"quote".to_vec(),
+            b"nonce".to_vec(),
+            b"data".to_vec(),
+        );
+
+        // Fresh within 1 hour
+        assert!(quote.is_fresh(3600));
+        // Fresh within 1 second
+        assert!(quote.is_fresh(1));
+    }
 }
+
