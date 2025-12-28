@@ -449,4 +449,93 @@ mod tests {
         let result = CertManager::parse_der(&invalid_der);
         assert!(result.is_err());
     }
+
+    #[test]
+    fn test_verify_chain_untrusted_issuer() {
+        let (ca_pem, _) = CertManager::generate_self_signed("Untrusted CA", &[], 365).unwrap();
+        let _ca_cert = CertManager::parse_pem(ca_pem.as_bytes()).unwrap();
+
+        // Leaf cert signed by CA (simulation, since we can't easily sign with rcgen without key)
+        // But verify_chain only checks subject/issuer match logic in this implementation
+        // effectively trusting if issuer is in trusted list.
+        // So we can mock a cert with issuer = "Untrusted CA"
+
+        let now = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+        let leaf = ParsedCert {
+            subject_cn: "leaf".to_string(),
+            issuer_cn: "Untrusted CA".to_string(),
+            serial: "1".to_string(),
+            not_before: now,
+            not_after: now + 1000,
+            cert_type: CertType::EndEntity,
+            fingerprint: "abc".to_string(),
+            san: vec![],
+            der_bytes: vec![],
+        };
+
+        let manager = CertManager::new();
+        // issuer not in trusted CAs
+        assert!(manager.verify_chain(&leaf).is_err());
+    }
+
+    #[test]
+    fn test_verify_chain_expired_ca() {
+        let (ca_pem, _) = CertManager::generate_self_signed("Expired CA", &[], 365).unwrap();
+        let mut ca_cert = CertManager::parse_pem(ca_pem.as_bytes()).unwrap();
+
+        // Force expiry
+        let now = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+        ca_cert.not_after = now - 100; // Expired
+        ca_cert.cert_type = CertType::RootCa;
+
+        let mut manager = CertManager::new();
+        manager.add_trusted_ca(ca_cert).unwrap();
+
+        let leaf = ParsedCert {
+            subject_cn: "leaf".to_string(),
+            issuer_cn: "Expired CA".to_string(), // Matches expired CA
+            serial: "1".to_string(),
+            not_before: now,
+            not_after: now + 1000,
+            cert_type: CertType::EndEntity,
+            fingerprint: "abc".to_string(),
+            san: vec![],
+            der_bytes: vec![],
+        };
+
+        // Should fail due to expired CA
+        let result = manager.verify_chain(&leaf);
+        assert!(result.is_err());
+        match result {
+            Err(AegisError::Crypto(msg)) => assert!(msg.contains("expired")),
+            _ => panic!("Expected expiry error"),
+        }
+    }
+
+    #[test]
+    fn test_set_server_cert_ca_warning() {
+        let (ca_pem, key_pem) = CertManager::generate_self_signed("Root CA", &[], 365).unwrap();
+        let mut ca_cert = CertManager::parse_pem(ca_pem.as_bytes()).unwrap();
+        ca_cert.cert_type = CertType::RootCa; // Explicitly set as CA
+
+        let mut manager = CertManager::new();
+        // Should succeed (but log warn, which we can't test, but we exercise the path)
+        assert!(manager.set_server_cert(ca_cert, key_pem).is_ok());
+    }
+
+    #[test]
+    fn test_generate_invalid_san() {
+        // Passing invalid SAN strings
+        let (cert, _) =
+            CertManager::generate_self_signed("test", &["invalid san string".to_string()], 1)
+                .unwrap();
+        // Should just skip it and succeed
+        assert!(cert.len() > 0);
+    }
 }
