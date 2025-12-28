@@ -100,7 +100,8 @@ mod tests {
     #[test]
     fn test_record_totals() {
         let exporter = EnergyPrometheusExporter::new();
-        exporter.record_totals(100, 0.5);
+        exporter.record_totals(100, 95.5);
+        // Should complete without panicking
     }
 
     #[test]
@@ -172,5 +173,25 @@ mod tests {
         let cloned = metrics.clone();
         assert_eq!(metrics.endpoint, cloned.endpoint);
         assert_eq!(metrics.bytes_transferred, cloned.bytes_transferred);
+    }
+
+    #[test]
+    fn test_exporter_default() {
+        let exporter = EnergyPrometheusExporter::default();
+        let _ = exporter;
+    }
+
+    #[test]
+    fn test_exporter_debug() {
+        let exporter = EnergyPrometheusExporter::new();
+        let debug_str = format!("{:?}", exporter);
+        assert!(debug_str.contains("EnergyPrometheusExporter"));
+    }
+
+    #[test]
+    fn test_init_metrics_multiple_calls() {
+        init_energy_metrics();
+        init_energy_metrics();
+        // Should be idempotent
     }
 }

@@ -848,7 +848,7 @@ mod tests {
             fingerprint: "abc123".to_string(),
             expires_at: 1234567890,
         };
-        
+
         assert!(result.verified);
         assert!(result.subject_cn.unwrap().contains("test.example.com"));
     }
@@ -861,7 +861,7 @@ mod tests {
             fingerprint: "def456".to_string(),
             expires_at: 0,
         };
-        
+
         assert!(!result.verified);
     }
 

@@ -681,4 +681,83 @@ mod tests {
         let cloned = score.clone();
         assert_eq!(score.region_id, cloned.region_id);
     }
+
+    #[test]
+    fn test_carbon_router_config_disabled() {
+        let config = CarbonRouterConfig {
+            enabled: false,
+            threshold: 100.0,
+            max_intensity: 300.0,
+            prefer_renewable: false,
+            preferred_regions: vec![],
+            carbon_weight: 0.3,
+        };
+
+        assert!(!config.enabled);
+        assert!(!config.prefer_renewable);
+    }
+
+    #[test]
+    fn test_carbon_router_config_extreme_values() {
+        let config = CarbonRouterConfig {
+            enabled: true,
+            threshold: 0.0,
+            max_intensity: 1000.0,
+            prefer_renewable: true,
+            preferred_regions: vec!["us-west-1".to_string()],
+            carbon_weight: 1.0,
+        };
+
+        assert_eq!(config.threshold, 0.0);
+        assert_eq!(config.max_intensity, 1000.0);
+        assert_eq!(config.carbon_weight, 1.0);
+    }
+
+    #[test]
+    fn test_region_score_not_recommended() {
+        let score = RegionScore {
+            region_id: "high-carbon".to_string(),
+            carbon_intensity: 450.0,
+            score: 0.9,
+            recommended: false,
+        };
+
+        assert_eq!(score.carbon_intensity, 450.0);
+        assert!(!score.recommended);
+    }
+
+    #[test]
+    fn test_region_score_zero_intensity() {
+        let score = RegionScore {
+            region_id: "renewable-region".to_string(),
+            carbon_intensity: 0.0,
+            score: 0.0,
+            recommended: true,
+        };
+
+        assert_eq!(score.carbon_intensity, 0.0);
+        assert_eq!(score.score, 0.0);
+    }
+
+    #[test]
+    fn test_carbon_router_config_clone() {
+        let config1 = CarbonRouterConfig::default();
+        let config2 = config1.clone();
+
+        assert_eq!(config1.threshold, config2.threshold);
+        assert_eq!(config1.carbon_weight, config2.carbon_weight);
+    }
+
+    #[test]
+    fn test_region_score_debug() {
+        let score = RegionScore {
+            region_id: "test-region".to_string(),
+            carbon_intensity: 150.0,
+            score: 0.5,
+            recommended: true,
+        };
+
+        let debug_str = format!("{:?}", score);
+        assert!(debug_str.contains("RegionScore"));
+    }
 }
