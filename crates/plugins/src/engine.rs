@@ -331,4 +331,25 @@ mod tests {
         let debug_str = format!("{:?}", config);
         assert!(debug_str.contains("WasmEngineConfig"));
     }
+
+    #[test]
+    fn test_wasm_engine_config_custom_values() {
+        let config = WasmEngineConfig {
+            max_memory_bytes: 1024 * 1024 * 512, // 512MB
+            initial_fuel: 5_000_000,
+            cache_modules: false,
+            ..Default::default()
+        };
+        assert_eq!(config.max_memory_bytes, 512 * 1024 * 1024);
+        assert_eq!(config.initial_fuel, 5_000_000);
+        assert!(!config.cache_modules);
+    }
+
+    #[test]
+    fn test_compile_incomplete_wasm_header() {
+        let engine = WasmEngine::new().unwrap();
+        let invalid_bytes = vec![0x00, 0x61, 0x73, 0x6d]; // Incomplete WASM header
+        let result = engine.compile_module("invalid", &invalid_bytes);
+        assert!(result.is_err());
+    }
 }

@@ -393,4 +393,29 @@ mod tests {
         let debug_str = format!("{:?}", info);
         assert!(debug_str.contains("PluginInfo"));
     }
+
+    #[test]
+    fn test_registry_disable_enable_plugin() {
+        let registry = create_test_registry();
+        let wasm_bytes = wat::parse_str("(module)").unwrap();
+        registry.load_plugin_bytes("toggle_test", &wasm_bytes).unwrap();
+
+        assert!(registry.has_plugin("toggle_test"));
+        let plugins = registry.list_plugins();
+        let info = plugins.iter().find(|p| p.name == "toggle_test").unwrap();
+        assert!(info.enabled);
+    }
+
+    #[test]
+    fn test_registry_has_plugin_check() {
+        let registry = create_test_registry();
+        let wasm_bytes = wat::parse_str("(module)").unwrap();
+        registry.load_plugin_bytes("get_test", &wasm_bytes).unwrap();
+
+        let exists = registry.has_plugin("get_test");
+        assert!(exists);
+
+        let nonexistent = registry.has_plugin("does_not_exist");
+        assert!(!nonexistent);
+    }
 }

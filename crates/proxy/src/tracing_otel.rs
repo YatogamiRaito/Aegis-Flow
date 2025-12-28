@@ -297,4 +297,27 @@ mod tests {
         let header = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-ZZ";
         assert!(TraceContext::parse_traceparent(header).is_none());
     }
+
+    #[test]
+    fn test_trace_context_clone() {
+        let ctx = TraceContext::new();
+        let cloned = ctx.clone();
+        assert_eq!(ctx.trace_id, cloned.trace_id);
+        assert_eq!(ctx.span_id, cloned.span_id);
+    }
+
+    #[test]
+    fn test_span_context_none() {
+        let span = Span::none();
+        let debug_str = format!("{:?}", span);
+        assert!(debug_str.contains("Span"));
+    }
+
+    #[test]
+    fn test_trace_context_debug() {
+        let ctx = TraceContext::new();
+        let debug_str = format!("{:?}", ctx);
+        assert!(debug_str.contains("trace_id"));
+        assert!(debug_str.contains("span_id"));
+    }
 }

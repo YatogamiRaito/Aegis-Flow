@@ -267,4 +267,20 @@ mod tests {
 
         assert_eq!(imm.headers.get("X-Custom").unwrap(), "Value");
     }
+
+    #[test]
+    fn test_plugin_request_clone() {
+        let req = PluginRequest::new("clone-id", "GET", "/test");
+        let cloned = req.clone();
+        assert_eq!(req.id, cloned.id);
+        assert_eq!(req.method, cloned.method);
+    }
+
+    #[test]
+    fn test_plugin_response_clone() {
+        let resp = PluginResponse::immediate(500, "Error");
+        let cloned = resp.clone();
+        assert!(!cloned.continue_processing);
+        assert!(cloned.immediate_response.is_some());
+    }
 }
