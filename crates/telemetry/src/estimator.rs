@@ -346,11 +346,11 @@ mod tests {
         let estimator = EnergyEstimator::new();
         let duration = Duration::from_secs(1);
         let bytes = 1_000_000;
-        
+
         let metrics = estimator.estimate_from_duration("/manual", "TEST", duration, bytes);
-        
+
         // Verify calculations: ~0.1516 J
-        assert!(metrics.total_joules() > 0.15); 
+        assert!(metrics.total_joules() > 0.15);
         assert!(metrics.total_joules() < 0.16);
         assert_eq!(metrics.bytes_transferred, bytes);
         assert_eq!(metrics.endpoint, "/manual");

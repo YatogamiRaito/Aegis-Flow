@@ -311,6 +311,49 @@ mod tests {
     }
 
     #[test]
+    fn test_record_on_nonexistent_request() {
+        let metrics = EbpfMetrics::new();
+        // Should not panic, but global counters still increment per implementation
+        metrics.record_cpu_cycles("ghost", 100);
+        metrics.record_network("ghost", 100, 100);
+
+        assert_eq!(metrics.total_cpu_cycles(), 100);
+        assert_eq!(metrics.total_network_bytes(), 200);
+    }
+
+    #[test]
+    fn test_metrics_debug_impls() {
+        let metrics = EbpfMetrics::new();
+        assert!(format!("{:?}", metrics).contains("EbpfMetrics"));
+
+        let data = EbpfRequestData::default();
+        assert!(format!("{:?}", data).contains("EbpfRequestData"));
+
+        let coeffs = EnergyCoefficients::default();
+        assert!(format!("{:?}", coeffs).contains("EnergyCoefficients"));
+    }
+
+    #[test]
+    fn test_metrics_default() {
+        let metrics = EbpfMetrics::default();
+        assert_eq!(metrics.total_cpu_cycles(), 0);
+    }
+
+    #[test]
+    fn test_coefficients_clone() {
+        let c1 = EnergyCoefficients::default();
+        let c2 = c1.clone();
+        assert_eq!(c1.joules_per_cycle, c2.joules_per_cycle);
+    }
+
+    #[test]
+    fn test_request_data_clone() {
+        let d1 = EbpfRequestData::default();
+        let d2 = d1.clone();
+        assert_eq!(d1.cpu_cycles, d2.cpu_cycles);
+    }
+
+    #[test]
     fn test_total_network_bytes_accumulates() {
         let metrics = EbpfMetrics::new();
         metrics.start_request("r1");
