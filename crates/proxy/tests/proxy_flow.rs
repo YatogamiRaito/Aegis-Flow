@@ -30,7 +30,7 @@ async fn get_free_port() -> u16 {
 #[tokio::test]
 async fn test_http_proxy_metrics_endpoint() {
     // 1. Initialize metrics (ignore errors if already initialized)
-    let _ = std::panic::catch_unwind(|| aegis_proxy::metrics::init_metrics());
+    let _ = std::panic::catch_unwind(aegis_proxy::metrics::init_metrics);
 
     // 2. Setup Proxy Config
     let proxy_port = get_free_port().await;

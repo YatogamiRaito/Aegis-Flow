@@ -188,4 +188,36 @@ mod tests {
 
         assert_eq!(result2.value, 100.0); // Still 100, not 999
     }
+
+    #[tokio::test]
+    async fn test_cache_clear() {
+        let cache = CarbonIntensityCache::new(60);
+        cache.put(create_test_intensity("R1", 100.0)).await;
+        cache.put(create_test_intensity("R2", 200.0)).await;
+
+        // Just verify clear() doesn't panic
+        cache.clear().await;
+    }
+
+    #[tokio::test]
+    async fn test_cache_len_and_is_empty() {
+        let cache = CarbonIntensityCache::new(60);
+        assert!(cache.is_empty());
+
+        cache.put(create_test_intensity("R1", 100.0)).await;
+        // Moka's entry_count may not update immediately, so we just test it doesn't panic
+        let _ = cache.len();
+    }
+
+    #[test]
+    fn test_default_ttl() {
+        let cache = CarbonIntensityCache::new(120);
+        assert_eq!(cache.default_ttl(), Duration::from_secs(120));
+    }
+
+    #[test]
+    fn test_default_cache() {
+        let cache = CarbonIntensityCache::default();
+        assert_eq!(cache.default_ttl(), Duration::from_secs(300));
+    }
 }

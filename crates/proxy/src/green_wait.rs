@@ -526,4 +526,92 @@ mod tests {
         assert_eq!(ready.len(), 1);
         assert_eq!(scheduler.queue_length().await, 0);
     }
+
+    #[tokio::test]
+    async fn test_disabled_scheduler() {
+        let client = MockClient { intensity: 50.0 };
+        let cache = CarbonIntensityCache::new(300);
+        let config = GreenWaitConfig {
+            enabled: false,
+            ..Default::default()
+        };
+        let scheduler = GreenWaitScheduler::new(config, client, cache);
+        assert!(!scheduler.is_enabled());
+
+        let job = DeferredJob::new(
+            "job-1",
+            JobPriority::Normal,
+            Region::new("us-west", "US West"),
+            100.0,
+            vec![],
+        );
+        let result = scheduler.submit(job).await;
+        assert!(matches!(result, ScheduleResult::Disabled));
+    }
+
+    #[tokio::test]
+    async fn test_queue_full() {
+        let client = MockClient { intensity: 500.0 };
+        let cache = CarbonIntensityCache::new(300);
+        let config = GreenWaitConfig {
+            max_queue_size: 2,
+            ..Default::default()
+        };
+        let scheduler = GreenWaitScheduler::new(config, client, cache);
+        scheduler.update_region_intensity("us-west", 500.0).await;
+
+        // Fill the queue
+        for i in 0..2 {
+            let job = DeferredJob::new(
+                format!("job-{}", i),
+                JobPriority::Normal,
+                Region::new("us-west", "US West"),
+                100.0,
+                vec![],
+            );
+            scheduler.submit(job).await;
+        }
+
+        // This should be rejected
+        let job = DeferredJob::new(
+            "job-overflow",
+            JobPriority::Normal,
+            Region::new("us-west", "US West"),
+            100.0,
+            vec![],
+        );
+        let result = scheduler.submit(job).await;
+        assert!(matches!(result, ScheduleResult::QueueFull));
+    }
+
+    #[test]
+    fn test_job_time_remaining() {
+        let job = DeferredJob::new(
+            "job-1",
+            JobPriority::High, // 5 minutes wait
+            Region::new("us-west", "US West"),
+            100.0,
+            vec![1, 2, 3],
+        );
+        let remaining = job.time_remaining();
+        assert!(remaining > Duration::ZERO);
+        assert!(remaining <= Duration::from_secs(300));
+        assert!(!job.is_expired());
+    }
+
+    #[test]
+    fn test_is_running() {
+        let client = MockClient { intensity: 50.0 };
+        let cache = CarbonIntensityCache::new(300);
+        let scheduler = GreenWaitScheduler::new(GreenWaitConfig::default(), client, cache);
+        assert!(scheduler.is_running());
+    }
+
+    #[test]
+    fn test_background_priority_wait_time() {
+        assert_eq!(
+            JobPriority::Background.max_wait_duration(),
+            Duration::from_secs(86400)
+        );
+    }
 }

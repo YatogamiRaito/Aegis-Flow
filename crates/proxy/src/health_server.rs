@@ -281,4 +281,17 @@ mod tests {
         let resp = handle_request(req, lifecycle, None).await.unwrap();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
+
+    #[tokio::test]
+    async fn test_handle_request_metrics_disabled() {
+        let lifecycle = create_test_lifecycle();
+        let req = Request::builder()
+            .uri("/metrics")
+            .method(Method::GET)
+            .body(http_body_util::Empty::<Bytes>::new())
+            .unwrap();
+
+        let resp = handle_request(req, lifecycle, None).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::NOT_IMPLEMENTED);
+    }
 }
