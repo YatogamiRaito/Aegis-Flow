@@ -156,4 +156,16 @@ mod tests {
         loader.load().unwrap();
         assert!(loader.is_loaded());
     }
+
+    #[test]
+    fn test_loader_mock_behavior() {
+        // Force mock mode logic check
+        let loader = EbpfLoader::new();
+        // Just verify basic property access
+        let _ = loader.is_mock();
+        
+        assert!(!loader.is_loaded());
+        loader.load().unwrap();
+        assert!(loader.is_loaded());
+    }
 }

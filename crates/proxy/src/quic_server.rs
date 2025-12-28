@@ -398,7 +398,36 @@ mod tests {
         let _ = fs::remove_file(cert_path);
         let _ = fs::remove_file(key_path);
 
-        assert!(result.is_ok(), "Server shutdown timed out");
         assert!(result.unwrap().unwrap().is_ok(), "Server run failed");
+    }
+
+    #[test]
+    fn test_quic_config_defaults() {
+        let config = QuicConfig::default();
+        assert_eq!(config.bind_address, "0.0.0.0:443");
+        assert!(config.enable_0rtt);
+        assert!(config.pqc_enabled);
+        assert_eq!(config.max_streams, 100);
+    }
+
+    #[tokio::test]
+    async fn test_quic_server_new() {
+        let proxy_config = ProxyConfig::default();
+        let server = QuicServer::with_defaults(proxy_config.clone());
+        
+        let stats = server.stats().await;
+        assert_eq!(stats.connections_accepted, 0);
+        assert_eq!(stats.active_connections, 0);
+    }
+    
+    #[tokio::test]
+    async fn test_check_certificates_fail() {
+        // Points to non-existent files by default
+        let proxy_config = ProxyConfig::default();
+        let server = QuicServer::with_defaults(proxy_config);
+        
+        // Should fail because default cert paths likely don't exist
+        let result = server.check_certificates();
+        assert!(result.is_err());
     }
 }
