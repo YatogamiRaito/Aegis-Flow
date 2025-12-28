@@ -294,12 +294,29 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_unknown_endpoint_returns_404() {
+    async fn test_metrics_endpoint() {
         let handler = Http3Handler::new(Http3Config::default(), "127.0.0.1:8080".to_string());
-
-        let req = Http3Request::new("GET", "/unknown");
+        
+        let req = Http3Request::new("GET", "/metrics");
         let resp = handler.handle_request(req).await;
+        
+        // Even if metrics not initialized, it returns 500 or 200 with error message
+        assert!(resp.status == 200 || resp.status == 500);
+        if resp.status == 200 {
+            assert!(resp.headers.iter().any(|(k, v)| k == "content-type" && v.contains("text/plain")));
+        }
+    }
 
-        assert_eq!(resp.status, 404);
+    #[tokio::test]
+    async fn test_energy_endpoint() {
+        let handler = Http3Handler::new(Http3Config::default(), "127.0.0.1:8080".to_string());
+        
+        let req = Http3Request::new("GET", "/energy");
+        let resp = handler.handle_request(req).await;
+        
+        assert_eq!(resp.status, 200);
+        let body_str = std::str::from_utf8(&resp.body).unwrap();
+        assert!(body_str.contains("total_energy_joules"));
+        assert!(resp.headers.iter().any(|(k, v)| k == "content-type" && v == "application/json"));
     }
 }

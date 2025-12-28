@@ -272,4 +272,42 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn test_server_complete_invalid_ciphertext() {
+        let config = PqcTlsConfig::default();
+        let handshake = PqcHandshake::new(config);
+        let (_, state) = handshake.server_init().unwrap();
+        
+        // Create invalid ciphertext
+        let invalid_ct = HybridCiphertext::from_bytes(&vec![0u8; 100]).unwrap(); 
+        // Note: HybridCiphertext::from_bytes implementation defines if this fails or creates potentially invalid struct. 
+        // Assuming from_bytes checks length. If not, decapsulate should fail.
+        
+        // Let's try to corrupt a valid ciphertext
+        let client_h = PqcHandshake::new(PqcTlsConfig::default());
+        let (pk, _) = client_h.server_init().unwrap(); // Just to get a PK
+        let (mut ct, _) = client_h.client_complete(&pk).unwrap();
+        
+        // Corrupt it (if internal structure allows access, otherwise from_bytes)
+        // HybridCiphertext fields are private likely. 
+        // Let's rely on decapsulate returning error for mismatched keys.
+        
+        // Test Mismatched Keys implicitly:
+        // Use ciphertext encrypted for a DIFFERENT key
+        let (_, other_state) = handshake.server_init().unwrap();
+        
+        let result = handshake.server_complete(&ct, other_state);
+        // Decapsulation MUST fail if the secret key doesn't match the public key used for encapsulation
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_secure_channel_debug() {
+        let channel = SecureChannel::new([0u8; 32], 123, PqcAlgorithm::HybridMlKem768);
+        let debug_str = format!("{:?}", channel);
+        assert!(debug_str.contains("SecureChannel"));
+        assert!(debug_str.contains("123"));
+        assert!(!debug_str.contains("secret")); // Should not leak keys
+    }
 }

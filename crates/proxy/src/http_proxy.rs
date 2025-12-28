@@ -53,33 +53,57 @@ impl HttpProxy {
 
     /// Run the proxy server
     #[instrument(skip(self))]
+    /// Run the proxy server
+    #[instrument(skip(self))]
     pub async fn run(&self) -> Result<()> {
+        self.run_with_shutdown(std::future::pending()).await
+    }
+
+    /// Run the proxy server with a shutdown signal
+    pub async fn run_with_shutdown(&self, shutdown: impl std::future::Future<Output = ()>) -> Result<()> {
         let listener = TcpListener::bind(self.config.listen_addr).await?;
 
         info!("🌐 HTTP/2 Proxy listening on {}", self.config.listen_addr);
         info!("🔄 Forwarding to {}", self.config.upstream_addr);
 
+        tokio::pin!(shutdown);
+
         loop {
-            let (stream, peer_addr) = listener.accept().await?;
-            let io = TokioIo::new(stream);
-            let upstream = self.config.upstream_addr.clone();
+            tokio::select! {
+                accept_result = listener.accept() => {
+                    match accept_result {
+                        Ok((stream, peer_addr)) => {
+                            let io = TokioIo::new(stream);
+                            let upstream = self.config.upstream_addr.clone();
 
-            tokio::spawn(async move {
-                debug!("📥 HTTP/2 connection from {}", peer_addr);
+                            tokio::spawn(async move {
+                                debug!("📥 HTTP/2 connection from {}", peer_addr);
 
-                let service = service_fn(move |req| {
-                    let upstream = upstream.clone();
-                    async move { handle_request(req, &upstream).await }
-                });
+                                let service = service_fn(move |req| {
+                                    let upstream = upstream.clone();
+                                    async move { handle_request(req, &upstream).await }
+                                });
 
-                if let Err(e) = http2::Builder::new(TokioExecutor)
-                    .serve_connection(io, service)
-                    .await
-                {
-                    error!("❌ HTTP/2 connection error: {}", e);
+                                if let Err(e) = http2::Builder::new(TokioExecutor)
+                                    .serve_connection(io, service)
+                                    .await
+                                {
+                                    error!("❌ HTTP/2 connection error: {}", e);
+                                }
+                            });
+                        }
+                        Err(e) => {
+                            error!("❌ Accept error: {}", e);
+                        }
+                    }
                 }
-            });
+                _ = &mut shutdown => {
+                    info!("🛑 Shutting down HTTP/2 proxy");
+                    break;
+                }
+            }
         }
+        Ok(())
     }
 }
 

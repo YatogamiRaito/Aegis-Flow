@@ -423,5 +423,30 @@ mod tests {
         manager.add_trusted_ca(ca_cert).unwrap();
 
         assert_eq!(manager.trusted_ca_count(), 1);
+    } // Missing brace restored
+
+    #[test]
+    fn test_load_missing_file() {
+        let path = Path::new("/path/to/non/existent/file.crt");
+        let result = CertManager::load_from_file(path);
+        // Should be AegisError::Config or IoError
+        match result {
+            Err(AegisError::Config(msg)) => assert!(msg.contains("Failed to read")),
+            _ => panic!("Expected Config error handling IO failure"),
+        }
+    }
+
+    #[test]
+    fn test_parse_invalid_pem() {
+        let invalid_pem = b"-----BEGIN CERTIFICATE-----\nINVALID_DATA\n-----END CERTIFICATE-----";
+        let result = CertManager::parse_pem(invalid_pem);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_invalid_der() {
+        let invalid_der = vec![0u8; 100]; // Just zeros
+        let result = CertManager::parse_der(&invalid_der);
+        assert!(result.is_err());
     }
 }
