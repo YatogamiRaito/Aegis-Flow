@@ -137,7 +137,7 @@ impl ServiceRegistry {
             LoadBalanceStrategy::WeightedRoundRobin => {
                 // Use weights for selection
                 let total_weight: u32 = healthy.iter().map(|e| e.weight).sum();
-                
+
                 use rand::Rng;
                 let mut target = rand::thread_rng().gen_range(0..total_weight);
                 for ep in &healthy {
