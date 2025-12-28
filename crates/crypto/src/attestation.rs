@@ -773,4 +773,37 @@ mod tests {
         // Fresh within 1 second
         assert!(quote.is_fresh(1));
     }
+
+    #[test]
+    fn test_enclave_identity_new() {
+        let identity = EnclaveIdentity::new([0; 32], [1; 32], 100, 5, false);
+        assert_eq!(identity.product_id, 100);
+        assert_eq!(identity.svn, 5);
+        assert!(!identity.debug_mode);
+    }
+
+    #[test]
+    fn test_enclave_identity_is_production() {
+        let production = EnclaveIdentity::new([0; 32], [1; 32], 1, 1, false);
+        assert!(production.is_production());
+
+        let debug = EnclaveIdentity::new([0; 32], [1; 32], 1, 1, true);
+        assert!(!debug.is_production());
+    }
+
+    #[test]
+    fn test_tee_platform_name() {
+        assert_eq!(TeePlatform::IntelSgx.name(), "Intel SGX");
+        assert_eq!(TeePlatform::IntelTdx.name(), "Intel TDX");
+        assert_eq!(TeePlatform::AmdSevSnp.name(), "AMD SEV-SNP");
+        assert_eq!(TeePlatform::None.name(), "None (Simulation)");
+    }
+
+    #[test]
+    fn test_tee_platform_is_tee() {
+        assert!(TeePlatform::IntelSgx.is_tee());
+        assert!(TeePlatform::IntelTdx.is_tee());
+        assert!(TeePlatform::AmdSevSnp.is_tee());
+        assert!(!TeePlatform::None.is_tee());
+    }
 }
