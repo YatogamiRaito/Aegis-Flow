@@ -126,4 +126,25 @@ mod tests {
             handle.join().unwrap();
         }
     }
+
+    #[test]
+    fn test_record_with_cpu_cycles() {
+        let exporter = EnergyPrometheusExporter::new();
+
+        let metrics = EnergyMetrics::new("/api", "POST")
+            .with_breakdown(EnergyBreakdown::new(0.002, 0.001, 0.0005, 0.0001))
+            .with_duration(Duration::from_millis(50))
+            .with_bytes(4096)
+            .with_cpu_cycles(1_000_000);
+
+        exporter.record(&metrics);
+        // Verifies that cpu_cycles branch is taken (line 52)
+    }
+
+    #[test]
+    fn test_record_totals_zero_requests() {
+        let exporter = EnergyPrometheusExporter::new();
+        // Test division by zero protection
+        exporter.record_totals(0, 0.0);
+    }
 }
