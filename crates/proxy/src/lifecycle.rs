@@ -513,4 +513,17 @@ mod tests {
         assert_eq!(response.connections, Some(100));
         assert_eq!(response.version, Some("0.14.0".to_string()));
     }
+
+    #[tokio::test]
+    async fn test_shutdown_idempotency_sequential() {
+        let manager = Arc::new(LifecycleManager::new());
+
+        // First call
+        manager.initiate_shutdown().await;
+        assert!(manager.is_shutting_down());
+
+        // Second call should handle gracefully
+        manager.initiate_shutdown().await;
+        assert!(manager.is_shutting_down());
+    }
 }

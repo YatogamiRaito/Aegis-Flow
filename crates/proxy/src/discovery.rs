@@ -515,4 +515,33 @@ mod tests {
             assert!(eps.contains(&ep));
         }
     }
+
+    #[tokio::test]
+    async fn test_weighted_round_robin_edge_cases() {
+        // Case 1: All weights zero (should fallback or behave gracefully)
+        let registry = ServiceRegistry::new(LoadBalanceStrategy::WeightedRoundRobin);
+        let ep1: SocketAddr = "127.0.0.1:8080".parse().unwrap();
+        registry.register("all-zero", vec![ep1]).await;
+
+        for _ in 0..3 {
+            registry.mark_failed("all-zero", ep1).await;
+        }
+        // At this point weight is 0. But get_endpoint filters for healthy.
+        // If we mark it healthy again, weight resets to 100.
+        // So let's test a case where we manually set weight to 0 if possible?
+        // We can't validly have a healthy endpoint with weight 0 via public API currently.
+        // But we can test single endpoint logic.
+
+        let result = registry.get_endpoint("all-zero").await;
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_mark_failed_nonexistent_service() {
+        let registry = ServiceRegistry::new(LoadBalanceStrategy::RoundRobin);
+        let ep1: SocketAddr = "127.0.0.1:8080".parse().unwrap();
+        // Should not panic
+        registry.mark_failed("nonexistent", ep1).await;
+        registry.mark_healthy("nonexistent", ep1).await;
+    }
 }

@@ -356,4 +356,20 @@ mod tests {
         lifecycle.mark_unhealthy().await;
         assert!(!lifecycle.health_status().await.is_ready());
     }
+
+    #[tokio::test]
+    async fn test_run_health_server_not_bindable() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+
+        let config = HealthConfig {
+            port,
+            enabled: true,
+            ..Default::default()
+        };
+        let lifecycle = Arc::new(LifecycleManager::new());
+
+        let result = run_health_server(config, lifecycle, None).await;
+        assert!(result.is_err());
+    }
 }
