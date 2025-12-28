@@ -241,7 +241,7 @@ chr1	100	.	A	T	99.0	PASS	DP=50
     #[test]
     fn test_vcf_parser_derive_traits() {
         // Test Default
-        let parser = VcfParser::default();
+        let parser = VcfParser;
         // Just verify we can use it
         let vcf_data = "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\nchr1\t100\t.\tA\tT\t.\t.\t.";
         let reader = Cursor::new(vcf_data);

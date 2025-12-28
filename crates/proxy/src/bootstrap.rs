@@ -67,13 +67,13 @@ mod tests {
 
         // 1. Tracing init (should be idempotent due to try_init usage in bootstrap,
         // but here we just check we can call registry)
-        let subscriber = tracing_subscriber::registry();
+        let _subscriber = tracing_subscriber::registry();
         assert!(std::thread::current().name().is_some()); // Just ensuring thread context exists
 
         // 2. Metrics init
         // We verify that calling init_metrics multiple times doesn't panic
-        let handle1 = crate::metrics::init_metrics();
-        let handle2 = crate::metrics::init_metrics();
+        let _handle1 = crate::metrics::init_metrics();
+        let _handle2 = crate::metrics::init_metrics();
         // Handles might be different clones, but underlying recorder should be set.
         // This confirms idempotency safety in our metrics.rs implementation (if we add it).
 
