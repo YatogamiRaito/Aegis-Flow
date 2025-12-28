@@ -219,4 +219,60 @@ mod tests {
         assert_eq!(ctx.get_baggage("tenant"), Some(&"acme".to_string()));
         assert_eq!(ctx.get_baggage("missing"), None);
     }
+
+    #[test]
+    fn test_span_event_names() {
+        assert_eq!(SpanEvent::RequestReceived.name(), "request.received");
+        assert_eq!(SpanEvent::RequestForwarded.name(), "request.forwarded");
+        assert_eq!(SpanEvent::ResponseReceived.name(), "response.received");
+        assert_eq!(SpanEvent::ResponseSent.name(), "response.sent");
+        assert_eq!(SpanEvent::Error.name(), "error");
+    }
+
+    #[test]
+    fn test_create_span() {
+        let ctx = TraceContext::new();
+        let span = create_span("test_operation", &ctx);
+        // Just verify it doesn't panic
+        drop(span);
+    }
+
+    #[test]
+    fn test_record_event() {
+        // Verify record_event doesn't panic for all variants
+        record_event(SpanEvent::RequestReceived, "test message");
+        record_event(SpanEvent::Error, "error message");
+    }
+
+    #[test]
+    fn test_from_headers() {
+        let mut headers = HashMap::new();
+        headers.insert(
+            "traceparent".to_string(),
+            "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01".to_string(),
+        );
+
+        let ctx = TraceContext::from_headers(&headers).unwrap();
+        assert_eq!(ctx.trace_id, "0af7651916cd43dd8448eb211c80319c");
+    }
+
+    #[test]
+    fn test_from_headers_missing() {
+        let headers = HashMap::new();
+        assert!(TraceContext::from_headers(&headers).is_none());
+    }
+
+    #[test]
+    fn test_default_trace_context() {
+        let ctx = TraceContext::default();
+        assert_eq!(ctx.trace_id.len(), 32);
+    }
+
+    #[test]
+    fn test_traceparent_not_sampled() {
+        let mut ctx = TraceContext::new();
+        ctx.sampled = false;
+        let header = ctx.to_traceparent();
+        assert!(header.ends_with("-00"));
+    }
 }
