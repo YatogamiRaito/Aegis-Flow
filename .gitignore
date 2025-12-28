@@ -1,1 +1,30 @@
+# Build artifacts
 /target
+
+# Coverage reports
+*.profraw
+*.profdata
+coverage/
+coverage_report/
+coverage_reports/
+tarpaulin-report.html
+lcov.info
+cobertura.xml
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Rust
+**/*.rs.bk
+Cargo.lock
+
+# Generated files
+*.log
