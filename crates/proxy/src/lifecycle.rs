@@ -679,4 +679,32 @@ mod tests {
         assert_ne!(HealthStatus::Healthy, HealthStatus::Starting);
         assert_ne!(HealthStatus::Starting, HealthStatus::Draining);
     }
+
+    #[tokio::test]
+    async fn test_lifecycle_manager_default() {
+        let manager = LifecycleManager::default();
+        // Should be same as new()
+        assert_eq!(manager.health_status().await, HealthStatus::Starting);
+        assert_eq!(manager.active_connections(), 0);
+    }
+
+    #[test]
+    fn test_health_response_json_serialization_optional_fields() {
+        // Case 1: All None
+        let response = HealthResponse::from_status(HealthStatus::Healthy);
+        let json = response.to_json();
+        assert!(!json.contains("uptime_seconds"));
+        assert!(!json.contains("connections"));
+        assert!(!json.contains("version"));
+
+        // Case 2: All Some
+        let response_full = HealthResponse::from_status(HealthStatus::Healthy)
+            .with_uptime(Duration::from_secs(123))
+            .with_connections(456)
+            .with_version("9.9.9");
+        let json_full = response_full.to_json();
+        assert!(json_full.contains("\"uptime_seconds\":123"));
+        assert!(json_full.contains("\"connections\":456"));
+        assert!(json_full.contains("\"version\":\"9.9.9\""));
+    }
 }

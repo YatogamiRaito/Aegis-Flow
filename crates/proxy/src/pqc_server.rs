@@ -344,8 +344,8 @@ mod tests {
         let mut pk_buf = vec![0u8; pk_len as usize];
         stream.read_exact(&mut pk_buf).await.unwrap();
 
-        // Send Invalid Ciphertext Length (> 10,000)
-        let invalid_len = 10_001u32;
+        // Send Invalid Ciphertext Length (> 10240)
+        let invalid_len = 10_241u32;
         stream.write_all(&invalid_len.to_be_bytes()).await.unwrap();
 
         // Server should verify length and close connection.
@@ -353,6 +353,33 @@ mod tests {
         let mut check_buf = [0u8; 1];
         let n = stream.read(&mut check_buf).await.unwrap();
         assert_eq!(n, 0, "Server should close connection on invalid length");
+    }
+
+    #[tokio::test]
+    async fn test_pqc_handshake_read_error() {
+        let config = ProxyConfig {
+            host: "127.0.0.1".to_string(),
+            port: 0,
+            ..Default::default()
+        };
+        let server = PqcProxyServer::new(config);
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        tokio::spawn(async move {
+            server
+                .run_with_listener(listener, std::future::pending())
+                .await
+                .ok();
+        });
+
+        let mut stream = TcpStream::connect(addr).await.unwrap();
+        // Server writes PK length (4 bytes) and PK
+        // We read nothing or partial, then close
+        stream.shutdown().await.unwrap();
+
+        // Give server time to try reading from us and fail
+        tokio::time::sleep(Duration::from_millis(50)).await;
     }
 
     #[tokio::test]

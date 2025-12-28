@@ -1324,4 +1324,56 @@ mod tests {
             "Signature verification should fail (return false)"
         );
     }
+
+    #[test]
+    fn test_mldsa44_sign_invalid_secret_key() {
+        let signer_valid = MlDsa44Signer::generate().unwrap();
+        // Construct with valid PK length but invalid SK (empty)
+        let signer_invalid = MlDsa44Signer::from_keys(
+            signer_valid.public_key().to_vec(),
+            vec![], // Invalid secret key
+        )
+        .unwrap();
+
+        // Sign should fail
+        let result = signer_invalid.sign(b"test");
+        assert!(result.is_err());
+        let err = result.err().unwrap().to_string();
+        assert!(err.contains("Invalid secret key"));
+    }
+
+    #[test]
+    fn test_mldsa87_sign_invalid_secret_key() {
+        let signer_valid = MlDsa87Signer::generate().unwrap();
+        // Construct with valid PK length but invalid SK (empty)
+        let signer_invalid = MlDsa87Signer::from_keys(
+            signer_valid.public_key().to_vec(),
+            vec![], // Invalid secret key
+        )
+        .unwrap();
+
+        // Sign should fail
+        let result = signer_invalid.sign(b"test");
+        assert!(result.is_err());
+        let err = result.err().unwrap().to_string();
+        assert!(err.contains("Invalid secret key"));
+    }
+
+    #[test]
+    fn test_verifier_construction_errors_all_variants() {
+        // MlDsa44
+        let alg44 = MlDsaAlgorithm::MlDsa44;
+        let invalid_pk44 = vec![0u8; alg44.public_key_size() - 1];
+        assert!(MlDsaVerifier::new(invalid_pk44, alg44).is_err());
+
+        // MlDsa65
+        let alg65 = MlDsaAlgorithm::MlDsa65;
+        let invalid_pk65 = vec![0u8; alg65.public_key_size() - 1];
+        assert!(MlDsaVerifier::new(invalid_pk65, alg65).is_err());
+
+        // MlDsa87
+        let alg87 = MlDsaAlgorithm::MlDsa87;
+        let invalid_pk87 = vec![0u8; alg87.public_key_size() - 1];
+        assert!(MlDsaVerifier::new(invalid_pk87, alg87).is_err());
+    }
 }

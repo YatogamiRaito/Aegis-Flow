@@ -230,6 +230,7 @@ mod tests {
     /// Mock client for testing
     struct MockEnergyClient {
         intensities: HashMap<String, f64>,
+        failing_regions: std::collections::HashSet<String>,
     }
 
     impl MockEnergyClient {
@@ -238,7 +239,14 @@ mod tests {
             intensities.insert("us-west".to_string(), 50.0); // Very green
             intensities.insert("us-east".to_string(), 350.0); // High carbon
             intensities.insert("eu-west".to_string(), 150.0); // Moderate
-            Self { intensities }
+            Self {
+                intensities,
+                failing_regions: std::collections::HashSet::new(),
+            }
+        }
+
+        fn set_failing(&mut self, region_id: &str) {
+            self.failing_regions.insert(region_id.to_string());
         }
     }
 
@@ -247,6 +255,9 @@ mod tests {
             &self,
             region: &Region,
         ) -> Result<CarbonIntensity, EnergyApiError> {
+            if self.failing_regions.contains(&region.id) {
+                return Err(EnergyApiError::ApiError { message: "Simulated failure".to_string() });
+            }
             let value = self.intensities.get(&region.id).copied().unwrap_or(200.0);
             Ok(CarbonIntensity {
                 region: region.clone(),
@@ -759,5 +770,65 @@ mod tests {
 
         let debug_str = format!("{:?}", score);
         assert!(debug_str.contains("RegionScore"));
+    }
+
+    #[tokio::test]
+    async fn test_refresh_carbon_data_api_failure() {
+        let config = CarbonRouterConfig::default();
+        let mut client = MockEnergyClient::new();
+        // Simulate failure for us-west
+        client.set_failing("us-west");
+        
+        let cache = CarbonIntensityCache::new(300);
+        let router = CarbonRouter::new(config, client, cache);
+
+        router
+            .register_region(Region::new("us-west", "US West"))
+            .await;
+        router
+            .register_region(Region::new("us-east", "US East"))
+            .await;
+
+        // Refresh should not fail the whole batch, but us-west will be missing/old
+        let result = router.refresh_carbon_data().await;
+        assert!(result.is_ok());
+
+        // us-west should NOT be in scores (or if it was previously, it remains old - here it's new so it's missing)
+        let greenest = router.select_greenest_region().await;
+        // Only us-east (350.0) is available effectively? 
+        // Wait, refresh_carbon_data populates region_scores only on success or cache hit.
+        // So us-west (failing) will not be in region_scores map.
+        // us-east (350) is < 500 (default max), so it is selectable.
+        assert_eq!(greenest, Some("us-east".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_refresh_cache_priority() {
+        let config = CarbonRouterConfig::default();
+        let mut client = MockEnergyClient::new();
+        // Set API value to be HIGH (350.0) for "us-west" to prove it's NOT used
+        client.intensities.insert("us-west".to_string(), 350.0); 
+
+        let cache = CarbonIntensityCache::new(300);
+        
+        // Manually inject LOW (50.0) value into cache for us-west
+        let region = Region::new("us-west", "US West");
+        let cached_intensity = CarbonIntensity {
+            region: region.clone(),
+            value: 50.0,
+            timestamp: chrono::Utc::now(),
+            valid_for_seconds: 300,
+            rating: None,
+        };
+        cache.put(cached_intensity).await;
+
+        let router = CarbonRouter::new(config, client, cache);
+        router.register_region(region).await;
+
+        // Refresh should hit cache and use 50.0, ignoring API's 350.0
+        router.refresh_carbon_data().await.unwrap();
+
+        let intensity = router.get_region_intensity("us-west").await;
+        assert_eq!(intensity, Some(50.0));
     }
 }

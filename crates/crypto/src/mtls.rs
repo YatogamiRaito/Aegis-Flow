@@ -1051,4 +1051,76 @@ mod tests {
             assert!(debug.contains("expired"));
         }
     }
+
+    #[test]
+    fn test_complete_handshake_optional_cert_valid() {
+        let config = MtlsConfig {
+            require_client_cert: false, // Optional
+            pqc_enabled: true, // Need enabled for handshake
+            ..Default::default()
+        };
+        let mut auth = MtlsAuthenticator::new(config).unwrap();
+        auth.init_self_signed("server").unwrap();
+
+        // Generate a valid client cert
+        let mut params = rcgen::CertificateParams::default();
+        params.distinguished_name.push(rcgen::DnType::CommonName, "optional-client");
+        // Add SANs if needed, though for this test CN check is what failed
+        // params.subject_alt_names = vec![rcgen::SanType::DnsName("optional-client".to_string())];
+        
+        let key_pair = rcgen::KeyPair::generate().unwrap();
+        let client_cert = params.self_signed(&key_pair).unwrap();
+        let client_der = client_cert.der().to_vec();
+
+        let (conn_id, server_pk) = auth.accept_connection().unwrap();
+
+        // Perform client side of handshake to get valid ciphertext
+        let client_handshake = PqcHandshake::new(PqcTlsConfig {
+            pqc_enabled: true,
+            ..Default::default()
+        });
+        let (ciphertext, _) = client_handshake.client_complete(&server_pk).unwrap();
+
+        // Complete handshake with cert (even though not required)
+        let result = auth.complete_handshake(conn_id, &ciphertext, Some(&client_der));
+        assert!(result.is_ok());
+
+        let clients = auth.clients.read();
+        let client = clients.get(&conn_id).unwrap();
+        assert!(client.is_authenticated());
+        assert!(client.cert.is_some());
+        assert_eq!(
+            client.cert.as_ref().unwrap().subject_cn,
+            "optional-client".to_string()
+        );
+    }
+
+    #[test]
+    fn test_complete_handshake_optional_cert_none() {
+        let config = MtlsConfig {
+            require_client_cert: false, // Optional
+            pqc_enabled: true,
+            ..Default::default()
+        };
+        let mut auth = MtlsAuthenticator::new(config).unwrap();
+        auth.init_self_signed("server").unwrap();
+
+        let (conn_id, server_pk) = auth.accept_connection().unwrap();
+
+        // Perform client side of handshake
+        let client_handshake = PqcHandshake::new(PqcTlsConfig {
+            pqc_enabled: true,
+            ..Default::default()
+        });
+        let (ciphertext, _) = client_handshake.client_complete(&server_pk).unwrap();
+
+        // Complete handshake WITHOUT cert
+        let result = auth.complete_handshake(conn_id, &ciphertext, None);
+        assert!(result.is_ok());
+
+        let clients = auth.clients.read();
+        let client = clients.get(&conn_id).unwrap();
+        assert!(client.is_authenticated());
+        assert!(client.cert.is_none());
+    }
 }
