@@ -320,4 +320,28 @@ mod tests {
         assert!(debug_str.contains("trace_id"));
         assert!(debug_str.contains("span_id"));
     }
+
+    #[test]
+    fn test_trace_context_clone() {
+        let ctx = TraceContext::new();
+        let cloned = ctx.clone();
+        assert_eq!(ctx.trace_id, cloned.trace_id);
+        assert_eq!(ctx.span_id, cloned.span_id);
+    }
+
+    #[test]
+    fn test_trace_context_parent_span() {
+        let parent_ctx = TraceContext::new();
+        let child_ctx = parent_ctx.new_child_span().unwrap();
+
+        assert_eq!(parent_ctx.trace_id, child_ctx.trace_id);
+        assert_ne!(parent_ctx.span_id, child_ctx.span_id);
+    }
+
+    #[test]
+    fn test_trace_context_to_headers() {
+        let ctx = TraceContext::new();
+        let headers = ctx.to_headers();
+        assert!(!headers.is_empty());
+    }
 }

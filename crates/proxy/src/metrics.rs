@@ -265,4 +265,27 @@ mod tests {
         record_bytes(1_000_000, 2_000_000);
         record_bytes(0, 0);
     }
+
+    #[test]
+    fn test_record_request_post() {
+        record_request("POST", "/api/data", 201, 0.1);
+    }
+
+    #[test]
+    fn test_record_request_delete() {
+        record_request("DELETE", "/api/resource/123", 204, 0.05);
+    }
+
+    #[test]
+    fn test_record_bytes_one_direction() {
+        record_bytes(1000, 0);
+        record_bytes(0, 1000);
+    }
+
+    #[test]
+    fn test_record_request_error_codes() {
+        for status in [400, 401, 403, 404, 500, 502, 503] {
+            record_request("GET", "/error", status, 0.01);
+        }
+    }
 }

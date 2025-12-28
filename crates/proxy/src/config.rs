@@ -988,4 +988,46 @@ upstream_addr: "test:8080"
         assert!(debug_str.contains("cert_path"));
         assert!(debug_str.contains("key_path"));
     }
+
+    #[test]
+    fn test_proxy_config_clone() {
+        let config1 = ProxyConfig::default();
+        let config2 = config1.clone();
+        assert_eq!(config1.port, config2.port);
+        assert_eq!(config1.host, config2.host);
+    }
+
+    #[test]
+    fn test_tls_config_clone() {
+        let tls1 = TlsConfig::default();
+        let tls2 = tls1.clone();
+        assert_eq!(tls1.enabled, tls2.enabled);
+    }
+
+    #[test]
+    fn test_proxy_config_with_custom_host() {
+        let config = ProxyConfig {
+            host: "192.168.1.1".to_string(),
+            ..Default::default()
+        };
+        assert_eq!(config.host, "192.168.1.1");
+    }
+
+    #[test]
+    fn test_proxy_config_with_pqc() {
+        let config = ProxyConfig {
+            pqc_enabled: true,
+            ..Default::default()
+        };
+        assert!(config.pqc_enabled);
+    }
+
+    #[test]
+    fn test_proxy_config_upstream() {
+        let config = ProxyConfig {
+            upstream_addr: "backend.local:8080".to_string(),
+            ..Default::default()
+        };
+        assert!(config.upstream_addr.contains("backend.local"));
+    }
 }
