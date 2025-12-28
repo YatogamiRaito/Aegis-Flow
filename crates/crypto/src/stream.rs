@@ -720,4 +720,51 @@ mod tests {
         // Flush should not error on Vec
         enc_stream.flush().await.unwrap();
     }
+
+    #[tokio::test]
+    async fn test_stream_decrypt_failure() {
+        let key = [0xEEu8; 32];
+        // Create frame with wrong key
+        let wrong_key = [0xFFu8; 32];
+        let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&wrong_key));
+        let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
+        let ciphertext = cipher.encrypt(&nonce, b"secret".as_ref()).unwrap();
+
+        let mut frame = Vec::new();
+        let frame_len = NONCE_SIZE + ciphertext.len();
+        frame.extend_from_slice(&(frame_len as u32).to_be_bytes());
+        frame.extend_from_slice(&nonce);
+        frame.extend_from_slice(&ciphertext);
+
+        let reader = io::Cursor::new(frame);
+        let mut stream = EncryptedStream::new(reader, &key);
+        let mut buf = [0u8; 128];
+
+        let result = stream.read(&mut buf).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_stream_invalid_frame_length() {
+        let key = [0xAAu8; 32];
+        // Frame length of 0
+        let mut frame = Vec::new();
+        frame.extend_from_slice(&0u32.to_be_bytes());
+
+        let reader = io::Cursor::new(frame);
+        let mut stream = EncryptedStream::new(reader, &key);
+        let mut buf = [0u8; 128];
+
+        let err = stream.read(&mut buf).await.unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+    }
+
+    #[tokio::test]
+    async fn test_stream_shutdown_propagation() {
+        let key = [0xBBu8; 32];
+        let stream = Vec::new();
+        let mut enc_stream = EncryptedStream::new(stream, &key);
+
+        enc_stream.shutdown().await.unwrap();
+    }
 }

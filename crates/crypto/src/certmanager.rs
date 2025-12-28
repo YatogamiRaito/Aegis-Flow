@@ -725,4 +725,115 @@ mod tests {
         assert!(manager.trusted_cas.is_empty());
         assert!(manager.server_cert.is_none());
     }
+
+    #[test]
+    fn test_add_trusted_ca_duplicate() {
+        let mut manager = CertManager::new();
+        let now = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        let ca = ParsedCert {
+            subject_cn: "test-ca".to_string(),
+            issuer_cn: "test-ca".to_string(),
+            serial: "001".to_string(),
+            not_before: now - 86400,
+            not_after: now + 86400 * 365,
+            cert_type: CertType::RootCa,
+            fingerprint: "fp1".to_string(),
+            san: vec![],
+            der_bytes: vec![],
+        };
+
+        manager.add_trusted_ca(ca.clone()).unwrap();
+        // Adding same CA again should still succeed
+        manager.add_trusted_ca(ca).unwrap();
+    }
+
+    #[test]
+    fn test_verify_chain_expired_cert() {
+        let manager = CertManager::new();
+        let now = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        let expired = ParsedCert {
+            subject_cn: "expired-cert".to_string(),
+            issuer_cn: "ca".to_string(),
+            serial: "999".to_string(),
+            not_before: now - 86400 * 365,
+            not_after: now - 86400, // Expired yesterday
+            cert_type: CertType::EndEntity,
+            fingerprint: "fp".to_string(),
+            san: vec![],
+            der_bytes: vec![],
+        };
+
+        let result = manager.verify_chain(&expired);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_verify_chain_not_yet_valid() {
+        let manager = CertManager::new();
+        let now = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        let future = ParsedCert {
+            subject_cn: "future-cert".to_string(),
+            issuer_cn: "ca".to_string(),
+            serial: "888".to_string(),
+            not_before: now + 86400, // Valid from tomorrow
+            not_after: now + 86400 * 365,
+            cert_type: CertType::EndEntity,
+            fingerprint: "fp".to_string(),
+            san: vec![],
+            der_bytes: vec![],
+        };
+
+        let result = manager.verify_chain(&future);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_cert_type_display() {
+        assert_eq!(CertType::RootCa.to_string(), "RootCA");
+        assert_eq!(CertType::IntermediateCa.to_string(), "IntermediateCA");
+        assert_eq!(CertType::EndEntity.to_string(), "EndEntity");
+    }
+
+    #[test]
+    fn test_parsed_cert_is_ca() {
+        let ca = ParsedCert {
+            subject_cn: "ca".to_string(),
+            issuer_cn: "ca".to_string(),
+            serial: "001".to_string(),
+            not_before: 0,
+            not_after: i64::MAX,
+            cert_type: CertType::RootCa,
+            fingerprint: "fp".to_string(),
+            san: vec![],
+            der_bytes: vec![],
+        };
+
+        assert!(ca.is_ca());
+
+        let end_entity = ParsedCert {
+            subject_cn: "server".to_string(),
+            issuer_cn: "ca".to_string(),
+            serial: "002".to_string(),
+            not_before: 0,
+            not_after: i64::MAX,
+            cert_type: CertType::EndEntity,
+            fingerprint: "fp2".to_string(),
+            san: vec![],
+            der_bytes: vec![],
+        };
+
+        assert!(!end_entity.is_ca());
+    }
 }
