@@ -52,7 +52,6 @@ impl HttpProxy {
     }
 
     /// Run the proxy server
-    #[instrument(skip(self))]
     /// Run the proxy server
     #[instrument(skip(self))]
     pub async fn run(&self) -> Result<()> {
@@ -112,10 +111,15 @@ impl HttpProxy {
 
 /// Handle incoming HTTP request
 #[instrument(skip(req))]
-pub(crate) async fn handle_request(
-    req: Request<Incoming>,
+pub(crate) async fn handle_request<B>(
+    req: Request<B>,
     _upstream: &str,
-) -> Result<Response<Full<Bytes>>, hyper::Error> {
+) -> Result<Response<Full<Bytes>>, hyper::Error> 
+where 
+    B: hyper::body::Body + Send + 'static, 
+    B::Data: Send, 
+    B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+{
     let start = Instant::now();
     let method = req.method().clone();
     let uri = req.uri().clone();
@@ -341,5 +345,26 @@ mod tests {
 
         let result = tokio::time::timeout(tokio::time::Duration::from_secs(2), handle).await;
         assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_handle_request_metrics() {
+        use http_body_util::Empty;
+        
+        let req = Request::builder()
+            .method(Method::GET)
+            .uri("/metrics")
+            .body(Empty::<Bytes>::new())
+            .unwrap();
+            
+        // Initialize metrics just in case
+        let _ = std::panic::catch_unwind(|| {
+            crate::metrics::init_metrics();
+        });
+
+        let resp = handle_request(req, "localhost:9000").await.unwrap();
+        
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert!(resp.headers().contains_key("content-type"));
     }
 }
