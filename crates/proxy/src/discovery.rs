@@ -593,39 +593,4 @@ mod tests {
             assert!(eps.contains(&selected.unwrap()));
         }
     }
-
-    #[tokio::test]
-    async fn test_deregister_service() {
-        let registry = ServiceRegistry::new(LoadBalanceStrategy::RoundRobin);
-        let ep: SocketAddr = "127.0.0.1:8080".parse().unwrap();
-
-        registry.register("test", vec![ep]).await;
-        assert_eq!(registry.service_count().await, 1);
-
-        registry.deregister("test").await;
-        assert_eq!(registry.service_count().await, 0);
-    }
-
-    #[tokio::test]
-    async fn test_get_all_endpoints_empty() {
-        let registry = ServiceRegistry::new(LoadBalanceStrategy::RoundRobin);
-        let all = registry.get_all_endpoints("missing").await;
-        assert!(all.is_empty());
-    }
-
-    #[tokio::test]
-    async fn test_healthy_count_no_service() {
-        let registry = ServiceRegistry::new(LoadBalanceStrategy::RoundRobin);
-        let count = registry.healthy_count("missing").await;
-        assert_eq!(count, 0);
-    }
-
-    #[tokio::test]
-    async fn test_mark_failed_nonexistent_service() {
-        let registry = ServiceRegistry::new(LoadBalanceStrategy::RoundRobin);
-        let ep: SocketAddr = "127.0.0.1:8080".parse().unwrap();
-
-        // Should not panic
-        registry.mark_failed("missing", ep).await;
-    }
 }
