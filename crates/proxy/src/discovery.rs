@@ -718,4 +718,27 @@ mod tests {
         let registry = ServiceRegistry::new(LoadBalanceStrategy::RoundRobin);
         assert_eq!(registry.endpoint_count("non-existent").await, 0);
     }
+
+    #[tokio::test]
+    async fn test_register_idempotency() {
+        let registry = ServiceRegistry::new(LoadBalanceStrategy::RoundRobin);
+        let ep: SocketAddr = "127.0.0.1:8080".parse().unwrap();
+
+        registry.register("service", vec![ep]).await;
+        assert_eq!(registry.endpoint_count("service").await, 1);
+
+        // Registering again should overwrite
+        registry.register("service", vec![ep]).await;
+        assert_eq!(registry.endpoint_count("service").await, 1);
+    }
+
+    #[test]
+    fn test_load_balance_strategy_impls() {
+        let s1 = LoadBalanceStrategy::LeastConnections;
+        let s2 = s1; // Copy
+        assert_eq!(s1, s2);
+        let s3 = s1.clone();
+        assert_eq!(s1, s3);
+        assert!(format!("{:?}", s1).contains("LeastConnections"));
+    }
 }
