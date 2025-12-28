@@ -237,4 +237,25 @@ chr1	100	.	A	T	99.0	PASS	DP=50
         // Let's rely on build() success.
         assert_eq!(builder.len(), 1);
     }
+
+    #[test]
+    fn test_vcf_parser_derive_traits() {
+        // Test Default
+        let parser = VcfParser::default();
+        // Just verify we can use it
+        let vcf_data = "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\nchr1\t100\t.\tA\tT\t.\t.\t.";
+        let reader = Cursor::new(vcf_data);
+        assert!(parser.parse(reader).is_ok());
+
+        // Test Debug
+        let debug_str = format!("{:?}", parser);
+        assert_eq!(debug_str, "VcfParser");
+    }
+
+    #[test]
+    fn test_vcf_parser_new() {
+        let parser = VcfParser::new();
+        let debug_str = format!("{:?}", parser);
+        assert_eq!(debug_str, "VcfParser");
+    }
 }

@@ -928,6 +928,83 @@ mod tests {
     }
 
     #[test]
+    fn test_from_bytes_error_paths() {
+        // 1. Valid quote
+        let q = AttestationQuote::new(TeePlatform::None, vec![1, 2], vec![3, 4], vec![5, 6]);
+        let valid_bytes = q.to_bytes();
+        assert!(AttestationQuote::from_bytes(&valid_bytes).is_ok());
+
+        // 2. Truncated nonce length
+        // Platform(1) + NonceLen(4) -> 5 bytes. If we have 4 bytes, fail.
+        let too_short_nonce_len = &valid_bytes[0..4];
+        assert!(AttestationQuote::from_bytes(too_short_nonce_len).is_err());
+
+        // 3. Truncated nonce content
+        // Nonce is 2 bytes. valid_bytes has everything. 
+        // Platform(1) + NonceLen(4) = 5. NonceLen=2. So Nonce ends at 7.
+        // If we truncate at 6...
+        let truncated_nonce = &valid_bytes[0..6];
+        assert!(AttestationQuote::from_bytes(truncated_nonce).is_err());
+
+        // 4. Truncated user data length
+        // UserDataLen starts at offset 7. (5 + 2 = 7). 4 bytes long. Ends at 11.
+        let truncated_user_data_len = &valid_bytes[0..10];
+        assert!(AttestationQuote::from_bytes(truncated_user_data_len).is_err());
+        
+        // 5. Truncated user data content
+        // UserData is 2 bytes. Ends at 13.
+        let truncated_user_data = &valid_bytes[0..12];
+        assert!(AttestationQuote::from_bytes(truncated_user_data).is_err());
+
+        // 6. Truncated quote length
+        // QuoteLen starts 13. 4 bytes. Ends 17.
+        let truncated_quote_len = &valid_bytes[0..16];
+        assert!(AttestationQuote::from_bytes(truncated_quote_len).is_err());
+
+        // 7. Truncated quote content
+        // Quote is 2 bytes. Ends 19.
+        let truncated_quote = &valid_bytes[0..18];
+        assert!(AttestationQuote::from_bytes(truncated_quote).is_err());
+
+        // 8. Truncated timestamp
+        // Timestamp is 8 bytes. Starts 19. Ends 27.
+        let truncated_ts = &valid_bytes[0..26];
+        assert!(AttestationQuote::from_bytes(truncated_ts).is_err());
+    }
+
+    #[test]
+    fn test_verify_stale_quote_explicit() {
+        let provider = AttestationProvider::new();
+        // Manually create an old quote
+        let mut quote = provider.generate_quote(b"nonce", b"data").unwrap();
+        
+        // Set timestamp to 10 minutes ago
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as i64;
+        quote.timestamp = now - 600; // 10 minutes old
+
+        // Verify with 5 minute max age (300s)
+        let valid = provider.verify_quote(&quote, b"nonce").unwrap();
+        assert!(!valid, "Stale quote should be invalid");
+    }
+
+    #[test]
+    fn test_platform_byte_values() {
+        // Verify encoding matches spec
+        let p_sgx = AttestationQuote::new(TeePlatform::IntelSgx, vec![], vec![], vec![]);
+        assert_eq!(p_sgx.to_bytes()[0], 0);
+
+        let p_tdx = AttestationQuote::new(TeePlatform::IntelTdx, vec![], vec![], vec![]);
+        assert_eq!(p_tdx.to_bytes()[0], 1);
+
+        let p_sev = AttestationQuote::new(TeePlatform::AmdSevSnp, vec![], vec![], vec![]);
+        assert_eq!(p_sev.to_bytes()[0], 2);
+
+        let p_none = AttestationQuote::new(TeePlatform::None, vec![], vec![], vec![]);
+        assert_eq!(p_none.to_bytes()[0], 255);
+    }
+
+    #[test]
     fn test_tee_platform_is_tee_check() {
         assert!(TeePlatform::IntelSgx.is_tee());
         assert!(TeePlatform::IntelTdx.is_tee());

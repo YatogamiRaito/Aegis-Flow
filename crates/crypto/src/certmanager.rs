@@ -800,6 +800,120 @@ mod tests {
     }
 
     #[test]
+    fn test_ipv6_san_ignored() {
+        // Current implementation explicitly skips IPv6 SANs in parse_der (lines 160-164)
+        // This test confirms that behavior to ensure lines are covered.
+        
+        let mut params = CertificateParams::default();
+        params.distinguished_name.push(DnType::CommonName, "ipv6-test");
+        // Add an IPv6 address
+        let ipv6 = "2001:db8::1".parse::<std::net::IpAddr>().unwrap();
+        params.subject_alt_names.push(SanType::IpAddress(ipv6));
+        
+        let key_pair = KeyPair::generate().unwrap();
+        let cert = params.self_signed(&key_pair).unwrap();
+        let pem = cert.pem();
+        
+        // Parse it back
+        let parsed = CertManager::parse_pem(pem.as_bytes()).unwrap();
+        
+        // Should NOT contain the IPv6 address in the string list because parse_der filters ip.len() == 4
+        // If it did, it would be in parsed.san
+        assert!(!parsed.san.iter().any(|s| s.contains("2001:db8")));
+    }
+
+    #[test]
+    fn test_intermediate_chain_verification_mock() {
+        // Creating a full valid chain with rcgen is complex because we need to sign the intermediate cert with the root key.
+        // Instead, we verify the logic flow of `verify_chain` which iterates `trusted_cas` looking for `issuer_cn`.
+        // We will create 3 certs: Root, Intermediate, Leaf.
+        // We TRUST the Intermediate.
+        // Leaf is issued by Intermediate.
+        // Root is issued by itself.
+        // Intermediate is issued by Root.
+        
+        // 1. Generate Intermediate CA
+        let (int_pem, _) = CertManager::generate_self_signed("Intermediate CA", &[], 365).unwrap();
+        let mut int_cert = CertManager::parse_pem(int_pem.as_bytes()).unwrap();
+        int_cert.cert_type = CertType::IntermediateCa;
+        
+        // 2. Add Intermediate to Trusted CAs
+        let mut manager = CertManager::new();
+        manager.add_trusted_ca(int_cert.clone()).unwrap();
+        
+        // 3. Mock a Leaf cert issued by Intermediate
+        let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs() as i64;
+        let leaf = ParsedCert {
+            subject_cn: "Leaf".to_string(),
+            issuer_cn: "Intermediate CA".to_string(), // Matches trusted intermediate
+            serial: "100".to_string(),
+            not_before: now - 100,
+            not_after: now + 1000,
+            cert_type: CertType::EndEntity,
+            fingerprint: "leaf-fp".to_string(),
+            san: vec![],
+            der_bytes: vec![],
+        };
+        
+        // 4. Verify
+        assert!(manager.verify_chain(&leaf).is_ok());
+    }
+
+    #[test]
+    fn test_get_expiring_certs_logic() {
+        let mut manager = CertManager::new();
+        let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs() as i64;
+
+        // 1. Add valid CA (expires in 100 days)
+        let valid_ca = ParsedCert {
+            subject_cn: "Valid CA".to_string(),
+            issuer_cn: "Valid CA".to_string(),
+            serial: "1".to_string(),
+            not_before: now - 100,
+            not_after: now + 86400 * 100,
+            cert_type: CertType::RootCa,
+            fingerprint: "1".to_string(),
+            san: vec![],
+            der_bytes: vec![],
+        };
+        manager.add_trusted_ca(valid_ca).unwrap();
+
+        // 2. Add expiring CA (expires in 10 days)
+        let expiring_ca = ParsedCert {
+            subject_cn: "Expiring CA".to_string(),
+            issuer_cn: "Expiring CA".to_string(),
+            serial: "2".to_string(),
+            not_before: now - 100,
+            not_after: now + 86400 * 10,
+            cert_type: CertType::RootCa,
+            fingerprint: "2".to_string(),
+            san: vec![],
+            der_bytes: vec![],
+        };
+        manager.add_trusted_ca(expiring_ca).unwrap();
+
+        // 3. Set expiring server cert (expires in 5 days)
+        let expiring_server = ParsedCert {
+            subject_cn: "Server".to_string(),
+            issuer_cn: "Valid CA".to_string(),
+            serial: "3".to_string(),
+            not_before: now - 100,
+            not_after: now + 86400 * 5,
+            cert_type: CertType::EndEntity,
+            fingerprint: "3".to_string(),
+            san: vec![],
+            der_bytes: vec![],
+        };
+        manager.set_server_cert(expiring_server, "key".to_string()).unwrap();
+
+        let expiring_list = manager.get_expiring_certs();
+        assert_eq!(expiring_list.len(), 2);
+        assert!(expiring_list.iter().any(|c| c.subject_cn == "Expiring CA"));
+        assert!(expiring_list.iter().any(|c| c.subject_cn == "Server"));
+        assert!(!expiring_list.iter().any(|c| c.subject_cn == "Valid CA"));
+    }
+
+    #[test]
     fn test_cert_type_display() {
         let root = format!("{:?}", CertType::RootCa);
         let intermediate = format!("{:?}", CertType::IntermediateCa);

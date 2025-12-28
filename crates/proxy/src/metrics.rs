@@ -47,24 +47,41 @@ pub fn init_metrics() -> PrometheusHandle {
 
     let builder = PrometheusBuilder::new();
     
-    // Try to install the recorder.
     match builder.install_recorder() {
         Ok(handle) => {
             info!("📊 Metrics system initialized");
-            // ... descriptions ...
+
             describe_counter!(names::REQUESTS_TOTAL, "Total number of requests processed");
             describe_histogram!(names::REQUEST_DURATION, "Request duration in seconds");
             describe_gauge!(names::CONNECTIONS_ACTIVE, "Number of active connections");
             describe_counter!(names::HANDSHAKES_TOTAL, "Total PQC handshakes completed");
-            describe_histogram!(names::HANDSHAKE_DURATION, "PQC handshake duration in seconds");
+            describe_histogram!(
+                names::HANDSHAKE_DURATION,
+                "PQC handshake duration in seconds"
+            );
             describe_counter!(names::BYTES_SENT, "Total bytes sent");
             describe_counter!(names::BYTES_RECEIVED, "Total bytes received");
-            describe_counter!(names::ENCRYPTION_OPERATIONS, "Total encryption/decryption operations");
+            describe_counter!(
+                names::ENCRYPTION_OPERATIONS,
+                "Total encryption/decryption operations"
+            );
             describe_counter!(names::ERRORS_TOTAL, "Total errors");
-            describe_gauge!(names::CARBON_INTENSITY, "Current carbon intensity for each region (gCO2/kWh)");
-            describe_counter!(names::ESTIMATED_ENERGY, "Estimated energy consumed in Joules");
-            describe_counter!(names::ESTIMATED_CARBON, "Estimated carbon emissions in grams");
-            describe_gauge!(names::DEFERRED_JOBS, "Number of jobs currently waiting in Green-Wait queue");
+            describe_gauge!(
+                names::CARBON_INTENSITY,
+                "Current carbon intensity for each region (gCO2/kWh)"
+            );
+            describe_counter!(
+                names::ESTIMATED_ENERGY,
+                "Estimated energy consumed in Joules"
+            );
+            describe_counter!(
+                names::ESTIMATED_CARBON,
+                "Estimated carbon emissions in grams"
+            );
+            describe_gauge!(
+                names::DEFERRED_JOBS,
+                "Number of jobs currently waiting in Green-Wait queue"
+            );
 
             METRICS_HANDLE.set(handle.clone()).ok();
             handle
@@ -74,125 +91,11 @@ pub fn init_metrics() -> PrometheusHandle {
              // This can happen if another crate (or another test binary running in same process context?) installed it.
              // Or if we failed to set METRICS_HANDLE in a previous run but recorder was installed (unlikely with our lock).
              // However, `metrics` crate doesn't let us retrieve the handle if we don't have it.
-             // BUT, for the sake of tests passing without panic:
-             
-             tracing::warn!("Prometheus recorder already installed (likely by another test): {}", e);
-             
-             // We can't return a valid PrometheusHandle if we didn't just create it, 
-             // because the API doesn't expose `get_handle()`.
              // But we MUST return something matching the signature.
              // We can panic (which fails the test) OR we can try to facilitate the test passing.
-             // Since `METRICS_HANDLE` is empty, we are in an inconsistent state for *this* test thread 
-             // if it relies on `METRICS_HANDLE`.
-             
-             // CRITICAL FIX: The panic in previous steps was caused by `expect` or `panic!`.
-             // We should check if we can reconstruct a handle? No.
-             
-             // The specific issue in `test_metrics_reinitialization` is that it expects `init_metrics()` to return a handle.
-             // If we return panic, it fails.
-             // If we can't return a handle, we must panic.
-             
-             // BUT wait. If `install_recorder` fails, it returns the `PrometheusBuilder` error.
-             // Does it return the handle too? No.
-             
-             // If we are in this block, `METRICS_HANDLE` is None (checked above).
-             // AND `install_recorder` failed (Global set).
-             // This implies *someone else* set the global recorder *without* setting `METRICS_HANDLE`.
-             // In our workspace, typically only `init_metrics` sets it.
-             // EXCEPT: `aegis_telemetry` or unrelated tests might set a generic recorder?
-             // Or maybe `prometheus` exporter was installed by `http3_handler` test running in parallel?
-             // But they share the SAME binary code for `metrics.rs`?
-             
-             // If `http3_handler` test calls `init_metrics`, it sets `METRICS_HANDLE`.
-             // So if `metrics` test sees `METRICS_HANDLE` as None, it means `http3_handler` hasn't set it yet.
-             // But then `install_recorder` should SUCCEED for us (if strict ordering).
-             // UNLESS `metrics` crate `set_recorder` happens before `METRICS_HANDLE.set`.
-             // Yes, `handle` is returned, THEN we set `METRICS_HANDLE`.
-             
-             // Race condition:
-             // T1 (http3): calls install_recorder(). Success. (Global set).
-             //    ... (paused before setting METRICS_HANDLE) ...
-             // T2 (metrics): locks mutex. check handle (None). calls install_recorder(). Fails (Global set).
-             
-             // Ah! `INIT_LOCK` protects this!
-             // T1 acquires lock. Installs. Sets global. Sets Handle. Releases lock.
-             // T2 acquires lock. Checks Handle (Some). Returns.
-             
-             // So why did it fail? "FailedToSetGlobalRecorder".
-             // This implies T1 installed recorder *OUTSIDE* the lock?
-             // NO.
-             
-             // Is it possible `metrics` crate state is shared across *binaries*? No.
-             // Is `http3_handler` test in the same binary? Yes (`aegis-proxy-v0.14.0`).
-             
-             // MAYBE `metrics::set_global_recorder` is called by `aegis_telemetry::init_telemetry`?
-             // Let's check `tracing_otel.rs` or `lib.rs`?
-             // If some other place calls `set_recorder`, and they don't use `INIT_LOCK`, we have a race.
-             
-             // I recall `tracing::subscriber::set_global_default` etc.
-             // But `metrics` crate is separate.
-             
-             // Assuming I can't find the external caller easily. 
-             // I will modify `init_metrics` to just panic with a clear message 
-             // BUT I will modify the TEST `test_metrics_reinitialization` to expect this failure or handle it?
-             // No, I can't modify the test to catch panic easily in parallel run.
-             
-             // I will temporarily make `test_metrics_reinitialization` SERIAL.
-             // No, can't easily force serial without `serial_test` crate.
-             
-             // Best Effort: 
-             // Panic, but inspecting the logs reveals: `panicked at ...: Failed to install Prometheus recorder`.
-             // The only way to fix this "No local handle found" case is ensuring ALL installers use the lock.
-             // But I can't audit dependencies right now.
-             
-             // WAIT. `METRICS_HANDLE` is `OnceLock`. 
-             // If I use `get_or_init`, it manages the lock for setting `METRICS_HANDLE`.
-             // BUT `init` closure shouldn't fail?
-             
-             // Let's stick to the current implementation but assume valid state.
-             // If we error here, we panic. It's the only option if we can't return a handle.
              panic!("Failed to install global recorder: {}. Possible race condition with external installer.", e);
         }
     }
-}
-
-    // ... descriptions ...
-    describe_counter!(names::REQUESTS_TOTAL, "Total number of requests processed");
-    describe_histogram!(names::REQUEST_DURATION, "Request duration in seconds");
-    describe_gauge!(names::CONNECTIONS_ACTIVE, "Number of active connections");
-    describe_counter!(names::HANDSHAKES_TOTAL, "Total PQC handshakes completed");
-    describe_histogram!(
-        names::HANDSHAKE_DURATION,
-        "PQC handshake duration in seconds"
-    );
-    describe_counter!(names::BYTES_SENT, "Total bytes sent");
-    describe_counter!(names::BYTES_RECEIVED, "Total bytes received");
-    describe_counter!(
-        names::ENCRYPTION_OPERATIONS,
-        "Total encryption/decryption operations"
-    );
-    describe_counter!(names::ERRORS_TOTAL, "Total errors");
-    describe_gauge!(
-        names::CARBON_INTENSITY,
-        "Current carbon intensity for each region (gCO2/kWh)"
-    );
-    describe_counter!(
-        names::ESTIMATED_ENERGY,
-        "Estimated energy consumed in Joules"
-    );
-    describe_counter!(
-        names::ESTIMATED_CARBON,
-        "Estimated carbon emissions in grams"
-    );
-    describe_gauge!(
-        names::DEFERRED_JOBS,
-        "Number of jobs currently waiting in Green-Wait queue"
-    );
-
-    info!("📊 Metrics system initialized");
-
-    METRICS_HANDLE.set(handle.clone()).ok();
-    handle
 }
 
 /// Get the global metrics handle
