@@ -247,8 +247,7 @@ mod tests {
 
     #[test]
     fn test_variant_record_with_info() {
-        let record = VariantRecord::new("chr1", 100, "A", "T")
-            .with_info("DP=50;AF=0.25");
+        let record = VariantRecord::new("chr1", 100, "A", "T").with_info("DP=50;AF=0.25");
         assert_eq!(record.info, Some("DP=50;AF=0.25".to_string()));
     }
 
@@ -259,11 +258,11 @@ mod tests {
             .with_qual(100.5)
             .with_filter("PASS")
             .with_info("DP=100");
-        
+
         assert_eq!(record.chrom, "chrX");
         assert_eq!(record.pos, 500);
-        assert_eq!(record.ref_allele, "GGG");
-        assert_eq!(record.alt_allele, "TTT");
+        assert_eq!(record.reference, "GGG");
+        assert_eq!(record.alternate, "TTT");
         assert!(record.id.is_some());
         assert!(record.qual.is_some());
         assert!(record.filter.is_some());
@@ -273,11 +272,11 @@ mod tests {
     #[test]
     fn test_builder_push_multiple() {
         let mut builder = VariantBatchBuilder::new();
-        
+
         for i in 1..=10 {
             builder.push(VariantRecord::new("chr1", i * 1000, "A", "G"));
         }
-        
+
         assert_eq!(builder.len(), 10);
         assert!(!builder.is_empty());
     }
@@ -294,12 +293,12 @@ mod tests {
     #[test]
     fn test_builder_capacity_growth() {
         let mut builder = VariantBatchBuilder::with_capacity(2);
-        
+
         // Push more than capacity
         for i in 0..5 {
             builder.push(VariantRecord::new("chr1", i, "A", "T"));
         }
-        
+
         assert_eq!(builder.len(), 5);
     }
 

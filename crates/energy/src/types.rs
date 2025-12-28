@@ -243,4 +243,28 @@ mod tests {
         assert!(region.latitude.is_none());
         assert!(region.longitude.is_none());
     }
+
+    #[test]
+    fn test_region_serialization() {
+        let region = Region::new("id", "name");
+        let json = serde_json::to_string(&region).unwrap();
+        let parsed: Region = serde_json::from_str(&json).unwrap();
+        assert_eq!(region, parsed);
+    }
+
+    #[test]
+    fn test_carbon_intensity_serialization() {
+        let intensity = CarbonIntensity {
+            region: Region::new("r1", "n1"),
+            value: 123.45,
+            timestamp: chrono::Utc::now(),
+            valid_for_seconds: 300,
+            rating: Some("low".to_string()),
+        };
+        let json = serde_json::to_string(&intensity).unwrap();
+        let parsed: CarbonIntensity = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(parsed.value, 123.45);
+        assert_eq!(parsed.rating, Some("low".to_string()));
+    }
 }

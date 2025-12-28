@@ -197,9 +197,9 @@ mod tests {
         let variant = GenomicSchema::variant();
         let alignment = GenomicSchema::alignment();
         let sequence = GenomicSchema::sequence();
-        
+
         assert_eq!(variant.schema_type, SchemaType::Variant);
-assert_eq!(alignment.schema_type, SchemaType::Alignment);
+        assert_eq!(alignment.schema_type, SchemaType::Alignment);
         assert_eq!(sequence.schema_type, SchemaType::Sequence);
     }
 }
