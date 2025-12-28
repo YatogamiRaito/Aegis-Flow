@@ -269,7 +269,7 @@ mod tests {
         };
         let estimator = EnergyEstimator::with_model(model);
 
-        let (_, metrics) = estimator.measure("/test", "GET", ||  {
+        let (_, metrics) = estimator.measure("/test", "GET", || {
             std::thread::sleep(Duration::from_micros(100));
         });
 
@@ -281,7 +281,7 @@ mod tests {
     fn test_estimator_concurrent_access() {
         use std::sync::Arc;
         use std::thread;
-        
+
         let estimator = Arc::new(EnergyEstimator::new());
         let mut handles = vec![];
 
