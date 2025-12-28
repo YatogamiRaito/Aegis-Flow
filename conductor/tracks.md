@@ -49,20 +49,25 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-## [ ] Track: Advanced TEE Integration with Remote Attestation
-*Link: [./conductor/tracks/tee_attestation_20251228/](./conductor/tracks/tee_attestation_20251228/)*
-
----
-
-## [ ] Track: Prometheus/Grafana Dashboard Expansion
-*Link: [./conductor/tracks/observability_dashboards_20251228/](./conductor/tracks/observability_dashboards_20251228/)*
-
----
-
-## [ ] Track: Production-Ready Deployment with Helm Chart Improvements
-*Link: [./conductor/tracks/production_deployment_20251228/](./conductor/tracks/production_deployment_20251228/)*
-
----
-
-## [ ] Track: ML-DSA (Dilithium) Full Migration for Digital Signatures
+## [ ] Track 11: ML-DSA (Dilithium) Full Migration for Digital Signatures (v0.11.0)
 *Link: [./conductor/tracks/mldsa_signing_20251228/](./conductor/tracks/mldsa_signing_20251228/)*
+*Priority: 1 - Core cryptography foundation*
+
+---
+
+## [ ] Track 12: Advanced TEE Integration with Remote Attestation (v0.12.0)
+*Link: [./conductor/tracks/tee_attestation_20251228/](./conductor/tracks/tee_attestation_20251228/)*
+*Priority: 2 - Depends on ML-DSA for quote signing*
+
+---
+
+## [ ] Track 13: Production-Ready Deployment with Helm Chart Improvements (v0.13.0)
+*Link: [./conductor/tracks/production_deployment_20251228/](./conductor/tracks/production_deployment_20251228/)*
+*Priority: 3 - Infrastructure after core features*
+
+---
+
+## [ ] Track 14: Prometheus/Grafana Dashboard Expansion (v0.14.0)
+*Link: [./conductor/tracks/observability_dashboards_20251228/](./conductor/tracks/observability_dashboards_20251228/)*
+*Priority: 4 - LAST - Monitors all features*
+

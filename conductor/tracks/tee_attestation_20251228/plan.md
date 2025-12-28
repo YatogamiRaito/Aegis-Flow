@@ -32,5 +32,5 @@
 - [ ] Task: Documentation and examples
 - [ ] Task: Integration tests with mock service
 - [ ] Task: Update Gramine manifest
-- [ ] Task: Release v0.11.0
+- [ ] Task: Release v0.12.0
 - [ ] Task: Conductor Verification 'Release'

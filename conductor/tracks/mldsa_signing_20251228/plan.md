@@ -34,5 +34,5 @@
 - [ ] Task: Benchmark signing/verification performance
 - [ ] Task: Update documentation
 - [ ] Task: Security advisory cleanup confirmation
-- [ ] Task: Release v0.14.0
+- [ ] Task: Release v0.11.0
 - [ ] Task: Conductor Verification 'Release'

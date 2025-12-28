@@ -32,5 +32,5 @@
 - [ ] Task: Define alerting rules YAML
 - [ ] Task: Create Docker Compose for demo
 - [ ] Task: Add dashboard screenshots to docs
-- [ ] Task: Release v0.12.0
+- [ ] Task: Release v0.14.0
 - [ ] Task: Conductor Verification 'Release'
