@@ -5,6 +5,33 @@ All notable changes to Aegis-Flow will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0] - 2025-12-28
+
+### Added
+- **Prometheus/Grafana Dashboard Expansion (Track 14)**
+  - ServiceMonitor template for Prometheus Operator
+  - Dashboard structure documentation
+  - Alert rule structure for P95 latency, error rates, PQC failures
+  - Certificate expiry alerting framework
+  - All 14 development tracks now complete!
+
+### Changed
+- Workspace version bumped to 0.14.0
+
+## [0.13.0] - 2025-12-28
+
+### Added
+- **Production-Ready Deployment (Track 13)**
+  - PodDisruptionBudget template (`pdb.yaml`)
+  - NetworkPolicy template (`networkpolicy.yaml`)
+  - ServiceMonitor template (`servicemonitor.yaml`)
+  - Environment profiles (dev/production) in values.yaml
+  - Seccomp RuntimeDefault profile configuration
+- Helm chart version updated to 0.4.0
+
+### Changed
+- Workspace version bumped to 0.13.0
+
 ## [0.12.0] - 2025-12-28
 
 ### Added

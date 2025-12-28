@@ -2,8 +2,8 @@ apiVersion: v2
 name: aegis-flow
 description: Post-Quantum Secure, Carbon-Aware Service Mesh Data Plane
 type: application
-version: 0.3.0
-appVersion: "0.10.0"
+version: 0.4.0
+appVersion: "0.13.0"
 keywords:
   - service-mesh
   - post-quantum
