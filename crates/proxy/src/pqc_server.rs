@@ -278,4 +278,36 @@ mod tests {
         // Cleanup
         tx.send(()).unwrap();
     }
+
+    #[tokio::test]
+    async fn test_pqc_server_run_and_shutdown() {
+        let config = ProxyConfig {
+            host: "127.0.0.1".to_string(),
+            port: 0,
+            ..Default::default()
+        };
+        let server = PqcProxyServer::new(config);
+        
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        
+        let server_handle = tokio::spawn(async move {
+            server.run_with_listener(listener, async {
+                rx.await.ok();
+            }).await
+        });
+        
+        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+        
+        let mut stream = TcpStream::connect(addr).await.unwrap();
+        let mut len_buf = [0u8; 4];
+        let n = stream.read_exact(&mut len_buf).await.unwrap();
+        assert_eq!(n, 4); 
+        
+        tx.send(()).unwrap();
+        let result = tokio::time::timeout(tokio::time::Duration::from_secs(2), server_handle).await;
+        assert!(result.is_ok());
+    }
 }
