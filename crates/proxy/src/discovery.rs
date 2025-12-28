@@ -733,6 +733,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::clone_on_copy)]
     fn test_load_balance_strategy_impls() {
         let s1 = LoadBalanceStrategy::LeastConnections;
         let s2 = s1; // Copy

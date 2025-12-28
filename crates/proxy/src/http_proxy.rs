@@ -586,9 +586,39 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_run_with_custom_executor() {
-        // Just cover the TokioExecutor clone/debug if any
-        let exec = TokioExecutor;
-        let _ = exec;
+    async fn test_handle_request_exhaustive_methods() {
+        use http_body_util::Empty;
+        let methods = [
+            Method::GET, Method::POST, Method::PUT, Method::DELETE, 
+            Method::HEAD, Method::OPTIONS, Method::CONNECT, Method::PATCH, Method::TRACE
+        ];
+        
+        for method in methods {
+            let req = Request::builder()
+                .method(method.clone())
+                .uri("/api/test")
+                .body(Empty::<Bytes>::new())
+                .unwrap();
+                
+            let resp = handle_request(req, "upstream").await.unwrap();
+            
+            // CONNECT usually handled differently, but here it likely goes to default
+            if method == Method::CONNECT {
+                // Should still get a response handled by default branch
+                assert!(resp.status().is_success()); 
+            } else {
+                assert!(resp.status().is_success());
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_proxy_config_listeners() {
+        // Just verify config is usable for binding (not blocking port)
+        let config = HttpProxyConfig {
+            listen_addr: "127.0.0.1:0".parse().unwrap(),
+            ..Default::default()
+        };
+        assert!(config.listen_addr.port() == 0);
     }
 }

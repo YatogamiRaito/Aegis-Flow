@@ -1039,10 +1039,52 @@ upstream_addr: "test:8080"
     }
 
     #[test]
-    fn test_proxy_config_default_values() {
+    fn test_config_defaults_verification() {
         let config = ProxyConfig::default();
-        assert_eq!(config.port, 8443);
+        // Exhaustive check of defaults
         assert_eq!(config.host, "0.0.0.0");
+        assert_eq!(config.port, 8443);
+        assert!(config.tls_enabled);
         assert!(config.pqc_enabled);
+        assert_eq!(config.worker_threads, 0);
+        assert_eq!(config.upstream_addr, "127.0.0.1:8080");
+        
+        // Check sub-struct defaults
+        assert!(config.tls.enabled);
+        assert_eq!(config.tls.cert_path, "/etc/aegis/certs/server.crt");
+        assert_eq!(config.logging.level, "info");
+        assert_eq!(config.health.liveness_path, "/healthz");
+    }
+
+    #[test]
+    fn test_config_builder_pattern_style() {
+        // Verify we can modify fields easily (builder-like usage)
+        let mut config = ProxyConfig::default();
+        config.host = "10.0.0.1".to_string();
+        config.port = 80;
+        config.pqc_enabled = false;
+        
+        assert_eq!(config.host, "10.0.0.1");
+        assert_eq!(config.port, 80);
+        assert!(!config.pqc_enabled);
+    }
+    
+    #[test]
+    fn test_log_config_from_defaults() {
+        let log = LogConfig {
+            level: "debug".to_string(),
+            ..Default::default()
+        };
+        assert_eq!(log.level, "debug");
+        assert!(!log.json_format);
+    }
+
+    #[test]
+    fn test_health_config_defaults_explicit() {
+        let health = HealthConfig::default();
+        assert!(health.enabled);
+        assert_eq!(health.port, 8080); // Default health port
+        assert_eq!(health.liveness_path, "/healthz");
+        assert_eq!(health.readiness_path, "/ready");
     }
 }

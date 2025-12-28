@@ -489,6 +489,37 @@ mod tests {
     }
 
     #[test]
+    fn test_http3_headers_special_chars() {
+        let req = Http3Request::new("GET", "/")
+            .with_header("X-Special", "!@#$%^&*()");
+        assert_eq!(req.headers[0].1, "!@#$%^&*()");
+    }
+
+    #[test]
+    fn test_http3_response_empty_body() {
+        let resp = Http3Response::new(204).with_body("");
+        assert!(resp.body.is_empty());
+        assert_eq!(resp.status, 204);
+    }
+
+    #[test]
+    fn test_http3_large_headers() {
+        let long_val = "a".repeat(1000);
+        let req = Http3Request::new("GET", "/")
+            .with_header("X-Long", &long_val);
+        assert_eq!(req.headers[0].1.len(), 1000);
+    }
+
+    #[test]
+    fn test_http3_headers_case_preservation() {
+        // Implementation uses Strings, so case is preserved unless normalized elsewhere.
+        // Let's verify our struct preserves it.
+        let req = Http3Request::new("GET", "/")
+            .with_header("X-Camel-Case", "Value");
+        assert_eq!(req.headers[0].0, "X-Camel-Case");
+    }
+
+    #[test]
     fn test_http3_request_various_methods() {
         for method in ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"] {
             let req = Http3Request::new(method, "/test");
