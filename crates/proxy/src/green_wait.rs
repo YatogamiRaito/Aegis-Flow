@@ -870,7 +870,7 @@ mod tests {
     }
 
     #[test]
-    fn test_job_priority_ordering() {
+    fn test_job_priority_comparison() {
         assert!(JobPriority::Critical < JobPriority::High);
         assert!(JobPriority::High < JobPriority::Normal);
         assert!(JobPriority::Normal < JobPriority::Low);
@@ -898,7 +898,7 @@ mod tests {
     }
 
     #[test]
-    fn test_deferred_job_creation() {
+    fn test_deferred_job_fields() {
         let job = DeferredJob::new(
             "test-job",
             JobPriority::Normal,
