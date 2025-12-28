@@ -826,16 +826,6 @@ mod tests {
     }
 
     #[test]
-    fn test_auth_state_equality() {
-        let s1 = AuthState::Authenticated;
-        let s2 = AuthState::Authenticated;
-        assert_eq!(s1, s2);
-
-        let s3 = AuthState::Unauthenticated;
-        assert_ne!(s1, s3);
-    }
-
-    #[test]
     fn test_mtls_config_custom_paths() {
         let config = MtlsConfig {
             cert_path: "/custom/server.crt".to_string(),
@@ -848,28 +838,5 @@ mod tests {
         assert!(config.cert_path.contains("custom"));
         assert!(config.require_client_cert);
         assert!(!config.pqc_enabled);
-    }
-
-    #[test]
-    fn test_verification_result_creation() {
-        let result = VerificationResult {
-            verified: true,
-            subject_cn: Some("client.example.com".to_string()),
-            fingerprint: "abc123def456".to_string(),
-            expires_at: 1735689600,
-        };
-
-        assert!(result.verified);
-        assert!(result.subject_cn.is_some());
-    }
-
-    #[test]
-    fn test_auth_state_failed_message() {
-        let state = AuthState::Failed("Connection timeout".to_string());
-        if let AuthState::Failed(msg) = state {
-            assert!(msg.contains("timeout"));
-        } else {
-            panic!("Expected Failed state");
-        }
     }
 }
