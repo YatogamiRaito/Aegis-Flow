@@ -246,4 +246,31 @@ mod tests {
         let result = run_with_listener(listener, async {}).await;
         assert!(result.is_ok());
     }
+
+    #[tokio::test]
+    async fn test_listener_dynamic_port() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        assert!(addr.port() > 0);
+    }
+
+    #[tokio::test]
+    async fn test_run_with_delayed_shutdown() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let result = run_with_listener(listener, async {
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        })
+        .await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_multiple_listener_ports() {
+        let l1 = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let l2 = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        assert_ne!(
+            l1.local_addr().unwrap().port(),
+            l2.local_addr().unwrap().port()
+        );
+    }
 }
