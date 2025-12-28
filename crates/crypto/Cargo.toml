@@ -14,6 +14,7 @@ pqcrypto-mlkem.workspace = true
 pqcrypto-mldsa.workspace = true
 pqcrypto-traits.workspace = true
 x25519-dalek.workspace = true
+ed25519-dalek.workspace = true
 
 # Standard crypto
 rand.workspace = true

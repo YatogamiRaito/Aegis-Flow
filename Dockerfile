@@ -2,7 +2,7 @@
 # Multi-stage build for minimal final image
 
 # Stage 1: Build
-FROM rust:nightly-slim-bookworm AS builder
+FROM rust:bookworm AS builder
 
 WORKDIR /app
 

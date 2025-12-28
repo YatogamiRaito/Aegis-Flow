@@ -33,6 +33,7 @@ pub mod certmanager;
 pub mod cipher;
 pub mod hybrid_kex;
 pub mod mtls;
+pub mod signing;
 pub mod stream;
 pub mod tls;
 pub mod traits;
@@ -42,5 +43,9 @@ pub use cipher::{Cipher, CipherAlgorithm, EncryptionKey};
 pub use hybrid_kex::{HybridCiphertext, HybridKeyExchange, HybridPublicKey, HybridSharedSecret};
 pub use mtls::{
     AuthState, AuthenticatedClient, CertInfo, MtlsAuthenticator, MtlsConfig, MtlsHandler,
+};
+pub use signing::{
+    HybridSignature, HybridSigner, HybridSigningPublicKey, HybridVerifier, MlDsa44Signer,
+    MlDsa65Signer, MlDsa87Signer, MlDsaAlgorithm, MlDsaSignature, MlDsaVerifier, SigningKeyPair,
 };
 pub use traits::KeyExchange;
