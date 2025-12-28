@@ -104,3 +104,105 @@ async fn handle_request(
             .unwrap()),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn create_test_lifecycle() -> Arc<LifecycleManager> {
+        Arc::new(LifecycleManager::new())
+    }
+
+    #[tokio::test]
+    async fn test_health_response_from_lifecycle() {
+        let lifecycle = create_test_lifecycle();
+
+        // Test health response generation
+        let response = lifecycle.health_response().await;
+        // Response should have required fields
+        assert!(response.uptime_seconds.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_ready_endpoint_initial_state() {
+        let lifecycle = create_test_lifecycle();
+
+        // Initial state should not be ready
+        let status = lifecycle.health_status().await;
+        assert!(!status.is_ready());
+    }
+
+    #[tokio::test]
+    async fn test_ready_endpoint_after_mark_ready() {
+        let lifecycle = create_test_lifecycle();
+
+        // Mark as ready
+        lifecycle.mark_ready().await;
+
+        // After marking ready, should be ready
+        let status = lifecycle.health_status().await;
+        assert!(status.is_ready());
+    }
+
+    #[tokio::test]
+    async fn test_lifecycle_manager_transitions() {
+        let lifecycle = create_test_lifecycle();
+
+        // Initial state
+        let status = lifecycle.health_status().await;
+        assert!(!status.is_ready());
+
+        // After mark_ready
+        lifecycle.mark_ready().await;
+        let status = lifecycle.health_status().await;
+        assert!(status.is_ready());
+
+        // After mark_unhealthy
+        lifecycle.mark_unhealthy().await;
+        let status = lifecycle.health_status().await;
+        assert!(!status.is_ready());
+    }
+
+    #[test]
+    fn test_health_config_default() {
+        let config = HealthConfig::default();
+        assert!(config.port > 0);
+    }
+
+    #[test]
+    fn test_health_config_clone() {
+        let config = HealthConfig {
+            port: 9090,
+            enabled: true,
+            ..Default::default()
+        };
+        let cloned = config.clone();
+        assert_eq!(cloned.port, 9090);
+        assert!(cloned.enabled);
+    }
+
+    #[test]
+    fn test_connection_tracking() {
+        let lifecycle = create_test_lifecycle();
+
+        assert_eq!(lifecycle.active_connections(), 0);
+
+        lifecycle.connection_started();
+        assert_eq!(lifecycle.active_connections(), 1);
+
+        lifecycle.connection_started();
+        assert_eq!(lifecycle.active_connections(), 2);
+
+        lifecycle.connection_finished();
+        assert_eq!(lifecycle.active_connections(), 1);
+    }
+
+    #[test]
+    fn test_uptime() {
+        let lifecycle = create_test_lifecycle();
+
+        // Uptime should be zero or positive
+        let uptime = lifecycle.uptime();
+        assert!(uptime.as_secs() < 5); // Should be nearly zero
+    }
+}
