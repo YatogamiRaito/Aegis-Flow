@@ -774,4 +774,3 @@ mod tests {
         assert!(quote.is_fresh(1));
     }
 }
-
