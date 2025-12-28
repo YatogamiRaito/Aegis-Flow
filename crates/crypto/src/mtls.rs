@@ -496,4 +496,63 @@ mod tests {
         assert!(auth.disconnect(conn_id).is_ok());
         assert!(auth.get_client_state(conn_id).is_err());
     }
+
+    #[test]
+    fn test_disconnect_nonexistent() {
+        let config = MtlsConfig::default();
+        let auth = MtlsAuthenticator::new(config).unwrap();
+        assert!(auth.disconnect(99999).is_err());
+    }
+
+    #[test]
+    fn test_get_cert_info() {
+        let config = MtlsConfig::default();
+        let handler = MtlsHandler::new(config);
+        let cert_info = handler.get_cert_info().unwrap();
+        assert!(cert_info.subject.contains("CN="));
+        assert!(cert_info.issuer.contains("CN="));
+    }
+
+    #[test]
+    fn test_verification_result() {
+        let result = VerificationResult {
+            verified: true,
+            subject_cn: Some("test.local".to_string()),
+            fingerprint: "abc123".to_string(),
+            expires_at: 1000000,
+        };
+        assert!(result.verified);
+        assert_eq!(result.subject_cn, Some("test.local".to_string()));
+    }
+
+    #[test]
+    fn test_key_path_validation_error() {
+        let config = MtlsConfig {
+            cert_path: "/tmp/test_cert_exists".to_string(),
+            key_path: "/nonexistent/key.pem".to_string(),
+            ca_path: None,
+            ..Default::default()
+        };
+        // Create the cert file temporarily
+        std::fs::write("/tmp/test_cert_exists", "fake").ok();
+        let handler = MtlsHandler::new(config);
+        let result = handler.validate_paths();
+        assert!(result.is_err());
+        std::fs::remove_file("/tmp/test_cert_exists").ok();
+    }
+
+    #[test]
+    fn test_auth_state_all_variants() {
+        let states = [
+            AuthState::Unauthenticated,
+            AuthState::HandshakeInProgress,
+            AuthState::CertVerificationPending,
+            AuthState::Authenticated,
+            AuthState::Failed("error".to_string()),
+        ];
+        for state in states {
+            // Just verify Debug trait works
+            let _ = format!("{:?}", state);
+        }
+    }
 }

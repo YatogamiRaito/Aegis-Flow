@@ -230,4 +230,29 @@ mod tests {
         assert_eq!(batch.num_rows(), 2);
         assert_eq!(batch.num_columns(), 11);
     }
+
+    #[test]
+    fn test_builder_clear() {
+        let mut builder = AlignmentBatchBuilder::new();
+        builder.push(AlignmentRecord::new("read1", 0, 100, "ACGT"));
+        assert_eq!(builder.len(), 1);
+
+        builder.clear();
+        assert!(builder.is_empty());
+    }
+
+    #[test]
+    fn test_builder_with_capacity() {
+        let builder = AlignmentBatchBuilder::with_capacity(10);
+        assert!(builder.is_empty());
+    }
+
+    #[test]
+    fn test_empty_batch() {
+        let builder = AlignmentBatchBuilder::new();
+        assert!(builder.is_empty());
+
+        let batch = builder.build().unwrap();
+        assert_eq!(batch.num_rows(), 0);
+    }
 }
