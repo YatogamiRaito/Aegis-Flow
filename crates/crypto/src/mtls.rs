@@ -850,29 +850,32 @@ mod tests {
     #[test]
     fn test_verification_result_success() {
         let result = VerificationResult {
-            valid: true,
-            message: "Certificate valid".to_string(),
+            verified: true,
+            subject_cn: "test.example.com".to_string(),
+            fingerprint: "abc123".to_string(),
+            expires_at: 1234567890,
         };
-
-        assert!(result.valid);
-        assert!(result.message.contains("valid"));
+        
+        assert!(result.verified);
+        assert!(result.subject_cn.contains("test.example.com"));
     }
 
     #[test]
     fn test_verification_result_failure() {
         let result = VerificationResult {
-            valid: false,
-            message: "Expired certificate".to_string(),
+            verified: false,
+            subject_cn: "invalid.example.com".to_string(),
+            fingerprint: "def456".to_string(),
+            expires_at: 0,
         };
-
-        assert!(!result.valid);
-        assert!(result.message.contains("Expired"));
+        
+        assert!(!result.verified);
     }
 
     #[test]
     fn test_authenticated_client_id() {
         let client = AuthenticatedClient::new(12345);
-        assert_eq!(client.id(), 12345);
+        assert_eq!(client.connection_id, 12345);
     }
 
     #[test]
