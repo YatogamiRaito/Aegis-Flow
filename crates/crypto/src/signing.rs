@@ -1507,7 +1507,7 @@ mod tests {
         // If it fails to parse, it returns Err.
         // We just want to ensure it doesn't panic.
         let msg = b"test";
-        let sig = vec![0u8; MlDsaAlgorithm::MlDsa44.signature_size()]; // Invalid signature too
+        let sig = vec![0u8; MlDsaAlgorithm::MlDsa44.signature_size_approx()]; // Invalid signature too
         let _ = verifier.verify(msg, &sig);
     }
 

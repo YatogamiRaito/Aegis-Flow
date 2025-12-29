@@ -840,7 +840,12 @@ mod tests {
         let server = QuicServer::new(config, ProxyConfig::default());
         let result = server.run().await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("TLS certificate not found"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("TLS certificate not found")
+        );
     }
 
     #[tokio::test]
@@ -860,7 +865,12 @@ mod tests {
         let server = QuicServer::new(config, ProxyConfig::default());
         let result = server.run().await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("TLS private key not found"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("TLS private key not found")
+        );
     }
 
     #[tokio::test]
@@ -871,7 +881,7 @@ mod tests {
 
         struct InfiniteReader;
         impl tokio::io::AsyncRead for InfiniteReader {
-             fn poll_read(
+            fn poll_read(
                 self: Pin<&mut Self>,
                 _cx: &mut Context<'_>,
                 buf: &mut tokio::io::ReadBuf<'_>,
@@ -891,8 +901,9 @@ mod tests {
         // Set a timeout to ensure it doesn't loop forever
         let result = tokio::time::timeout(
             tokio::time::Duration::from_secs(5),
-            QuicServer::process_stream(&mut recv, &mut send, "backend".to_string())
-        ).await;
+            QuicServer::process_stream(&mut recv, &mut send, "backend".to_string()),
+        )
+        .await;
 
         assert!(result.is_ok(), "Should not time out"); // Timeout means loop didn't break
         assert!(result.unwrap().is_ok()); // Inner result should be Ok

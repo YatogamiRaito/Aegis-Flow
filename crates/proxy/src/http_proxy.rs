@@ -675,15 +675,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_proxy_integration_metrics_request() {
+        use http_body_util::Empty;
         use hyper::client::conn::http2;
         use hyper_util::rt::TokioExecutor;
         use tokio::net::TcpStream;
-        use http_body_util::Empty;
 
         // 1. Setup Server
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
-        
+
         let config = HttpProxyConfig {
             listen_addr: addr,
             ..Default::default()
@@ -691,9 +691,14 @@ mod tests {
         let proxy = HttpProxy::new(config);
 
         let (tx, rx) = tokio::sync::oneshot::channel();
-        
+
         tokio::spawn(async move {
-            proxy.run_with_listener(listener, async { rx.await.ok(); }).await.ok();
+            proxy
+                .run_with_listener(listener, async {
+                    rx.await.ok();
+                })
+                .await
+                .ok();
         });
 
         // 2. Connect Client
@@ -714,10 +719,10 @@ mod tests {
             .unwrap();
 
         let res = sender.send_request(req).await.unwrap();
-        
+
         // 4. Assert
         assert_eq!(res.status(), StatusCode::OK);
-        
+
         tx.send(()).unwrap();
     }
 }

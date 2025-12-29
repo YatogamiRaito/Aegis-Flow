@@ -834,7 +834,7 @@ mod tests {
     #[tokio::test]
     async fn test_stream_fragmented_read() {
         let key = vec![0u8; 32];
-        let mut plaintext = vec![0u8; 120]; 
+        let mut plaintext = vec![0u8; 120];
         // 120 bytes -> small enough for one frame, but we force fragmentation on read
         for i in 0..120 {
             plaintext[i] = i as u8;
@@ -844,12 +844,12 @@ mod tests {
         // We use duplex to write into "wire" format
         let (client, mut server) = tokio::io::duplex(4096);
         let mut encryptor = EncryptedStream::new(client, &key);
-        
+
         let plaintext_clone = plaintext.clone();
         tokio::spawn(async move {
-           encryptor.write_all(&plaintext_clone).await.unwrap();
-           // Close to signal EOF
-           encryptor.shutdown().await.unwrap(); 
+            encryptor.write_all(&plaintext_clone).await.unwrap();
+            // Close to signal EOF
+            encryptor.shutdown().await.unwrap();
         });
 
         // 2. Read all "encrypted" bytes from the wire
@@ -890,17 +890,20 @@ mod tests {
             fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
                 Poll::Ready(Ok(()))
             }
-            fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
+            fn poll_shutdown(
+                self: Pin<&mut Self>,
+                _cx: &mut Context<'_>,
+            ) -> Poll<Result<(), Error>> {
                 Poll::Ready(Ok(()))
             }
         }
         impl tokio::io::AsyncRead for ZeroWriter {
-             fn poll_read(
+            fn poll_read(
                 self: Pin<&mut Self>,
                 _cx: &mut Context<'_>,
                 _buf: &mut tokio::io::ReadBuf<'_>,
             ) -> Poll<Result<(), Error>> {
-                 Poll::Ready(Ok(()))
+                Poll::Ready(Ok(()))
             }
         }
 
@@ -909,11 +912,11 @@ mod tests {
 
         let result = stream.write_all(b"test").await;
         if result.is_ok() {
-             let flush_res = stream.flush().await;
-             assert!(flush_res.is_err());
-             assert_eq!(flush_res.unwrap_err().kind(), ErrorKind::WriteZero);
+            let flush_res = stream.flush().await;
+            assert!(flush_res.is_err());
+            assert_eq!(flush_res.unwrap_err().kind(), ErrorKind::WriteZero);
         } else {
-             assert!(result.is_err());
+            assert!(result.is_err());
         }
     }
 }
