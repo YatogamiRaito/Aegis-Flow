@@ -990,4 +990,72 @@ mod tests {
         );
         assert_eq!(job.payload, payload);
     }
+    #[test]
+    fn test_time_remaining_zero_when_expired() {
+        // Line 89: Duration::ZERO when elapsed >= max_wait
+        let job = DeferredJob::new(
+            "old-job",
+            JobPriority::Critical, // Critical has max_wait = Duration::ZERO
+            Region::new("test", "Test"),
+            100.0,
+            vec![],
+        );
+        // For Critical priority, max_wait is ZERO, so time_remaining is ZERO
+        assert_eq!(job.time_remaining(), Duration::ZERO);
+    }
+
+    #[tokio::test]
+    async fn test_schedule_immediate_low_carbon() {
+        // Lines 183-185: Execute immediately when carbon is low
+        let client = MockClient { intensity: 50.0 }; // Low carbon
+        let cache = CarbonIntensityCache::new(300);
+        let scheduler = GreenWaitScheduler::new(GreenWaitConfig::default(), client, cache);
+
+        // Set the region intensity in the scheduler's map
+        scheduler.update_region_intensity("low-region", 50.0).await;
+
+        let job = DeferredJob::new(
+            "low-carbon-job",
+            JobPriority::Normal,
+            Region::new("low-region", "Low Carbon"),
+            100.0, // Threshold is 100, intensity is 50
+            vec![],
+        );
+
+        let result = scheduler.submit(job).await;
+        assert!(matches!(result, ScheduleResult::ExecutedImmediately));
+    }
+
+    #[tokio::test]
+    async fn test_schedule_queue_full() {
+        // Lines 193-195: Queue full rejection
+        let config = GreenWaitConfig {
+            max_queue_size: 1,
+            ..Default::default()
+        };
+        let client = MockClient { intensity: 500.0 }; // High carbon, will queue
+        let cache = CarbonIntensityCache::new(300);
+        let scheduler = GreenWaitScheduler::new(config, client, cache);
+
+        let job1 = DeferredJob::new(
+            "job1",
+            JobPriority::Normal,
+            Region::new("unknown", "Unknown"),
+            50.0,
+            vec![],
+        );
+        let job2 = DeferredJob::new(
+            "job2",
+            JobPriority::Normal,
+            Region::new("unknown", "Unknown"),
+            50.0,
+            vec![],
+        );
+
+        let r1 = scheduler.submit(job1).await;
+        assert!(matches!(r1, ScheduleResult::Queued { .. }));
+
+        let r2 = scheduler.submit(job2).await;
+        assert!(matches!(r2, ScheduleResult::QueueFull));
+    }
 }

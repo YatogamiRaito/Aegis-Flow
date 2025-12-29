@@ -1571,4 +1571,58 @@ mod tests {
         // Too short
         assert!(HybridSigningPublicKey::from_bytes(&[0u8; 10]).is_err());
     }
+    #[test]
+    fn test_mldsa_verifier_public_key_accessor() {
+        // Lines 460-461: MlDsaVerifier::public_key() accessor
+        let signer = MlDsa44Signer::generate().unwrap();
+        let verifier =
+            MlDsaVerifier::new(signer.public_key().to_vec(), MlDsaAlgorithm::MlDsa44).unwrap();
+        let pk = verifier.public_key();
+        assert!(!pk.is_empty());
+        assert_eq!(pk.len(), MlDsaAlgorithm::MlDsa44.public_key_size());
+    }
+
+    #[test]
+    fn test_hybrid_signer_verify_ed25519_invalid_length() {
+        // Lines 652-656: verify_ed25519 with wrong signature length
+        let signer = HybridSigner::generate().unwrap();
+        let msg = b"test";
+        let result = signer.verify_ed25519(msg, &[0u8; 32]); // Wrong length
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Invalid Ed25519"));
+    }
+
+    #[test]
+    fn test_hybrid_verifier_verify_invalid_ed25519_length() {
+        // Lines 718-719, 733: HybridVerifier::verify with wrong Ed25519 sig length
+        let signer = HybridSigner::generate().unwrap();
+        let pk = signer.public_key();
+        let verifier = HybridVerifier::new(&pk).unwrap();
+        let msg = b"test";
+
+        let invalid_sig = HybridSignature {
+            ed25519_sig: vec![0u8; 32], // Invalid: should be 64
+            mldsa_sig: vec![0u8; 100],
+        };
+
+        let result = verifier.verify(msg, &invalid_sig).unwrap();
+        assert!(!result); // Should return Ok(false) for wrong length
+    }
+
+    #[test]
+    fn test_hybrid_verifier_verify_invalid_ed25519_signature() {
+        // Line 733: Ed25519 verification failure path
+        let signer = HybridSigner::generate().unwrap();
+        let pk = signer.public_key();
+        let verifier = HybridVerifier::new(&pk).unwrap();
+        let msg = b"test";
+
+        let invalid_sig = HybridSignature {
+            ed25519_sig: vec![0u8; 64], // Valid length, invalid signature
+            mldsa_sig: vec![0u8; 100],
+        };
+
+        let result = verifier.verify(msg, &invalid_sig).unwrap();
+        assert!(!result); // Should return Ok(false) for bad signature
+    }
 }

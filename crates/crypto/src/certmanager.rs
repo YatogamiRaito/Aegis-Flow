@@ -1324,4 +1324,35 @@ mod tests {
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("expired"));
     }
+    #[test]
+    fn test_generate_self_signed_with_invalid_san_phase8() {
+        // Lines 270-271: Invalid SAN warning path
+        let result = CertManager::generate_self_signed(
+            "test-server",
+            &[
+                "valid-domain.com".to_string(),
+                "!!!invalid!!!".to_string(), // Invalid SAN
+                "192.168.1.1".to_string(),
+            ],
+            1,
+        );
+        // Should succeed, just skip invalid SAN
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_der_certificate() {
+        // Line 194: parse_der path test
+        // Generate a self-signed cert
+        let (cert_pem, _) =
+            CertManager::generate_self_signed("der-test", &["localhost".to_string()], 1).unwrap();
+
+        // Parse the PEM to get DER bytes
+        let parsed = CertManager::parse_pem(cert_pem.as_bytes()).unwrap();
+        let der_bytes = parsed.der_bytes;
+
+        // Now parse from DER
+        let parsed_der = CertManager::parse_der(&der_bytes).unwrap();
+        assert_eq!(parsed_der.subject_cn, "der-test");
+    }
 }
