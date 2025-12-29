@@ -179,11 +179,11 @@ mod tests {
         // If it runs, it covers the logic.
         // We assert true to avoid flaky failure if port busy?
         // Or we inspect error.
-        if let Err(e) = &result {
-            if e.to_string().contains("Address already in use") {
-                // Acceptable for test collision
-                return;
-            }
+        if let Err(e) = &result
+            && e.to_string().contains("Address already in use")
+        {
+            // Acceptable for test collision
+            return;
         }
         assert!(result.is_ok(), "Bootstrap failed: {:?}", result.err());
     }
