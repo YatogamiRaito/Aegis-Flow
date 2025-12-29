@@ -1,5 +1,5 @@
 # Test Coverage Report
-
+Run cargo tarpaulin --workspace
 ## Overall Status
 **Total Coverage:** 91.33% (2866/3138 lines covered)
 
