@@ -800,4 +800,22 @@ mod tests {
         let result = registry.get_endpoint("internal-zero").await;
         assert_eq!(result, Some(ep1));
     }
+
+    #[tokio::test]
+    async fn test_weighted_round_robin_loop_fallback() {
+        // Test to cover line 153: the fallback after the loop completes
+        // This happens when the random target ends up exactly at the boundary
+        // We test by running many iterations to statistically hit the edge case
+        let registry = ServiceRegistry::new(LoadBalanceStrategy::WeightedRoundRobin);
+        let ep1: SocketAddr = "127.0.0.1:8080".parse().unwrap();
+        let ep2: SocketAddr = "127.0.0.1:8081".parse().unwrap();
+
+        registry.register("fallback-test", vec![ep1, ep2]).await;
+
+        // Run many iterations to cover all code paths
+        for _ in 0..100 {
+            let result = registry.get_endpoint("fallback-test").await;
+            assert!(result.is_some());
+        }
+    }
 }

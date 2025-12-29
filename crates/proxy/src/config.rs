@@ -1194,4 +1194,41 @@ upstream_addr: "test:8080"
 
         std::fs::remove_file(&path).ok();
     }
+
+    #[test]
+    fn test_config_manager_check_for_changes_some_none_case() {
+        // Test the (Some(_), None) case - file exists but no previous modified time
+        let dir = std::env::temp_dir();
+        let path = dir.join(format!("test_some_none_{}.yaml", std::process::id()));
+
+        // Create config file
+        let config = ProxyConfig::default();
+        config.save_to_file(&path).unwrap();
+
+        // Create manager manually with last_modified = None
+        let manager = ConfigManager {
+            config: Arc::new(RwLock::new(config)),
+            config_path: Some(path.clone()),
+            last_modified: Arc::new(RwLock::new(None)), // Force None state
+        };
+
+        // File exists (Some) but no previous mtime (None) => should return true
+        assert!(manager.check_for_changes());
+
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn test_config_manager_check_for_changes_none_any_case() {
+        // Test the _ => false case - when current file cannot be read
+        let manager = ConfigManager {
+            config: Arc::new(RwLock::new(ProxyConfig::default())),
+            config_path: Some(std::path::PathBuf::from("/nonexistent/path/config.yaml")),
+            last_modified: Arc::new(RwLock::new(Some(std::time::SystemTime::now()))),
+        };
+
+        // File doesn't exist (None for current_modified) => should return false
+        assert!(!manager.check_for_changes());
+    }
 }
+

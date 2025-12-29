@@ -678,4 +678,259 @@ mod tests {
         let client = ElectricityMapsClient::new("api_key".to_string());
         let _ = &client;
     }
+
+    #[tokio::test]
+    async fn test_watttime_percent_rating_very_low() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/login"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "token": "token"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/signal-index"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "ba": "CAISO",
+                "point_time": "2025-12-25T14:00:00Z",
+                "moer": 100.0,
+                "percent": 10  // 0-20 = very_low
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = WattTimeClient::new("user".to_string(), "pass".to_string())
+            .with_base_url(mock_server.uri());
+        let region = Region::new("CAISO", "California");
+        let result = client.get_carbon_intensity(&region).await.unwrap();
+        assert_eq!(result.rating.as_deref(), Some("very_low"));
+    }
+
+    #[tokio::test]
+    async fn test_watttime_percent_rating_low() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/login"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "token": "token"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/signal-index"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "ba": "CAISO",
+                "point_time": "2025-12-25T14:00:00Z",
+                "moer": 100.0,
+                "percent": 30  // 21-40 = low
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = WattTimeClient::new("user".to_string(), "pass".to_string())
+            .with_base_url(mock_server.uri());
+        let region = Region::new("CAISO", "California");
+        let result = client.get_carbon_intensity(&region).await.unwrap();
+        assert_eq!(result.rating.as_deref(), Some("low"));
+    }
+
+    #[tokio::test]
+    async fn test_watttime_percent_rating_medium() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/login"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "token": "token"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/signal-index"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "ba": "CAISO",
+                "point_time": "2025-12-25T14:00:00Z",
+                "moer": 100.0,
+                "percent": 50  // 41-60 = medium
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = WattTimeClient::new("user".to_string(), "pass".to_string())
+            .with_base_url(mock_server.uri());
+        let region = Region::new("CAISO", "California");
+        let result = client.get_carbon_intensity(&region).await.unwrap();
+        assert_eq!(result.rating.as_deref(), Some("medium"));
+    }
+
+    #[tokio::test]
+    async fn test_watttime_percent_rating_high() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/login"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "token": "token"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/signal-index"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "ba": "CAISO",
+                "point_time": "2025-12-25T14:00:00Z",
+                "moer": 100.0,
+                "percent": 70  // 61-80 = high
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = WattTimeClient::new("user".to_string(), "pass".to_string())
+            .with_base_url(mock_server.uri());
+        let region = Region::new("CAISO", "California");
+        let result = client.get_carbon_intensity(&region).await.unwrap();
+        assert_eq!(result.rating.as_deref(), Some("high"));
+    }
+
+    #[tokio::test]
+    async fn test_watttime_percent_rating_very_high() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/login"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "token": "token"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/signal-index"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "ba": "CAISO",
+                "point_time": "2025-12-25T14:00:00Z",
+                "moer": 100.0,
+                "percent": 90  // 81+ = very_high
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = WattTimeClient::new("user".to_string(), "pass".to_string())
+            .with_base_url(mock_server.uri());
+        let region = Region::new("CAISO", "California");
+        let result = client.get_carbon_intensity(&region).await.unwrap();
+        assert_eq!(result.rating.as_deref(), Some("very_high"));
+    }
+
+    #[tokio::test]
+    async fn test_electricity_maps_rating_very_low() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/carbon-intensity/latest"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "zone": "NO",
+                "carbonIntensity": 25.0,  // 0-50 = very_low
+                "datetime": "2025-12-25T14:00:00Z",
+                "updatedAt": "2025-12-25T14:05:00Z"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = ElectricityMapsClient::new("key".to_string()).with_base_url(mock_server.uri());
+        let region = Region::new("NO", "Norway");
+        let result = client.get_carbon_intensity(&region).await.unwrap();
+        assert_eq!(result.rating.as_deref(), Some("very_low"));
+    }
+
+    #[tokio::test]
+    async fn test_electricity_maps_rating_low() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/carbon-intensity/latest"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "zone": "SE",
+                "carbonIntensity": 100.0,  // 51-150 = low
+                "datetime": "2025-12-25T14:00:00Z",
+                "updatedAt": "2025-12-25T14:05:00Z"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = ElectricityMapsClient::new("key".to_string()).with_base_url(mock_server.uri());
+        let region = Region::new("SE", "Sweden");
+        let result = client.get_carbon_intensity(&region).await.unwrap();
+        assert_eq!(result.rating.as_deref(), Some("low"));
+    }
+
+    #[tokio::test]
+    async fn test_electricity_maps_rating_medium() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/carbon-intensity/latest"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "zone": "DE",
+                "carbonIntensity": 200.0,  // 151-300 = medium
+                "datetime": "2025-12-25T14:00:00Z",
+                "updatedAt": "2025-12-25T14:05:00Z"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = ElectricityMapsClient::new("key".to_string()).with_base_url(mock_server.uri());
+        let region = Region::new("DE", "Germany");
+        let result = client.get_carbon_intensity(&region).await.unwrap();
+        assert_eq!(result.rating.as_deref(), Some("medium"));
+    }
+
+    #[tokio::test]
+    async fn test_electricity_maps_rating_high() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/carbon-intensity/latest"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "zone": "PL",
+                "carbonIntensity": 400.0,  // 301-500 = high
+                "datetime": "2025-12-25T14:00:00Z",
+                "updatedAt": "2025-12-25T14:05:00Z"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = ElectricityMapsClient::new("key".to_string()).with_base_url(mock_server.uri());
+        let region = Region::new("PL", "Poland");
+        let result = client.get_carbon_intensity(&region).await.unwrap();
+        assert_eq!(result.rating.as_deref(), Some("high"));
+    }
+
+    #[tokio::test]
+    async fn test_electricity_maps_rating_very_high() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/carbon-intensity/latest"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "zone": "CN",
+                "carbonIntensity": 600.0,  // 501+ = very_high
+                "datetime": "2025-12-25T14:00:00Z",
+                "updatedAt": "2025-12-25T14:05:00Z"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = ElectricityMapsClient::new("key".to_string()).with_base_url(mock_server.uri());
+        let region = Region::new("CN", "China");
+        let result = client.get_carbon_intensity(&region).await.unwrap();
+        assert_eq!(result.rating.as_deref(), Some("very_high"));
+    }
 }
