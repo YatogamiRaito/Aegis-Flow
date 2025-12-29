@@ -835,8 +835,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_run_with_missing_certs() {
-        let mut config = QuicConfig::default();
-        config.cert_path = "/path/to/nowhere.crt".to_string();
+        let config = QuicConfig {
+            cert_path: "/path/to/nowhere.crt".to_string(),
+            ..Default::default()
+        };
         let server = QuicServer::new(config, ProxyConfig::default());
         let result = server.run().await;
         assert!(result.is_err());
@@ -858,9 +860,11 @@ mod tests {
         let cert_path = dir.path().join("server.crt");
         File::create(&cert_path).unwrap();
 
-        let mut config = QuicConfig::default();
-        config.cert_path = cert_path.to_str().unwrap().to_string();
-        config.key_path = "/path/to/nowhere.key".to_string();
+        let config = QuicConfig {
+            cert_path: cert_path.to_str().unwrap().to_string(),
+            key_path: "/path/to/nowhere.key".to_string(),
+            ..Default::default()
+        };
 
         let server = QuicServer::new(config, ProxyConfig::default());
         let result = server.run().await;
@@ -875,7 +879,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_process_stream_too_large() {
-        use std::io::{Error, ErrorKind};
+        use std::io::Error;
         use std::pin::Pin;
         use std::task::{Context, Poll};
 

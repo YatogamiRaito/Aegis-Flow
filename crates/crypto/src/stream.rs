@@ -836,8 +836,8 @@ mod tests {
         let key = vec![0u8; 32];
         let mut plaintext = vec![0u8; 120];
         // 120 bytes -> small enough for one frame, but we force fragmentation on read
-        for i in 0..120 {
-            plaintext[i] = i as u8;
+        for (i, byte) in plaintext.iter_mut().enumerate() {
+            *byte = i as u8;
         }
 
         // 1. Create a dummy encrypted stream to write data safely
