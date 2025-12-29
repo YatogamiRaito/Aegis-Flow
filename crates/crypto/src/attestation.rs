@@ -1416,7 +1416,7 @@ mod tests_coverage {
         // Truncate last 4 bytes -> 22 bytes
 
         let truncated = &bytes[..bytes.len() - 4];
-        
+
         // Should parse OK but with signature=None (hitting the else block at 239)
         let recovered = AttestationQuote::from_bytes(truncated).unwrap();
         assert!(recovered.signature.is_none());

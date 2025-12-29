@@ -600,21 +600,30 @@ mod tests {
         use hyper::Request;
 
         // 1. Health
-        let req = Request::builder().uri("/health").body(Full::new(Bytes::new())).unwrap();
+        let req = Request::builder()
+            .uri("/health")
+            .body(Full::new(Bytes::new()))
+            .unwrap();
         let resp = handle_request(req, "upstream").await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         let body = resp.into_body().collect().await.unwrap().to_bytes();
         assert_eq!(body, "OK");
 
         // 2. Ready
-        let req = Request::builder().uri("/ready").body(Full::new(Bytes::new())).unwrap();
+        let req = Request::builder()
+            .uri("/ready")
+            .body(Full::new(Bytes::new()))
+            .unwrap();
         let resp = handle_request(req, "upstream").await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         let body = resp.into_body().collect().await.unwrap().to_bytes();
         assert!(String::from_utf8_lossy(&body).contains("ready"));
 
         // 3. Metrics (Uninitialized or Initialized)
-        let req = Request::builder().uri("/metrics").body(Full::new(Bytes::new())).unwrap();
+        let req = Request::builder()
+            .uri("/metrics")
+            .body(Full::new(Bytes::new()))
+            .unwrap();
         let resp = handle_request(req, "upstream").await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 

@@ -1246,10 +1246,15 @@ mod tests {
 
         let msg = b"test";
         let sig = signer.sign(msg).unwrap();
-        
+
         let result = invalid_signer.verify(msg, &sig);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Invalid public key"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Invalid public key")
+        );
     }
 
     #[test]
@@ -1258,10 +1263,10 @@ mod tests {
         let signer = MlDsa44Signer::generate().unwrap();
         let msg = b"test";
         let _sig = signer.sign(msg).unwrap();
-        
+
         // Use empty signature bytes - should fail deserialization often
-        let invalid_sig = vec![]; 
-        
+        let invalid_sig = vec![];
+
         let result = signer.verify(msg, &invalid_sig);
         // If it returns error (deserialization fail), that's ensuring our line coverage.
         // If it returns Ok(false) (verification fail), that's acceptable behavior too, though we miss coverage.

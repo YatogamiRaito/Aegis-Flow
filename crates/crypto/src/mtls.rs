@@ -1190,16 +1190,21 @@ mod tests {
     #[test]
     fn test_init_from_files_success() {
         let dir = std::env::temp_dir();
-        let timestamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
         let cert_path = dir.join(format!("server_{}.crt", timestamp));
         let key_path = dir.join(format!("server_{}.key", timestamp));
         let ca_path = dir.join(format!("ca_{}.crt", timestamp));
 
         // 1. Generate CA cert (must be marked as CA)
         let mut ca_params = rcgen::CertificateParams::default();
-        ca_params.distinguished_name.push(rcgen::DnType::CommonName, "Test CA");
+        ca_params
+            .distinguished_name
+            .push(rcgen::DnType::CommonName, "Test CA");
         ca_params.is_ca = rcgen::IsCa::Ca(rcgen::BasicConstraints::Unconstrained);
-        
+
         let ca_key = rcgen::KeyPair::generate().unwrap();
         let ca_cert = ca_params.self_signed(&ca_key).unwrap();
         let ca_pem = ca_cert.pem();
@@ -1207,11 +1212,16 @@ mod tests {
 
         // 2. Generate Server cert (signed by CA)
         let mut server_params = rcgen::CertificateParams::default();
-        server_params.distinguished_name.push(rcgen::DnType::CommonName, "localhost");
-        server_params.subject_alt_names = vec![rcgen::SanType::IpAddress("127.0.0.1".parse().unwrap())];
-        
+        server_params
+            .distinguished_name
+            .push(rcgen::DnType::CommonName, "localhost");
+        server_params.subject_alt_names =
+            vec![rcgen::SanType::IpAddress("127.0.0.1".parse().unwrap())];
+
         let server_key = rcgen::KeyPair::generate().unwrap();
-        let server_cert = server_params.signed_by(&server_key, &ca_cert, &ca_key).unwrap();
+        let server_cert = server_params
+            .signed_by(&server_key, &ca_cert, &ca_key)
+            .unwrap();
         let server_pem = server_cert.pem();
         let server_key_pem = server_key.serialize_pem();
 

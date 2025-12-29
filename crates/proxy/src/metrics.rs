@@ -244,7 +244,7 @@ mod tests {
 
         // Record something to ensure registry is not empty
         metrics::counter!("test_idempotency_c", "t" => "1").increment(1);
-        
+
         // We can't easily compare handles for equality, but verifying we got one is enough
         // and that it didn't panic or re-install recorder
         let render1 = handle1.render();
