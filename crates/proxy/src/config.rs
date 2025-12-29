@@ -799,6 +799,44 @@ upstream_addr: "test:8080"
     }
 
     #[test]
+    fn test_apply_env_overrides_invalid_values() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        // SAFETY: This is a single-threaded test
+        unsafe {
+            std::env::set_var("AEGIS_PORT", "invalid_port");
+            std::env::set_var("AEGIS_TLS_ENABLED", "not_a_bool");
+            std::env::set_var("AEGIS_WORKER_THREADS", "-1");
+        }
+        let mut config = ProxyConfig::default();
+        let original_port = config.port;
+        let original_tls = config.tls_enabled;
+        let original_workers = config.worker_threads;
+
+        config.apply_env_overrides();
+
+        // Should remain unchanged
+        assert_eq!(config.port, original_port);
+        assert_eq!(config.tls_enabled, original_tls);
+        assert_eq!(config.worker_threads, original_workers);
+
+        unsafe {
+            std::env::remove_var("AEGIS_PORT");
+            std::env::remove_var("AEGIS_TLS_ENABLED");
+            std::env::remove_var("AEGIS_WORKER_THREADS");
+        }
+    }
+
+    #[test]
+    fn test_check_for_changes_no_file() {
+        let manager = ConfigManager::new();
+        // No file associated, should return false
+        assert!(!manager.check_for_changes());
+        
+        // Reload should return OK(false)
+        assert!(!manager.reload().unwrap());
+    }
+
+    #[test]
     fn test_validate_tls_certs_missing() {
         let config = ProxyConfig {
             tls_enabled: true,

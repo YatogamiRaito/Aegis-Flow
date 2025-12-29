@@ -333,7 +333,7 @@ mod tests {
     #[tokio::test]
     async fn test_health_server_bind_failure() {
         // Bind to a port first
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let listener = TcpListener::bind("0.0.0.0:0").await.unwrap();
         let port = listener.local_addr().unwrap().port();
 
         let config = HealthConfig {
@@ -359,7 +359,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_run_health_server_not_bindable() {
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let listener = TcpListener::bind("0.0.0.0:0").await.unwrap();
         let port = listener.local_addr().unwrap().port();
 
         let config = HealthConfig {

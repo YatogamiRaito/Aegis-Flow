@@ -1176,4 +1176,54 @@ mod tests {
         // Should contain the IPv4 address
         assert!(parsed.san.contains(&"192.168.1.1".to_string()));
     }
+
+    #[test]
+    fn test_get_expiring_certs_server() {
+        let mut manager = CertManager::new();
+        let now = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        let cert = ParsedCert {
+            subject_cn: "server".to_string(),
+            issuer_cn: "ca".to_string(),
+            serial: "999".to_string(),
+            not_before: now - 86400,
+            not_after: now + 86400, // Expires in 1 day (standard logic says <30 days is soon)
+            cert_type: CertType::EndEntity,
+            fingerprint: "fp".to_string(),
+            san: vec![],
+            der_bytes: vec![],
+        };
+
+        manager.set_server_cert(cert, "key".to_string()).unwrap();
+        let expiring = manager.get_expiring_certs();
+        assert_eq!(expiring.len(), 1);
+        assert_eq!(expiring[0].subject_cn, "server");
+    }
+
+    #[test]
+    fn test_days_until_expiry_calculations() {
+        let now = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+        
+        let cert = ParsedCert {
+            subject_cn: "test".to_string(),
+            issuer_cn: "issuer".to_string(),
+            serial: "1".to_string(),
+            not_before: now,
+            not_after: now + 86400 * 10, // 10 days
+            cert_type: CertType::EndEntity,
+            fingerprint: "".to_string(),
+            san: vec![],
+            der_bytes: vec![],
+        };
+        
+        // Tolerance for time drift
+        let days = cert.days_until_expiry();
+        assert!(days >= 9 && days <= 10);
+    }
 }

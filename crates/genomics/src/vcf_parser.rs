@@ -288,4 +288,52 @@ chr1	100	.	A	T	99.0	PASS	DP=50
         let builder = parser.parse(reader).unwrap();
         assert_eq!(builder.len(), 1);
     }
+    #[test]
+    fn test_parse_io_error() {
+        // Create a reader that returns an error
+        struct ErrorReader;
+        impl std::io::Read for ErrorReader {
+            fn read(&mut self, _buf: &mut [u8]) -> std::io::Result<usize> {
+                Err(std::io::Error::new(std::io::ErrorKind::Other, "Read error"))
+            }
+        }
+        impl std::io::BufRead for ErrorReader {
+            fn fill_buf(&mut self) -> std::io::Result<&[u8]> {
+                Err(std::io::Error::new(std::io::ErrorKind::Other, "Read error"))
+            }
+            fn consume(&mut self, _amt: usize) {}
+        }
+
+        let parser = VcfParser::new();
+        let result = parser.parse(ErrorReader);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_line_fields_variations() {
+        let parser = VcfParser::new();
+        
+        // 1. Min fields (8), all dots where possible
+        let line = "chr1\t100\t.\tA\tT\t.\t.\t.";
+        let record = parser.parse_line(line).unwrap().unwrap();
+        assert_eq!(record.id, None);
+        assert_eq!(record.qual, None);
+        assert_eq!(record.filter, None);
+        assert_eq!(record.info, None);
+
+        // 2. ID present, others dot
+        let line = "chr1\t100\tid1\tA\tT\t.\t.\t.";
+        let record = parser.parse_line(line).unwrap().unwrap();
+        assert_eq!(record.id, Some("id1".to_string()));
+
+        // 3. Filter present
+        let line = "chr1\t100\t.\tA\tT\t.\tPASS\t.";
+        let record = parser.parse_line(line).unwrap().unwrap();
+        assert_eq!(record.filter, Some("PASS".to_string()));
+
+        // 4. Info present
+        let line = "chr1\t100\t.\tA\tT\t.\t.\tK=V";
+        let record = parser.parse_line(line).unwrap().unwrap();
+        assert_eq!(record.info, Some("K=V".to_string()));
+    }
 }

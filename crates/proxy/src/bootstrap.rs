@@ -10,18 +10,36 @@ use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
 /// Initialize the application and run the server
 pub async fn bootstrap() -> Result<()> {
-    bootstrap_with_shutdown(std::future::pending()).await
+    bootstrap_with_config(ProxyConfig::default(), std::future::pending()).await
 }
 
-/// Run bootstrap with a shutdown signal for testing
+/// Initialize with custom config and shutdown signal
+pub async fn bootstrap_with_config<F>(config: ProxyConfig, shutdown: F) -> Result<()>
+where
+    F: std::future::Future<Output = ()> + Send + 'static,
+{
+    bootstrap_internal(config, shutdown).await
+}
+
+/// Run bootstrap with a shutdown signal for testing (uses default config)
 pub async fn bootstrap_with_shutdown<F>(shutdown: F) -> Result<()>
 where
     F: std::future::Future<Output = ()> + Send + 'static,
 {
+    bootstrap_with_config(ProxyConfig::default(), shutdown).await
+}
+
+async fn bootstrap_internal<F>(config: ProxyConfig, shutdown: F) -> Result<()>
+where
+    F: std::future::Future<Output = ()> + Send + 'static,
+{
     // Initialize tracing
+    let filter = EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| EnvFilter::new("info"));
+
     let _ = tracing_subscriber::registry()
         .with(fmt::layer())
-        .with(EnvFilter::from_default_env().add_directive(Level::INFO.into()))
+        .with(filter)
         .try_init();
 
     info!("🚀 Aegis-Flow Proxy starting...");
@@ -32,8 +50,6 @@ where
 
     // Initialize lifecycle manager
     let lifecycle = std::sync::Arc::new(crate::LifecycleManager::new());
-
-    let config = ProxyConfig::default();
 
     // Spawn health server
     let health_config = config.health.clone();
@@ -155,36 +171,24 @@ mod tests {
         // This covers the main entry point logic
         let (tx, rx) = tokio::sync::oneshot::channel();
 
+        // Use dynamic port (0) to avoid conflicts
+        let mut config = ProxyConfig::default();
+        config.port = 0;
+        config.health.port = 0; // Also use dynamic port for health server
+
         let handle = tokio::spawn(async move {
             // We use a short run
-            bootstrap_with_shutdown(async {
+            bootstrap_with_config(config, async {
                 rx.await.ok();
             })
             .await
         });
 
         // Let it start (bind ports etc)
-        // Note: Default binds port 8080. If another test is using it, this might fail binding.
-        // But bootstrap() uses ProxyConfig::default().
-        // If we can't change config in bootstrap(), we risk collision.
-        // But tests run in parallel?
-        // We really should be able to inject config.
-        // But for now, let's assume it works or we catch error.
-
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
         tx.send(()).unwrap();
 
         let result = handle.await.unwrap();
-        // It might be Err(AddrInUse) depending on environment.
-        // If it runs, it covers the logic.
-        // We assert true to avoid flaky failure if port busy?
-        // Or we inspect error.
-        if let Err(e) = &result
-            && e.to_string().contains("Address already in use")
-        {
-            // Acceptable for test collision
-            return;
-        }
         assert!(result.is_ok(), "Bootstrap failed: {:?}", result.err());
     }
 }

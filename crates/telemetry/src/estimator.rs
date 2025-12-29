@@ -412,11 +412,38 @@ mod tests {
     }
 
     #[test]
-    fn test_energy_model_fields_read() {
-        let model = EnergyModel::default();
-        // Read fields that might be unused in logic but are part of public API
-        assert!(model.joules_per_storage_byte > 0.0);
-        assert!(model.base_overhead_joules > 0.0);
-        assert!(model.joules_per_network_byte > 0.0);
+    fn test_energy_model_permutations() {
+        // Test that all coefficients contribute to the total energy
+        let model = EnergyModel {
+            joules_per_cycle: 1.0,
+            joules_per_memory_byte: 1.0,
+            joules_per_network_byte: 1.0,
+            joules_per_storage_byte: 1.0,
+            base_overhead_joules: 0.0,
+        };
+        let estimator = EnergyEstimator::with_model(model);
+        
+        // 1. Network contribution
+        let (_, metrics) = estimator.measure_with_bytes("/net", "GET", 100, || ());
+        // We can't easily control duration/cycles perfectly, but we know:
+        // network_energy = 100 * 1.0 = 100.0
+        // memory_energy = 100 * 1.0 = 100.0 (implementation assumes memory traffic proportional to bytes for simplicity? let's check source)
+        // Source line 142: memory_energy = bytes as f64 * model.joules_per_memory_byte;
+        // So memory is also 100.0.
+        // cpu_energy depends on duration.
+        
+        let breakdown = metrics.breakdown;
+        assert_eq!(breakdown.network_joules, 100.0);
+        assert_eq!(breakdown.memory_joules, 100.0);
+        assert!(breakdown.cpu_joules >= 0.0);
+        
+        // 2. Base overhead contribution
+        let model_overhead = EnergyModel {
+            base_overhead_joules: 10.0,
+            ..Default::default()
+        };
+        let est_overhead = EnergyEstimator::with_model(model_overhead);
+        let (_, m2) = est_overhead.measure("/base", "GET", || ());
+        assert!(m2.total_joules() >= 10.0);
     }
 }

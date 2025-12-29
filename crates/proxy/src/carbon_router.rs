@@ -779,6 +779,7 @@ mod tests {
         let config = CarbonRouterConfig::default();
         let mut client = MockEnergyClient::new();
         // Simulate failure for us-west
+        // This will generate a WARN log "Simulated failure", which is expected.
         client.set_failing("us-west");
 
         let cache = CarbonIntensityCache::new(300);
@@ -858,5 +859,79 @@ mod tests {
         // Select verified
         let region = router_high.select_greenest_region().await;
         assert_eq!(region, Some("maxed".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_select_greenest_region_with_nan() {
+        let config = CarbonRouterConfig {
+            enabled: true,
+            max_intensity: 500.0,
+            ..Default::default()
+        };
+        let mut client = MockEnergyClient::new();
+        let cache = CarbonIntensityCache::new(300);
+        
+        let router = CarbonRouter::new(config, client, cache);
+
+        // Register two regions
+        router.register_region(Region::new("valid", "Valid")).await;
+        router.register_region(Region::new("nan", "NaN")).await;
+
+        {
+             // Inject NaN score manually since we can't easily make the client return NaN via the mock interface as-is
+             let mut scores = router.region_scores.write().await;
+             scores.insert("valid".to_string(), RegionScore {
+                 region_id: "valid".to_string(),
+                 carbon_intensity: 100.0,
+                 score: 0.2,
+                 recommended: true,
+             });
+             scores.insert("nan".to_string(), RegionScore {
+                 region_id: "nan".to_string(),
+                 carbon_intensity: f64::NAN,
+                 score: f64::NAN,
+                 recommended: false, // NaN comparison usually false
+             });
+        }
+
+        // Selection should avoid failure and prefer the valid one
+        // Note: partial_cmp with NaN returns None, unwrap_or(Equal). 
+        // 100.0 vs NaN -> None -> Equal.
+        // If sorting is unstable or dependent on implementation, we just want to ensure NO PANIC.
+        // But logic: filter checks <= max_intensity. NaN <= 500.0 is false.
+        // So NaN region should be filtered out!
+        let region = router.select_greenest_region().await;
+        assert_eq!(region, Some("valid".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_routing_weight_min_value() {
+        let config = CarbonRouterConfig {
+            enabled: true, 
+            carbon_weight: 1.0, 
+            max_intensity: 1000.0, // High max so 999 is valid
+            ..Default::default()
+        };
+        let client = MockEnergyClient::new();
+        let cache = CarbonIntensityCache::new(300);
+        let router = CarbonRouter::new(config, client, cache);
+
+        router.register_region(Region::new("dirty", "Dirty")).await;
+        
+        {
+             let mut scores = router.region_scores.write().await;
+             // Score near 1.0 (worst)
+             scores.insert("dirty".to_string(), RegionScore {
+                 region_id: "dirty".to_string(),
+                 carbon_intensity: 999.0,
+                 score: 0.999,
+                 recommended: true,
+             });
+        }
+
+        // Weight = (1.0 - 0.999) * 100 * 1.0 = 0.001 * 100 = 0.1 cast to u32 = 0
+        // Should be clamped to 1
+        let weight = router.get_routing_weight("dirty").await;
+        assert_eq!(weight, 1);
     }
 }

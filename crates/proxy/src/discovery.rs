@@ -723,6 +723,12 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_healthy_count_nonexistent() {
+        let registry = ServiceRegistry::new(LoadBalanceStrategy::RoundRobin);
+        assert_eq!(registry.healthy_count("non-existent").await, 0);
+    }
+
+    #[tokio::test]
     async fn test_register_idempotency() {
         let registry = ServiceRegistry::new(LoadBalanceStrategy::RoundRobin);
         let ep: SocketAddr = "127.0.0.1:8080".parse().unwrap();

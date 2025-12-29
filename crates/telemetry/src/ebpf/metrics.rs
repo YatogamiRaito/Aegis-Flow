@@ -124,6 +124,23 @@ impl EbpfMetrics {
             .fetch_add(tx_bytes + rx_bytes, Ordering::Relaxed);
     }
 
+    /// Record block I/O bytes for a request
+    pub fn record_block_io(&self, request_id: &str, read_bytes: u64, write_bytes: u64) {
+        let mut data = self.request_data.write();
+        if let Some(req_data) = data.get_mut(request_id) {
+            req_data.block_read_bytes += read_bytes;
+            req_data.block_write_bytes += write_bytes;
+        }
+    }
+
+    /// Record memory page faults for a request
+    pub fn record_memory(&self, request_id: &str, pages: u64) {
+        let mut data = self.request_data.write();
+        if let Some(req_data) = data.get_mut(request_id) {
+            req_data.memory_pages += pages;
+        }
+    }
+
     /// Finish tracking and get energy metrics
     pub fn finish_request(
         &self,
@@ -425,5 +442,32 @@ mod tests {
             );
             assert!(result.is_some());
         }
+
+    }
+
+    #[test]
+    fn test_finish_request_full_breakdown() {
+        let coeffs = EnergyCoefficients {
+            joules_per_cycle: 1.0,
+            joules_per_network_byte: 1.0,
+            joules_per_block_byte: 1.0,
+            joules_per_memory_page: 1.0,
+        };
+        let metrics = EbpfMetrics::with_coefficients(coeffs);
+        let req_id = "breakdown-test";
+        
+        metrics.start_request(req_id);
+        metrics.record_cpu_cycles(req_id, 10);
+        metrics.record_network(req_id, 10, 10);
+        metrics.record_block_io(req_id, 5, 5);
+        metrics.record_memory(req_id, 2);
+        
+        let result = metrics.finish_request(req_id, "/test", "GET", Duration::from_millis(10)).unwrap();
+        let breakdown = result.breakdown;
+        
+        assert_eq!(breakdown.cpu_joules, 10.0);
+        assert_eq!(breakdown.network_joules, 20.0); // 10 + 10
+        assert_eq!(breakdown.storage_joules, 10.0); // 5 + 5
+        assert_eq!(breakdown.memory_joules, 2.0);   // 2 pages
     }
 }

@@ -333,20 +333,17 @@ impl TeeCapabilities {
         let mut caps = Self::default();
 
         // Check for SGX
-        #[cfg(target_arch = "x86_64")]
-        {
-            // Check CPUID for SGX support
-            // In real implementation, would use cpuid crate
-            // For now, we simulate detection
-            if std::env::var("AEGIS_TEE_SGX").is_ok() {
-                caps.sgx = true;
-            }
-            if std::env::var("AEGIS_TEE_TDX").is_ok() {
-                caps.tdx = true;
-            }
-            if std::env::var("AEGIS_TEE_SEV_SNP").is_ok() {
-                caps.sev_snp = true;
-            }
+        // Check CPUID for SGX support
+        // In real implementation, would use cpuid crate
+        // For now, we simulate detection
+        if std::env::var("AEGIS_TEE_SGX").is_ok() {
+            caps.sgx = true;
+        }
+        if std::env::var("AEGIS_TEE_TDX").is_ok() {
+            caps.tdx = true;
+        }
+        if std::env::var("AEGIS_TEE_SEV_SNP").is_ok() {
+            caps.sev_snp = true;
         }
 
         caps
@@ -800,6 +797,72 @@ mod tests {
     }
 
     #[test]
+    fn test_verify_quote_stale() {
+        let provider = AttestationProvider::new();
+        let mut quote = provider.generate_quote(b"nonce", b"data").unwrap();
+        
+        // Artificial aging
+        quote.timestamp -= 1000;
+        
+        let fresh = quote.is_fresh(300);
+        assert!(!fresh);
+        
+        let valid = provider.verify_quote(&quote, b"nonce").unwrap();
+        assert!(!valid);
+    }
+
+    #[test]
+    fn test_from_bytes_truncated_errors() {
+        let original = AttestationQuote::new(
+            TeePlatform::None,
+            b"quote".to_vec(),
+            b"nonce".to_vec(),
+            b"data".to_vec(),
+        );
+        let bytes = original.to_bytes();
+        
+        // 1. Truncated nonce length (offset 1)
+        // Platform (1) + NonceLen (4) = 5
+        let truncated = &bytes[0..3];
+        assert!(AttestationQuote::from_bytes(truncated).is_err());
+        
+        // 2. Truncated nonce body
+        // Platform(1) + Len(4) + Nonce(5) + ...
+        // Cut inside nonce
+        let nonce_start = 1 + 4;
+        let nonce_end = nonce_start + original.nonce.len();
+        let truncated_nonce = &bytes[0..nonce_end - 1]; // One byte missing from nonce
+        assert!(AttestationQuote::from_bytes(truncated_nonce).is_err());
+
+        // 3. Truncated user data length
+        let ud_len_start = nonce_end;
+        let truncated_ud_len = &bytes[0..ud_len_start + 2];
+        assert!(AttestationQuote::from_bytes(truncated_ud_len).is_err());
+
+        // 4. Truncated user data body
+        let ud_start = ud_len_start + 4;
+        let ud_end = ud_start + original.user_data.len();
+        let truncated_ud = &bytes[0..ud_end - 1];
+        assert!(AttestationQuote::from_bytes(truncated_ud).is_err());
+
+        // 5. Truncated quote length
+        let q_len_start = ud_end;
+        let truncated_q_len = &bytes[0..q_len_start + 2];
+        assert!(AttestationQuote::from_bytes(truncated_q_len).is_err());
+        
+        // 6. Truncated quote body
+        let q_start = q_len_start + 4;
+        let q_end = q_start + original.quote_bytes.len();
+        let truncated_q = &bytes[0..q_end - 1];
+        assert!(AttestationQuote::from_bytes(truncated_q).is_err());
+        
+        // 7. Truncated timestamp
+        let ts_start = q_end;
+        let truncated_ts = &bytes[0..ts_start + 4];
+        assert!(AttestationQuote::from_bytes(truncated_ts).is_err());
+    }
+
+    #[test]
     fn test_tee_platform_is_tee() {
         assert!(TeePlatform::IntelSgx.is_tee());
         assert!(TeePlatform::IntelTdx.is_tee());
@@ -1044,14 +1107,21 @@ mod tests {
 mod tests_coverage {
     use super::*;
     use std::env;
-    use std::sync::Mutex;
+    use std::sync::{Mutex, MutexGuard};
 
     // Mutex to serialize env var tests to avoid race conditions with other tests
     static ENV_LOCK: Mutex<()> = Mutex::new(());
 
+    fn get_env_lock() -> MutexGuard<'static, ()> {
+        match ENV_LOCK.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        }
+    }
+
     #[test]
     fn test_tee_capabilities_detect_env_vars() {
-        let _lock = ENV_LOCK.lock().unwrap();
+        let _lock = get_env_lock();
 
         // Save original vars
         let orig_sgx = env::var("AEGIS_TEE_SGX");
@@ -1161,19 +1231,29 @@ mod tests_coverage {
         // However, we can construct the struct manually if fields were pub, but they are private.
         // We CAN control it via env vars since new() calls detect() which reads env vars.
 
-        let _lock = ENV_LOCK.lock().unwrap();
+        let _lock = get_env_lock();
         // Save
         let orig_sgx = env::var("AEGIS_TEE_SGX");
+        let orig_tdx = env::var("AEGIS_TEE_TDX");
+        let orig_sev = env::var("AEGIS_TEE_SEV_SNP");
+
+        // CLEANUP EVERYTHING FIRST
         unsafe {
             env::remove_var("AEGIS_TEE_SGX");
+            env::remove_var("AEGIS_TEE_TDX");
+            env::remove_var("AEGIS_TEE_SEV_SNP");
         }
 
         // 1. Force SGX
         unsafe {
             env::set_var("AEGIS_TEE_SGX", "1");
         }
+        // Verify env var is set
+        assert!(env::var("AEGIS_TEE_SGX").is_ok(), "Environment variable AEGIS_TEE_SGX not set!");
+        
         let provider = AttestationProvider::new();
-        assert_eq!(provider.platform(), TeePlatform::IntelSgx);
+        assert_eq!(provider.platform(), TeePlatform::IntelSgx, "Expected IntelSgx, got {:?}", provider.platform());
+        
         let quote = provider.generate_quote(b"n", b"u").unwrap();
         assert_eq!(quote.platform, TeePlatform::IntelSgx);
         assert_eq!(quote.quote_bytes, b"SGX_QUOTE_V3_MOCK_DATA");
@@ -1214,6 +1294,12 @@ mod tests_coverage {
         unsafe {
             if let Ok(v) = orig_sgx {
                 env::set_var("AEGIS_TEE_SGX", v);
+            }
+            if let Ok(v) = orig_tdx {
+                env::set_var("AEGIS_TEE_TDX", v);
+            }
+            if let Ok(v) = orig_sev {
+                env::set_var("AEGIS_TEE_SEV_SNP", v);
             }
         }
     }
