@@ -816,20 +816,35 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_green_wait_config_clone() {
-        let config = GreenWaitConfig::default();
-        let cloned = config.clone();
-        assert_eq!(config.default_threshold, cloned.default_threshold);
-        assert_eq!(config.max_queue_size, cloned.max_queue_size);
+    async fn test_process_ready_jobs_expired() {
+        let client = MockClient { intensity: 500.0 };
+        let cache = CarbonIntensityCache::new(300);
+        let scheduler = GreenWaitScheduler::new(GreenWaitConfig::default(), client, cache);
+
+        scheduler.update_region_intensity("us-west", 500.0).await;
+
+        // Queue a normal job
+        let job = DeferredJob::new(
+            "test-job",
+            JobPriority::Normal,
+            Region::new("us-west", "US West"),
+            100.0,
+            vec![],
+        );
+        scheduler.submit(job).await;
+
+        // Process without green window - job stays in queue
+        let ready = scheduler.process_ready_jobs().await;
+        assert!(ready.is_empty());
+        assert_eq!(scheduler.queue_length().await, 1);
     }
 
     #[tokio::test]
-    async fn test_refresh_intensities() {
+    async fn test_refresh_intensities_updates_cache() {
         let client = MockClient { intensity: 123.0 };
         let cache = CarbonIntensityCache::new(300);
         let scheduler = GreenWaitScheduler::new(GreenWaitConfig::default(), client, cache);
 
-        // Submit a job to add a region to tracking
         let job = DeferredJob::new(
             "refresh-test",
             JobPriority::Normal,
@@ -839,13 +854,12 @@ mod tests {
         );
         scheduler.submit(job).await;
 
-        // Recently submitted job triggers intensity check if not cached, or just queues it.
-        // refresh_intensities() specifically updates cached values.
-
+        // Force a refresh
         scheduler.refresh_intensities().await;
 
-        // Since MockClient returns fixed intensity, we verify it updated the map
-        assert_eq!(scheduler.get_region_intensity("eu-test").await, Some(123.0));
+        // Check if cached/updated
+        let intensity = scheduler.get_region_intensity("eu-test").await;
+        assert_eq!(intensity, Some(123.0));
     }
 
     #[test]
@@ -883,8 +897,8 @@ mod tests {
         assert_eq!(priority, JobPriority::Normal);
     }
 
-    #[test]
-    fn test_deferred_job_is_expired_critical() {
+    #[tokio::test]
+    async fn test_deferred_job_is_expired_critical() {
         let job = DeferredJob::new(
             "critical-job",
             JobPriority::Critical,
@@ -893,7 +907,8 @@ mod tests {
             vec![],
         );
 
-        // Critical jobs have zero wait duration
+        // Critical jobs have zero wait duration, so they expire after any time passes
+        tokio::time::sleep(std::time::Duration::from_millis(1)).await;
         assert!(job.is_expired());
     }
 

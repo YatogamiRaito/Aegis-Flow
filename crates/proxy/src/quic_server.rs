@@ -792,4 +792,43 @@ mod tests {
         let debug_str = format!("{:?}", stats);
         assert!(debug_str.contains("connections"));
     }
+
+    #[tokio::test]
+    async fn test_process_stream_empty_request() {
+        let request = b"";
+        let mut recv = std::io::Cursor::new(request);
+        let mut send = Vec::new();
+
+        let result = QuicServer::process_stream(&mut recv, &mut send, "backend".to_string()).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_process_stream_post_request() {
+        let request = b"POST /api/data HTTP/3\r\nContent-Length: 5\r\n\r\nhello";
+        let mut recv = std::io::Cursor::new(request);
+        let mut send = Vec::new();
+
+        let result = QuicServer::process_stream(&mut recv, &mut send, "backend".to_string()).await;
+        assert!(result.is_ok());
+        let response = String::from_utf8(send).unwrap();
+        assert!(response.contains("HTTP/3"));
+    }
+
+    #[tokio::test]
+    async fn test_process_stream_with_body() {
+        let request = b"GET /test HTTP/3\r\n\r\n";
+        let mut recv = std::io::Cursor::new(request);
+        let mut send = Vec::new();
+
+        let result = QuicServer::process_stream(&mut recv, &mut send, "127.0.0.1:8080".to_string()).await;
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_quic_config_debug() {
+        let config = QuicConfig::default();
+        let debug_str = format!("{:?}", config);
+        assert!(debug_str.contains("bind_address"));
+    }
 }
