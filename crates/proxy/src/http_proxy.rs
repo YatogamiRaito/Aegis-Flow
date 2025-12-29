@@ -672,4 +672,52 @@ mod tests {
 
         tx.send(()).unwrap();
     }
+
+    #[tokio::test]
+    async fn test_proxy_integration_metrics_request() {
+        use hyper::client::conn::http2;
+        use hyper_util::rt::TokioExecutor;
+        use tokio::net::TcpStream;
+        use http_body_util::Empty;
+
+        // 1. Setup Server
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        
+        let config = HttpProxyConfig {
+            listen_addr: addr,
+            ..Default::default()
+        };
+        let proxy = HttpProxy::new(config);
+
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        
+        tokio::spawn(async move {
+            proxy.run_with_listener(listener, async { rx.await.ok(); }).await.ok();
+        });
+
+        // 2. Connect Client
+        let stream = TcpStream::connect(addr).await.unwrap();
+        let io = TokioIo::new(stream);
+        let (mut sender, conn) = http2::handshake(TokioExecutor::new(), io).await.unwrap();
+
+        tokio::spawn(async move {
+            if let Err(err) = conn.await {
+                eprintln!("Connection failed: {:?}", err);
+            }
+        });
+
+        // 3. Send Request
+        let req = Request::builder()
+            .uri(format!("http://{}/metrics", addr))
+            .body(Empty::<Bytes>::new())
+            .unwrap();
+
+        let res = sender.send_request(req).await.unwrap();
+        
+        // 4. Assert
+        assert_eq!(res.status(), StatusCode::OK);
+        
+        tx.send(()).unwrap();
+    }
 }

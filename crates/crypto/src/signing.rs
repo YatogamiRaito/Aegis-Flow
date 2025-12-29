@@ -1484,4 +1484,48 @@ mod tests {
                 .unwrap()
         );
     }
+
+    #[test]
+    fn test_verifier_new_invalid_size() {
+        let bad_key = vec![0u8; 10]; // Too short
+        let result = MlDsaVerifier::new(bad_key, MlDsaAlgorithm::MlDsa44);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("size"));
+    }
+
+    #[test]
+    fn test_verifier_verify_garbage_key_data() {
+        // Correct size, but garbage data
+        let size = MlDsaAlgorithm::MlDsa44.public_key_size();
+        let garbage_key = vec![0xFF; size]; // Likely invalid for lattice crypto
+
+        // 'new' only checks size, so this should succeed
+        let verifier = MlDsaVerifier::new(garbage_key, MlDsaAlgorithm::MlDsa44).unwrap();
+
+        // 'verify' attempts to parse the key, which might fail
+        // If it parses successfully, then verification will fail (Ok(false))
+        // If it fails to parse, it returns Err.
+        // We just want to ensure it doesn't panic.
+        let msg = b"test";
+        let sig = vec![0u8; MlDsaAlgorithm::MlDsa44.signature_size()]; // Invalid signature too
+        let _ = verifier.verify(msg, &sig);
+    }
+
+    #[test]
+    fn test_hybrid_signature_deserialization_errors() {
+        // Empty
+        assert!(HybridSignature::from_bytes(&[]).is_err());
+
+        // Wrong tag
+        assert!(HybridSignature::from_bytes(&[0x99]).is_err());
+
+        // Too short
+        assert!(HybridSignature::from_bytes(&[0x01, 0x00]).is_err());
+    }
+
+    #[test]
+    fn test_hybrid_public_key_deserialization_errors() {
+        // Too short
+        assert!(HybridSigningPublicKey::from_bytes(&[0u8; 10]).is_err());
+    }
 }

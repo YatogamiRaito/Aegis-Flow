@@ -832,4 +832,69 @@ mod tests {
         let debug_str = format!("{:?}", config);
         assert!(debug_str.contains("bind_address"));
     }
+
+    #[tokio::test]
+    async fn test_run_with_missing_certs() {
+        let mut config = QuicConfig::default();
+        config.cert_path = "/path/to/nowhere.crt".to_string();
+        let server = QuicServer::new(config, ProxyConfig::default());
+        let result = server.run().await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("TLS certificate not found"));
+    }
+
+    #[tokio::test]
+    async fn test_run_with_missing_key() {
+        use std::fs::File;
+        use tempfile::tempdir;
+
+        // Create a temp dir with a dummy cert, but missing key
+        let dir = tempdir().unwrap();
+        let cert_path = dir.path().join("server.crt");
+        File::create(&cert_path).unwrap();
+
+        let mut config = QuicConfig::default();
+        config.cert_path = cert_path.to_str().unwrap().to_string();
+        config.key_path = "/path/to/nowhere.key".to_string();
+
+        let server = QuicServer::new(config, ProxyConfig::default());
+        let result = server.run().await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("TLS private key not found"));
+    }
+
+    #[tokio::test]
+    async fn test_process_stream_too_large() {
+        use std::io::{Error, ErrorKind};
+        use std::pin::Pin;
+        use std::task::{Context, Poll};
+
+        struct InfiniteReader;
+        impl tokio::io::AsyncRead for InfiniteReader {
+             fn poll_read(
+                self: Pin<&mut Self>,
+                _cx: &mut Context<'_>,
+                buf: &mut tokio::io::ReadBuf<'_>,
+            ) -> Poll<Result<(), Error>> {
+                // Fill buffer with 'A'
+                let len = buf.remaining();
+                let data = vec![b'A'; len];
+                buf.put_slice(&data);
+                Poll::Ready(Ok(()))
+            }
+        }
+
+        let mut recv = InfiniteReader;
+        let mut send = Vec::new();
+
+        // Should return Ok(()) when limit reached (and log warning)
+        // Set a timeout to ensure it doesn't loop forever
+        let result = tokio::time::timeout(
+            tokio::time::Duration::from_secs(5),
+            QuicServer::process_stream(&mut recv, &mut send, "backend".to_string())
+        ).await;
+
+        assert!(result.is_ok(), "Should not time out"); // Timeout means loop didn't break
+        assert!(result.unwrap().is_ok()); // Inner result should be Ok
+    }
 }

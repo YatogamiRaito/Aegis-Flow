@@ -805,4 +805,115 @@ mod tests {
         let n = reader.read(&mut buf).await.unwrap();
         assert_eq!(n, 0);
     }
+
+    struct FragmentedReader {
+        data: Vec<u8>,
+        cursor: usize,
+    }
+
+    impl tokio::io::AsyncRead for FragmentedReader {
+        fn poll_read(
+            mut self: std::pin::Pin<&mut Self>,
+            _cx: &mut std::task::Context<'_>,
+            buf: &mut tokio::io::ReadBuf<'_>,
+        ) -> std::task::Poll<std::io::Result<()>> {
+            if self.cursor >= self.data.len() {
+                return std::task::Poll::Ready(Ok(()));
+            }
+            if buf.remaining() > 0 {
+                // Read only 1 byte
+                buf.put_slice(&self.data[self.cursor..self.cursor + 1]);
+                self.cursor += 1;
+                std::task::Poll::Ready(Ok(()))
+            } else {
+                std::task::Poll::Ready(Ok(()))
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_stream_fragmented_read() {
+        let key = vec![0u8; 32];
+        let mut plaintext = vec![0u8; 120]; 
+        // 120 bytes -> small enough for one frame, but we force fragmentation on read
+        for i in 0..120 {
+            plaintext[i] = i as u8;
+        }
+
+        // 1. Create a dummy encrypted stream to write data safely
+        // We use duplex to write into "wire" format
+        let (client, mut server) = tokio::io::duplex(4096);
+        let mut encryptor = EncryptedStream::new(client, &key);
+        
+        let plaintext_clone = plaintext.clone();
+        tokio::spawn(async move {
+           encryptor.write_all(&plaintext_clone).await.unwrap();
+           // Close to signal EOF
+           encryptor.shutdown().await.unwrap(); 
+        });
+
+        // 2. Read all "encrypted" bytes from the wire
+        let mut encrypted_data = Vec::new();
+        server.read_to_end(&mut encrypted_data).await.unwrap();
+
+        // 3. Create FragmentedReader to feed these bytes 1-by-1
+        let reader = FragmentedReader {
+            data: encrypted_data,
+            cursor: 0,
+        };
+
+        // 4. Decrypt using FragmentedReader as source
+        let mut stream = EncryptedStream::new(reader, &key);
+        let mut buffer = Vec::new();
+        stream.read_to_end(&mut buffer).await.unwrap();
+
+        assert_eq!(buffer, plaintext);
+    }
+
+    #[tokio::test]
+    async fn test_encrypted_stream_write_zero_error() {
+        use std::io::{Error, ErrorKind};
+        use std::pin::Pin;
+        use std::task::{Context, Poll};
+        use tokio::io::AsyncWriteExt; // needed for write_all/flush
+
+        struct ZeroWriter;
+        impl tokio::io::AsyncWrite for ZeroWriter {
+            fn poll_write(
+                self: Pin<&mut Self>,
+                _cx: &mut Context<'_>,
+                _buf: &[u8],
+            ) -> Poll<Result<usize, Error>> {
+                // Simulate underlying stream accepting 0 bytes (WriteZero)
+                Poll::Ready(Ok(0))
+            }
+            fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
+                Poll::Ready(Ok(()))
+            }
+            fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
+                Poll::Ready(Ok(()))
+            }
+        }
+        impl tokio::io::AsyncRead for ZeroWriter {
+             fn poll_read(
+                self: Pin<&mut Self>,
+                _cx: &mut Context<'_>,
+                _buf: &mut tokio::io::ReadBuf<'_>,
+            ) -> Poll<Result<(), Error>> {
+                 Poll::Ready(Ok(()))
+            }
+        }
+
+        let key = vec![0u8; 32];
+        let mut stream = EncryptedStream::new(ZeroWriter, &key);
+
+        let result = stream.write_all(b"test").await;
+        if result.is_ok() {
+             let flush_res = stream.flush().await;
+             assert!(flush_res.is_err());
+             assert_eq!(flush_res.unwrap_err().kind(), ErrorKind::WriteZero);
+        } else {
+             assert!(result.is_err());
+        }
+    }
 }

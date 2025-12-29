@@ -40,3 +40,27 @@ pub enum TelemetryError {
 }
 
 pub type Result<T> = std::result::Result<T, TelemetryError>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_telemetry_error_display() {
+        let err = TelemetryError::EbpfNotSupported;
+        assert_eq!(err.to_string(), "eBPF not supported on this system");
+
+        let err = TelemetryError::MetricsInitError("failed".to_string());
+        assert_eq!(err.to_string(), "Failed to initialize metrics: failed");
+
+        let err = TelemetryError::MeasurementError("timeout".to_string());
+        assert_eq!(err.to_string(), "Measurement failed: timeout");
+    }
+
+    #[test]
+    fn test_telemetry_error_debug() {
+        let err = TelemetryError::EbpfNotSupported;
+        let debug = format!("{:?}", err);
+        assert!(debug.contains("EbpfNotSupported"));
+    }
+}
