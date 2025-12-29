@@ -821,7 +821,8 @@ mod tests {
         let mut recv = std::io::Cursor::new(request);
         let mut send = Vec::new();
 
-        let result = QuicServer::process_stream(&mut recv, &mut send, "127.0.0.1:8080".to_string()).await;
+        let result =
+            QuicServer::process_stream(&mut recv, &mut send, "127.0.0.1:8080".to_string()).await;
         assert!(result.is_ok());
     }
 

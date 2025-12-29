@@ -1226,4 +1226,102 @@ mod tests {
         let days = cert.days_until_expiry();
         assert!((9..=10).contains(&days));
     }
+
+    #[test]
+    fn test_root_ca_parsing() {
+        let mut params = CertificateParams::default();
+        params
+            .distinguished_name
+            .push(DnType::CommonName, "Self-Signed Root");
+        params.is_ca = rcgen::IsCa::Ca(rcgen::BasicConstraints::Unconstrained);
+
+        let key_pair = KeyPair::generate().unwrap();
+        let cert = params.self_signed(&key_pair).unwrap();
+        let pem = cert.pem();
+
+        let parsed = CertManager::parse_pem(pem.as_bytes()).unwrap();
+        assert_eq!(parsed.cert_type, CertType::RootCa);
+        assert_eq!(parsed.subject_cn, parsed.issuer_cn);
+    }
+
+    #[test]
+    fn test_generate_self_signed_with_invalid_san() {
+        // Invalid SAN should be skipped, not cause panic
+        let invalid_sans = vec![
+            "*.invalid".to_string(), // Wildcard
+            "".to_string(),          // Empty
+        ];
+
+        let result = CertManager::generate_self_signed("test.local", &invalid_sans, 30);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_private_key_pem_accessor() {
+        let mut manager = CertManager::new();
+
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        let cert = ParsedCert {
+            subject_cn: "server".to_string(),
+            issuer_cn: "ca".to_string(),
+            serial: "1".to_string(),
+            not_before: now,
+            not_after: now + 86400 * 365,
+            cert_type: CertType::EndEntity,
+            fingerprint: "fp".to_string(),
+            san: vec![],
+            der_bytes: vec![],
+        };
+
+        manager
+            .set_server_cert(cert, "my-private-key-pem".to_string())
+            .unwrap();
+
+        assert_eq!(manager.private_key_pem(), Some("my-private-key-pem"));
+    }
+
+    #[test]
+    fn test_verify_chain_with_expired_issuer() {
+        let mut manager = CertManager::new();
+
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        // Add expired CA
+        let expired_ca = ParsedCert {
+            subject_cn: "Expired CA".to_string(),
+            issuer_cn: "Expired CA".to_string(),
+            serial: "1".to_string(),
+            not_before: now - 86400 * 400,
+            not_after: now - 86400, // Expired yesterday
+            cert_type: CertType::RootCa,
+            fingerprint: "fp".to_string(),
+            san: vec![],
+            der_bytes: vec![],
+        };
+        manager.add_trusted_ca(expired_ca).unwrap();
+
+        // Create cert issued by expired CA
+        let cert = ParsedCert {
+            subject_cn: "server".to_string(),
+            issuer_cn: "Expired CA".to_string(),
+            serial: "2".to_string(),
+            not_before: now,
+            not_after: now + 86400,
+            cert_type: CertType::EndEntity,
+            fingerprint: "fp2".to_string(),
+            san: vec![],
+            der_bytes: vec![],
+        };
+
+        let result = manager.verify_chain(&cert);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("expired"));
+    }
 }
