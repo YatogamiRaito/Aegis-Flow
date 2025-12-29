@@ -919,4 +919,34 @@ mod tests {
             assert!(result.is_err());
         }
     }
+
+    #[tokio::test]
+    async fn test_stream_decryption_error() {
+        // Line 177: Decryption failed coverage
+        let key = [0x55u8; 32];
+        let payload = b"Secret Data";
+
+        // 1. Encrypt valid data
+        let mut buffer = Vec::new();
+        {
+            let mut writer = EncryptedStream::new(std::io::Cursor::new(&mut buffer), &key);
+            writer.write_all(payload).await.unwrap();
+            writer.flush().await.unwrap();
+        }
+
+        // 2. Corrupt the ciphertext (skip length u32 + nonce 12)
+        // Structure: [Length 4][Nonce 12][Ciphertext+Tag ...]
+        let offset = 4 + 12;
+        if buffer.len() > offset {
+            buffer[offset] ^= 0xFF; // Flip bits in ciphertext/tag
+        }
+
+        // 3. Try to read back
+        let mut reader = EncryptedStream::new(std::io::Cursor::new(&buffer), &key);
+        let mut out = Vec::new();
+        let err = reader.read_to_end(&mut out).await.unwrap_err();
+
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+        assert_eq!(err.to_string(), "Decryption failed");
+    }
 }

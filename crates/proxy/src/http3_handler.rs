@@ -559,4 +559,14 @@ mod tests {
         let config = Http3Config::default();
         assert!(format!("{:?}", config).contains("Http3Config"));
     }
+
+    #[tokio::test]
+    async fn test_unhandled_path_triggers_debug_log() {
+        // This covers line 182 - the debug! macro for unhandled requests
+        let handler = Http3Handler::new(Http3Config::default(), "127.0.0.1:8080".to_string());
+        let req = Http3Request::new("GET", "/some/unhandled/path");
+        let resp = handler.handle_request(req).await;
+
+        assert_eq!(resp.status, 404);
+    }
 }

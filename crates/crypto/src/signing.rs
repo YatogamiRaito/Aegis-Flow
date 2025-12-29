@@ -1235,6 +1235,44 @@ mod tests {
     }
 
     #[test]
+    fn test_verifier_verify_invalid_public_key_bytes() {
+        // Line 184-185: Invalid public key bytes
+        let signer = MlDsa44Signer::generate().unwrap();
+        // Create signer with wrong public key size
+        let invalid_signer = MlDsa44Signer {
+            public_key: vec![0u8; 10], // Too short
+            secret_key: signer.secret_key.clone(),
+        };
+
+        let msg = b"test";
+        let sig = signer.sign(msg).unwrap();
+        
+        let result = invalid_signer.verify(msg, &sig);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Invalid public key"));
+    }
+
+    #[test]
+    fn test_verifier_verify_invalid_signature_bytes() {
+        // Line 187-188: Invalid signature bytes
+        let signer = MlDsa44Signer::generate().unwrap();
+        let msg = b"test";
+        let _sig = signer.sign(msg).unwrap();
+        
+        // Use empty signature bytes - should fail deserialization often
+        let invalid_sig = vec![]; 
+        
+        let result = signer.verify(msg, &invalid_sig);
+        // If it returns error (deserialization fail), that's ensuring our line coverage.
+        // If it returns Ok(false) (verification fail), that's acceptable behavior too, though we miss coverage.
+        // Given we used empty vector, from_bytes SHOULD error.
+        match result {
+            Ok(valid) => assert!(!valid),
+            Err(e) => assert!(e.to_string().contains("Invalid signature")),
+        }
+    }
+
+    #[test]
     fn test_verifier_from_signer() {
         let signer = MlDsa44Signer::generate().unwrap();
         let verifier =

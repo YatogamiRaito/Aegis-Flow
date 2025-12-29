@@ -1125,4 +1125,112 @@ mod tests {
         assert!(client.is_authenticated());
         assert!(client.cert.is_none());
     }
+    #[test]
+    fn test_complete_handshake_expired_client_cert() {
+        let config = MtlsConfig {
+            require_client_cert: true,
+            pqc_enabled: true,
+            ..Default::default()
+        };
+        let mut auth = MtlsAuthenticator::new(config).unwrap();
+        auth.init_self_signed("server").unwrap();
+
+        // 1. Generate an EXPIRED client cert manually
+        let mut params = rcgen::CertificateParams::default();
+        params
+            .distinguished_name
+            .push(rcgen::DnType::CommonName, "expired-client");
+
+        // rcgen uses time::OffsetDateTime
+        let now = ::time::OffsetDateTime::now_utc();
+        let past = now - ::time::Duration::days(1);
+        let before_past = past - ::time::Duration::days(1);
+        params.not_before = before_past;
+        params.not_after = past;
+
+        let key_pair = rcgen::KeyPair::generate().unwrap();
+        let client_cert = params.self_signed(&key_pair).unwrap();
+        let client_der = client_cert.der().to_vec();
+
+        // 2. Trust this cert's issuer (itself)
+        // Parse it back to get ParsedCert for CertManager
+        let mut client_cert_parsed = CertManager::parse_der(&client_der).unwrap();
+        // Hack: Make it a CA so we can add it to trusted store if needed?
+        // Actually verify_chain treats self-signed RootCa as trusted if it matches issuer/subject.
+        // We need to add it to trusted_cas for it to be found.
+        client_cert_parsed.cert_type = crate::certmanager::CertType::RootCa;
+        client_cert_parsed.issuer_cn = client_cert_parsed.subject_cn.clone(); // It is self-signed
+
+        auth.cert_manager
+            .add_trusted_ca(client_cert_parsed)
+            .unwrap();
+
+        let (conn_id, server_pk) = auth.accept_connection().unwrap();
+
+        // Perform client side - need valid ciphertext
+        let client_handshake = PqcHandshake::new(PqcTlsConfig {
+            pqc_enabled: true,
+            ..Default::default()
+        });
+        let (ciphertext, _) = client_handshake.client_complete(&server_pk).unwrap();
+
+        let result = auth.complete_handshake(conn_id, &ciphertext, Some(&client_der));
+
+        assert!(result.is_err());
+        if let Err(AegisError::Crypto(msg)) = result {
+            assert!(msg.contains("expired"));
+        }
+
+        // Verify state
+        if let Ok(state) = auth.get_client_state(conn_id) {
+            assert!(matches!(state, AuthState::Failed(_)));
+        }
+    }
+
+    #[test]
+    fn test_init_from_files_success() {
+        let dir = std::env::temp_dir();
+        let timestamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
+        let cert_path = dir.join(format!("server_{}.crt", timestamp));
+        let key_path = dir.join(format!("server_{}.key", timestamp));
+        let ca_path = dir.join(format!("ca_{}.crt", timestamp));
+
+        // 1. Generate CA cert (must be marked as CA)
+        let mut ca_params = rcgen::CertificateParams::default();
+        ca_params.distinguished_name.push(rcgen::DnType::CommonName, "Test CA");
+        ca_params.is_ca = rcgen::IsCa::Ca(rcgen::BasicConstraints::Unconstrained);
+        
+        let ca_key = rcgen::KeyPair::generate().unwrap();
+        let ca_cert = ca_params.self_signed(&ca_key).unwrap();
+        let ca_pem = ca_cert.pem();
+        std::fs::write(&ca_path, &ca_pem).unwrap();
+
+        // 2. Generate Server cert (signed by CA)
+        let mut server_params = rcgen::CertificateParams::default();
+        server_params.distinguished_name.push(rcgen::DnType::CommonName, "localhost");
+        server_params.subject_alt_names = vec![rcgen::SanType::IpAddress("127.0.0.1".parse().unwrap())];
+        
+        let server_key = rcgen::KeyPair::generate().unwrap();
+        let server_cert = server_params.signed_by(&server_key, &ca_cert, &ca_key).unwrap();
+        let server_pem = server_cert.pem();
+        let server_key_pem = server_key.serialize_pem();
+
+        std::fs::write(&cert_path, &server_pem).unwrap();
+        std::fs::write(&key_path, &server_key_pem).unwrap();
+
+        let config = MtlsConfig {
+            cert_path: cert_path.to_str().unwrap().to_string(),
+            key_path: key_path.to_str().unwrap().to_string(),
+            ca_path: Some(ca_path.to_str().unwrap().to_string()),
+            ..Default::default()
+        };
+
+        let mut auth = MtlsAuthenticator::new(config).unwrap();
+        assert!(auth.init_from_files().is_ok());
+
+        // Cleanup
+        std::fs::remove_file(cert_path).ok();
+        std::fs::remove_file(key_path).ok();
+        std::fs::remove_file(ca_path).ok();
+    }
 }

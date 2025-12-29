@@ -446,4 +446,13 @@ mod tests {
         let (_, m2) = est_overhead.measure("/base", "GET", || ());
         assert!(m2.total_joules() >= 10.0);
     }
+
+    #[test]
+    fn test_estimate_from_duration_coverage() {
+        // This test explicitly calls estimate_from_duration to ensure debug logging path is taken
+        let estimator = EnergyEstimator::new();
+        let metrics = estimator.estimate_from_duration("/debug-path", "POST", Duration::from_millis(100), 500);
+        assert!(metrics.total_joules() > 0.0);
+        assert_eq!(metrics.endpoint, "/debug-path");
+    }
 }

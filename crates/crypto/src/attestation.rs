@@ -1311,4 +1311,115 @@ mod tests_coverage {
             }
         }
     }
+
+    #[test]
+    fn test_attestation_quote_from_bytes_invalid_nonce_length() {
+        // Build a minimal valid quote first
+        let quote = AttestationQuote {
+            platform: TeePlatform::None,
+            quote_bytes: vec![1, 2, 3],
+            nonce: vec![4, 5],
+            user_data: vec![6],
+            timestamp: 12345,
+            signature: None,
+        };
+        let mut bytes = quote.to_bytes();
+
+        // Corrupt nonce length to be too large (line 169)
+        // Platform = 1 byte, nonce_len = bytes 1-4
+        bytes[1] = 0xFF;
+        bytes[2] = 0xFF;
+        bytes[3] = 0xFF;
+        bytes[4] = 0x0F; // Very large nonce length
+
+        let result = AttestationQuote::from_bytes(&bytes);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("nonce"));
+    }
+
+    #[test]
+    fn test_attestation_quote_from_bytes_missing_user_data_length() {
+        // Line 176: Missing user data length
+        let quote = AttestationQuote {
+            platform: TeePlatform::None,
+            quote_bytes: vec![],
+            nonce: vec![],
+            user_data: vec![],
+            timestamp: 0,
+            signature: None,
+        };
+        let bytes = quote.to_bytes();
+
+        // Truncate to just after nonce (before user_data_len)
+        // Platform(1) + nonce_len(4) + nonce(0) = 5 bytes
+        let truncated = &bytes[..5];
+        let result = AttestationQuote::from_bytes(truncated);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_attestation_quote_from_bytes_invalid_user_data_length() {
+        // Line 186: Invalid user data length
+        let quote = AttestationQuote {
+            platform: TeePlatform::None,
+            quote_bytes: vec![1],
+            nonce: vec![1],
+            user_data: vec![1],
+            timestamp: 12345,
+            signature: None,
+        };
+        let mut bytes = quote.to_bytes();
+
+        // Corrupt user_data length at offset 6 (Platform=1, nonce_len=4, nonce=1)
+        bytes[6] = 0xFF;
+        bytes[7] = 0xFF;
+        bytes[8] = 0xFF;
+        bytes[9] = 0x0F;
+
+        let result = AttestationQuote::from_bytes(&bytes);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("user data"));
+    }
+
+    #[test]
+    fn test_attestation_quote_from_bytes_missing_quote_length() {
+        // Line 193: Missing quote length
+        let quote = AttestationQuote {
+            platform: TeePlatform::None,
+            quote_bytes: vec![],
+            nonce: vec![],
+            user_data: vec![],
+            timestamp: 0,
+            signature: None,
+        };
+        let bytes = quote.to_bytes();
+
+        // Truncate to just after user_data (before quote_len)
+        // Platform(1) + nonce_len(4) + user_data_len(4) = 9 bytes
+        let truncated = &bytes[..9];
+        let result = AttestationQuote::from_bytes(truncated);
+        assert!(result.is_err());
+    }
+    #[test]
+    fn test_attestation_quote_from_bytes_truncated_signature_len() {
+        // Line 239: Missing/truncated signature length
+        let quote = AttestationQuote {
+            platform: TeePlatform::None,
+            quote_bytes: vec![],
+            nonce: vec![],
+            user_data: vec![0x99], // Add 1 byte to ensure len >= 22 after truncation
+            timestamp: 0,
+            signature: None,
+        };
+        let bytes = quote.to_bytes();
+        // Total len = 1+4+0+4+1+4+0+8 + 4 = 26 bytes
+        // Truncate last 4 bytes -> 22 bytes
+
+        let truncated = &bytes[..bytes.len() - 4];
+        
+        // Should parse OK but with signature=None (hitting the else block at 239)
+        let recovered = AttestationQuote::from_bytes(truncated).unwrap();
+        assert!(recovered.signature.is_none());
+        assert_eq!(recovered.user_data, vec![0x99]);
+    }
 }

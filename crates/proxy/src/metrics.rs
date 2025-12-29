@@ -229,9 +229,29 @@ mod tests {
     }
 
     #[test]
-    fn test_record_handshake_execution() {
-        record_handshake("ML-KEM-768", 0.05, true);
-        record_handshake("ML-KEM-1024", 0.08, false);
+    fn test_record_handshake() {
+        // Just verify it doesn't panic
+        record_handshake("ml-kem-768", 0.1, true);
+        record_handshake("ml-kem-768", 0.1, false);
+    }
+
+    #[test]
+    fn test_init_metrics_idempotency() {
+        // First call
+        let handle1 = init_metrics();
+        // Second call should return same handle type (and not panic)
+        let handle2 = init_metrics();
+
+        // Record something to ensure registry is not empty
+        metrics::counter!("test_idempotency_c", "t" => "1").increment(1);
+        
+        // We can't easily compare handles for equality, but verifying we got one is enough
+        // and that it didn't panic or re-install recorder
+        let render1 = handle1.render();
+        let render2 = handle2.render();
+        // Metrics might grow due to other parallel tests, so we just check validity
+        assert!(!render1.is_empty());
+        assert!(!render2.is_empty());
     }
 
     #[test]

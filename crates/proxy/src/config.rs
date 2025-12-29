@@ -1126,4 +1126,72 @@ upstream_addr: "test:8080"
         assert_eq!(health.liveness_path, "/healthz");
         assert_eq!(health.readiness_path, "/ready");
     }
+
+    #[test]
+    fn test_save_to_file_yaml() {
+        let config = ProxyConfig::default();
+        let dir = std::env::temp_dir();
+        let path = dir.join(format!("test_config_{}.yaml", std::process::id()));
+
+        config.save_to_file(&path).unwrap();
+        assert!(path.exists());
+
+        // Verify content
+        let content = std::fs::read_to_string(&path).unwrap();
+        assert!(content.contains("host:"));
+
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn test_save_to_file_toml() {
+        let config = ProxyConfig::default();
+        let dir = std::env::temp_dir();
+        let path = dir.join(format!("test_config_{}.toml", std::process::id()));
+
+        config.save_to_file(&path).unwrap();
+        assert!(path.exists());
+
+        // Verify content
+        let content = std::fs::read_to_string(&path).unwrap();
+        assert!(content.contains("host ="));
+
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn test_config_manager_check_for_changes_no_path() {
+        let manager = ConfigManager::new();
+        // No config_path set, should return false
+        assert!(!manager.check_for_changes());
+    }
+
+    #[test]
+    fn test_config_manager_check_for_changes_with_file() {
+        let dir = std::env::temp_dir();
+        let path = dir.join(format!("test_config_reload_{}.yaml", std::process::id()));
+
+        // Create initial config file
+        let config = ProxyConfig::default();
+        config.save_to_file(&path).unwrap();
+
+        // Create manager from file
+        let manager = ConfigManager::from_file(&path).unwrap();
+
+        // No changes yet
+        assert!(!manager.check_for_changes());
+
+        // Modify file (simulate change)
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        let modified_config = ProxyConfig {
+            port: 9443,
+            ..Default::default()
+        };
+        modified_config.save_to_file(&path).unwrap();
+
+        // Now should detect change
+        assert!(manager.check_for_changes());
+
+        std::fs::remove_file(&path).ok();
+    }
 }

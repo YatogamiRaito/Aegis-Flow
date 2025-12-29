@@ -390,4 +390,21 @@ mod tests {
         assert_eq!(config.port, 8888);
         assert!(!config.enabled);
     }
+
+    #[tokio::test]
+    async fn test_handle_request_metrics_with_handle() {
+        let lifecycle = create_test_lifecycle();
+        // Initialize metrics to get a handle
+        let handle = crate::metrics::init_metrics();
+
+        let req = Request::builder()
+            .uri("/metrics")
+            .method(Method::GET)
+            .body(http_body_util::Empty::<Bytes>::new())
+            .unwrap();
+
+        let resp = handle_request(req, lifecycle, Some(handle)).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.headers().get("Content-Type").unwrap(), "text/plain");
+    }
 }

@@ -595,6 +595,44 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_handle_request_unit() {
+        use http_body_util::BodyExt;
+        use hyper::Request;
+
+        // 1. Health
+        let req = Request::builder().uri("/health").body(Full::new(Bytes::new())).unwrap();
+        let resp = handle_request(req, "upstream").await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = resp.into_body().collect().await.unwrap().to_bytes();
+        assert_eq!(body, "OK");
+
+        // 2. Ready
+        let req = Request::builder().uri("/ready").body(Full::new(Bytes::new())).unwrap();
+        let resp = handle_request(req, "upstream").await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = resp.into_body().collect().await.unwrap().to_bytes();
+        assert!(String::from_utf8_lossy(&body).contains("ready"));
+
+        // 3. Metrics (Uninitialized or Initialized)
+        let req = Request::builder().uri("/metrics").body(Full::new(Bytes::new())).unwrap();
+        let resp = handle_request(req, "upstream").await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // 4. Default Echo
+        let req = Request::builder()
+            .method(Method::POST)
+            .uri("/some/api")
+            .body(Full::new(Bytes::new()))
+            .unwrap();
+        let resp = handle_request(req, "upstream").await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = resp.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["path"], "/some/api");
+        assert_eq!(json["method"], "POST");
+    }
+
+    #[tokio::test]
     async fn test_handle_request_exhaustive_methods() {
         use http_body_util::Empty;
         let methods = [
