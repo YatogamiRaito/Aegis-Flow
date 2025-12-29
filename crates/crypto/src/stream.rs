@@ -949,4 +949,82 @@ mod tests {
         assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
         assert_eq!(err.to_string(), "Decryption failed");
     }
+
+    #[tokio::test]
+    async fn test_stream_frame_too_short() {
+        // Line 120-126: Frame too short coverage
+        let key = [0xAAu8; 32];
+
+        // Create a malformed frame with length < NONCE_SIZE (12) + 16 (tag)
+        let mut buffer = Vec::new();
+        // Frame length = 10 (too short, min is 12 + 16 = 28)
+        buffer.extend_from_slice(&10u32.to_be_bytes());
+        // Add some garbage data
+        buffer.extend_from_slice(&[0u8; 10]);
+
+        let mut reader = EncryptedStream::new(std::io::Cursor::new(&buffer), &key);
+        let mut out = Vec::new();
+        let err = reader.read_to_end(&mut out).await.unwrap_err();
+
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+        assert!(err.to_string().contains("too short"));
+    }
+
+    #[tokio::test]
+    async fn test_stream_frame_too_large() {
+        // Line 127-133: Frame too large coverage
+        let key = [0xBBu8; 32];
+
+        // Create a frame with length > MAX_FRAME_SIZE + FRAME_OVERHEAD
+        // MAX_FRAME_SIZE = 16MB, FRAME_OVERHEAD ~= 16 + 4 = 20
+        let mut buffer = Vec::new();
+        // Claim frame is 20MB (way too large)
+        let huge_len = 20 * 1024 * 1024u32;
+        buffer.extend_from_slice(&huge_len.to_be_bytes());
+        // Add fake nonce (12 bytes)
+        buffer.extend_from_slice(&[0u8; 12]);
+
+        let mut reader = EncryptedStream::new(std::io::Cursor::new(&buffer), &key);
+        let mut out = Vec::new();
+        let err = reader.read_to_end(&mut out).await.unwrap_err();
+
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+        assert!(err.to_string().contains("too large"));
+    }
+
+    #[tokio::test]
+    async fn test_stream_partial_frame_length() {
+        // Line 103-106: Partial frame length coverage
+        let key = [0xCCu8; 32];
+
+        // Create a buffer with only 2 bytes (incomplete length header)
+        let buffer = vec![0x00u8, 0x01];
+
+        let mut reader = EncryptedStream::new(std::io::Cursor::new(&buffer), &key);
+        let mut out = Vec::new();
+        let err = reader.read_to_end(&mut out).await.unwrap_err();
+
+        assert_eq!(err.kind(), std::io::ErrorKind::UnexpectedEof);
+        assert!(err.to_string().contains("Partial"));
+    }
+
+    #[tokio::test]
+    async fn test_stream_incomplete_frame() {
+        // Line 148-152: Incomplete frame coverage
+        let key = [0xDDu8; 32];
+
+        // Create a buffer with valid length but incomplete data
+        let mut buffer = Vec::new();
+        // Frame length = 100 bytes
+        buffer.extend_from_slice(&100u32.to_be_bytes());
+        // But only provide 20 bytes of data (less than 100)
+        buffer.extend_from_slice(&[0u8; 20]);
+
+        let mut reader = EncryptedStream::new(std::io::Cursor::new(&buffer), &key);
+        let mut out = Vec::new();
+        let err = reader.read_to_end(&mut out).await.unwrap_err();
+
+        assert_eq!(err.kind(), std::io::ErrorKind::UnexpectedEof);
+        assert!(err.to_string().contains("Incomplete"));
+    }
 }

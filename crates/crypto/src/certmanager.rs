@@ -1355,4 +1355,88 @@ mod tests {
         let parsed_der = CertManager::parse_der(&der_bytes).unwrap();
         assert_eq!(parsed_der.subject_cn, "der-test");
     }
+
+    #[test]
+    fn test_add_trusted_ca_rejects_end_entity() {
+        // Line 200-204: add_trusted_ca should reject EndEntity certificates
+        let mut manager = CertManager::new();
+
+        let end_entity_cert = ParsedCert {
+            subject_cn: "server.example.com".to_string(),
+            issuer_cn: "SomeCA".to_string(),
+            serial: "123".to_string(),
+            not_before: 0,
+            not_after: i64::MAX,
+            cert_type: CertType::EndEntity, // Not a CA!
+            fingerprint: "fp".to_string(),
+            san: vec![],
+            der_bytes: vec![],
+        };
+
+        let result = manager.add_trusted_ca(end_entity_cert);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("not a CA"));
+    }
+
+    #[test]
+    fn test_verify_chain_issuer_not_found() {
+        // Line 243-246: verify_chain should error when issuer not in trusted CAs
+        let manager = CertManager::new(); // Empty trusted CAs
+
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        let cert = ParsedCert {
+            subject_cn: "server".to_string(),
+            issuer_cn: "UnknownCA".to_string(), // Not in trusted CAs
+            serial: "456".to_string(),
+            not_before: now - 86400,
+            not_after: now + 86400 * 365,
+            cert_type: CertType::EndEntity,
+            fingerprint: "fp".to_string(),
+            san: vec![],
+            der_bytes: vec![],
+        };
+
+        let result = manager.verify_chain(&cert);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("not found"));
+    }
+
+    #[test]
+    fn test_load_from_file_nonexistent() {
+        // Line 186-188: load_from_file should error on nonexistent file
+        let result = CertManager::load_from_file(std::path::Path::new("/nonexistent/path/cert.pem"));
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Failed to read"));
+    }
+
+    #[test]
+    fn test_set_server_cert_with_ca_warning() {
+        // Line 212-213: set_server_cert logs warning for CA cert
+        let mut manager = CertManager::new();
+
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        let ca_cert = ParsedCert {
+            subject_cn: "CA as Server".to_string(),
+            issuer_cn: "CA as Server".to_string(),
+            serial: "789".to_string(),
+            not_before: now - 86400,
+            not_after: now + 86400 * 365,
+            cert_type: CertType::RootCa, // CA used as server cert (unusual)
+            fingerprint: "fp".to_string(),
+            san: vec![],
+            der_bytes: vec![],
+        };
+
+        // Should succeed but log warning
+        let result = manager.set_server_cert(ca_cert, "key".to_string());
+        assert!(result.is_ok());
+    }
 }
