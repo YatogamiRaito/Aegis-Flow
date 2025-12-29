@@ -452,20 +452,20 @@ mod tests {
                     @SQ\tSN:k1\tLN:10\tXX:x\n\
                     @RG\tID:r1\tZZ:z\n\
                     @PG\tID:p1\tYY:y";
-        
+
         let header = BamHeader::from_sam_text(text).unwrap();
-        
+
         // HD
         assert_eq!(header.version.as_deref(), Some("1.6"));
-        
+
         // SQ
         let sq = &header.references[0];
         assert_eq!(sq.attributes.get("XX").map(|s| s.as_str()), Some("x"));
-        
+
         // RG - standard fields only captured, others ignored in struct but shouldn't error
         let rg = &header.read_groups[0];
         assert_eq!(rg.id, "r1");
-        
+
         // PG - standard fields only captured
         let pg = &header.programs[0];
         assert_eq!(pg.id, "p1");

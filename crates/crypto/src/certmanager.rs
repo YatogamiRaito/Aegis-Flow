@@ -1209,7 +1209,7 @@ mod tests {
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap()
             .as_secs() as i64;
-        
+
         let cert = ParsedCert {
             subject_cn: "test".to_string(),
             issuer_cn: "issuer".to_string(),
@@ -1221,7 +1221,7 @@ mod tests {
             san: vec![],
             der_bytes: vec![],
         };
-        
+
         // Tolerance for time drift
         let days = cert.days_until_expiry();
         assert!(days >= 9 && days <= 10);

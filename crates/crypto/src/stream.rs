@@ -781,4 +781,28 @@ mod tests {
         // Should be 64KB
         assert_eq!(MAX_FRAME_SIZE, 64 * 1024);
     }
+
+    #[tokio::test]
+    async fn test_stream_empty_write() {
+        let key = [0xFFu8; 32];
+        let stream = Vec::new();
+        let mut enc_stream = EncryptedStream::new(stream, &key);
+
+        // Write empty buffer - should return 0
+        let n = enc_stream.write(&[]).await.unwrap();
+        assert_eq!(n, 0);
+    }
+
+    #[tokio::test]
+    async fn test_stream_read_on_empty_buffer() {
+        let key = [0xAAu8; 32];
+        // Empty network buffer (no encrypted data)
+        let cursor = std::io::Cursor::new(Vec::<u8>::new());
+        let mut reader = EncryptedStream::new(cursor, &key);
+
+        let mut buf = [0u8; 64];
+        // Should return Ok(0) for EOF
+        let n = reader.read(&mut buf).await.unwrap();
+        assert_eq!(n, 0);
+    }
 }

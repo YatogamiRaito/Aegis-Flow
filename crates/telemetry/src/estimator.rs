@@ -422,7 +422,7 @@ mod tests {
             base_overhead_joules: 0.0,
         };
         let estimator = EnergyEstimator::with_model(model);
-        
+
         // 1. Network contribution
         let (_, metrics) = estimator.measure_with_bytes("/net", "GET", 100, || ());
         // We can't easily control duration/cycles perfectly, but we know:
@@ -431,12 +431,12 @@ mod tests {
         // Source line 142: memory_energy = bytes as f64 * model.joules_per_memory_byte;
         // So memory is also 100.0.
         // cpu_energy depends on duration.
-        
+
         let breakdown = metrics.breakdown;
         assert_eq!(breakdown.network_joules, 100.0);
         assert_eq!(breakdown.memory_joules, 100.0);
         assert!(breakdown.cpu_joules >= 0.0);
-        
+
         // 2. Base overhead contribution
         let model_overhead = EnergyModel {
             base_overhead_joules: 10.0,

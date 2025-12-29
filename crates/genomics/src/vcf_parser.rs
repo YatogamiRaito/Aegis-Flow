@@ -312,7 +312,7 @@ chr1	100	.	A	T	99.0	PASS	DP=50
     #[test]
     fn test_parse_line_fields_variations() {
         let parser = VcfParser::new();
-        
+
         // 1. Min fields (8), all dots where possible
         let line = "chr1\t100\t.\tA\tT\t.\t.\t.";
         let record = parser.parse_line(line).unwrap().unwrap();

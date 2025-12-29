@@ -870,7 +870,7 @@ mod tests {
         };
         let mut client = MockEnergyClient::new();
         let cache = CarbonIntensityCache::new(300);
-        
+
         let router = CarbonRouter::new(config, client, cache);
 
         // Register two regions
@@ -878,24 +878,30 @@ mod tests {
         router.register_region(Region::new("nan", "NaN")).await;
 
         {
-             // Inject NaN score manually since we can't easily make the client return NaN via the mock interface as-is
-             let mut scores = router.region_scores.write().await;
-             scores.insert("valid".to_string(), RegionScore {
-                 region_id: "valid".to_string(),
-                 carbon_intensity: 100.0,
-                 score: 0.2,
-                 recommended: true,
-             });
-             scores.insert("nan".to_string(), RegionScore {
-                 region_id: "nan".to_string(),
-                 carbon_intensity: f64::NAN,
-                 score: f64::NAN,
-                 recommended: false, // NaN comparison usually false
-             });
+            // Inject NaN score manually since we can't easily make the client return NaN via the mock interface as-is
+            let mut scores = router.region_scores.write().await;
+            scores.insert(
+                "valid".to_string(),
+                RegionScore {
+                    region_id: "valid".to_string(),
+                    carbon_intensity: 100.0,
+                    score: 0.2,
+                    recommended: true,
+                },
+            );
+            scores.insert(
+                "nan".to_string(),
+                RegionScore {
+                    region_id: "nan".to_string(),
+                    carbon_intensity: f64::NAN,
+                    score: f64::NAN,
+                    recommended: false, // NaN comparison usually false
+                },
+            );
         }
 
         // Selection should avoid failure and prefer the valid one
-        // Note: partial_cmp with NaN returns None, unwrap_or(Equal). 
+        // Note: partial_cmp with NaN returns None, unwrap_or(Equal).
         // 100.0 vs NaN -> None -> Equal.
         // If sorting is unstable or dependent on implementation, we just want to ensure NO PANIC.
         // But logic: filter checks <= max_intensity. NaN <= 500.0 is false.
@@ -907,8 +913,8 @@ mod tests {
     #[tokio::test]
     async fn test_routing_weight_min_value() {
         let config = CarbonRouterConfig {
-            enabled: true, 
-            carbon_weight: 1.0, 
+            enabled: true,
+            carbon_weight: 1.0,
             max_intensity: 1000.0, // High max so 999 is valid
             ..Default::default()
         };
@@ -917,16 +923,19 @@ mod tests {
         let router = CarbonRouter::new(config, client, cache);
 
         router.register_region(Region::new("dirty", "Dirty")).await;
-        
+
         {
-             let mut scores = router.region_scores.write().await;
-             // Score near 1.0 (worst)
-             scores.insert("dirty".to_string(), RegionScore {
-                 region_id: "dirty".to_string(),
-                 carbon_intensity: 999.0,
-                 score: 0.999,
-                 recommended: true,
-             });
+            let mut scores = router.region_scores.write().await;
+            // Score near 1.0 (worst)
+            scores.insert(
+                "dirty".to_string(),
+                RegionScore {
+                    region_id: "dirty".to_string(),
+                    carbon_intensity: 999.0,
+                    score: 0.999,
+                    recommended: true,
+                },
+            );
         }
 
         // Weight = (1.0 - 0.999) * 100 * 1.0 = 0.001 * 100 = 0.1 cast to u32 = 0

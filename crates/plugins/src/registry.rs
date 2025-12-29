@@ -366,7 +366,13 @@ mod tests {
         let registry = create_test_registry();
         let wasm_bytes = wat::parse_str("(module)").unwrap();
 
-        let path = std::env::temp_dir().join("to_be_deleted.wasm");
+        let path = std::env::temp_dir().join(format!(
+            "to_be_deleted_{}.wasm",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
         std::fs::write(&path, &wasm_bytes).unwrap();
 
         registry.load_plugin(&path).unwrap();

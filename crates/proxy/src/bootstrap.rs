@@ -34,8 +34,7 @@ where
     F: std::future::Future<Output = ()> + Send + 'static,
 {
     // Initialize tracing
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("info"));
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 
     let _ = tracing_subscriber::registry()
         .with(fmt::layer())

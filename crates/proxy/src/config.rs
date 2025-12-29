@@ -831,7 +831,7 @@ upstream_addr: "test:8080"
         let manager = ConfigManager::new();
         // No file associated, should return false
         assert!(!manager.check_for_changes());
-        
+
         // Reload should return OK(false)
         assert!(!manager.reload().unwrap());
     }

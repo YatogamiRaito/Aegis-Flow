@@ -442,7 +442,6 @@ mod tests {
             );
             assert!(result.is_some());
         }
-
     }
 
     #[test]
@@ -455,19 +454,21 @@ mod tests {
         };
         let metrics = EbpfMetrics::with_coefficients(coeffs);
         let req_id = "breakdown-test";
-        
+
         metrics.start_request(req_id);
         metrics.record_cpu_cycles(req_id, 10);
         metrics.record_network(req_id, 10, 10);
         metrics.record_block_io(req_id, 5, 5);
         metrics.record_memory(req_id, 2);
-        
-        let result = metrics.finish_request(req_id, "/test", "GET", Duration::from_millis(10)).unwrap();
+
+        let result = metrics
+            .finish_request(req_id, "/test", "GET", Duration::from_millis(10))
+            .unwrap();
         let breakdown = result.breakdown;
-        
+
         assert_eq!(breakdown.cpu_joules, 10.0);
         assert_eq!(breakdown.network_joules, 20.0); // 10 + 10
         assert_eq!(breakdown.storage_joules, 10.0); // 5 + 5
-        assert_eq!(breakdown.memory_joules, 2.0);   // 2 pages
+        assert_eq!(breakdown.memory_joules, 2.0); // 2 pages
     }
 }

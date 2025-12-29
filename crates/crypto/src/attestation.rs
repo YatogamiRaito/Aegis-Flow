@@ -800,13 +800,13 @@ mod tests {
     fn test_verify_quote_stale() {
         let provider = AttestationProvider::new();
         let mut quote = provider.generate_quote(b"nonce", b"data").unwrap();
-        
+
         // Artificial aging
         quote.timestamp -= 1000;
-        
+
         let fresh = quote.is_fresh(300);
         assert!(!fresh);
-        
+
         let valid = provider.verify_quote(&quote, b"nonce").unwrap();
         assert!(!valid);
     }
@@ -820,12 +820,12 @@ mod tests {
             b"data".to_vec(),
         );
         let bytes = original.to_bytes();
-        
+
         // 1. Truncated nonce length (offset 1)
         // Platform (1) + NonceLen (4) = 5
         let truncated = &bytes[0..3];
         assert!(AttestationQuote::from_bytes(truncated).is_err());
-        
+
         // 2. Truncated nonce body
         // Platform(1) + Len(4) + Nonce(5) + ...
         // Cut inside nonce
@@ -849,13 +849,13 @@ mod tests {
         let q_len_start = ud_end;
         let truncated_q_len = &bytes[0..q_len_start + 2];
         assert!(AttestationQuote::from_bytes(truncated_q_len).is_err());
-        
+
         // 6. Truncated quote body
         let q_start = q_len_start + 4;
         let q_end = q_start + original.quote_bytes.len();
         let truncated_q = &bytes[0..q_end - 1];
         assert!(AttestationQuote::from_bytes(truncated_q).is_err());
-        
+
         // 7. Truncated timestamp
         let ts_start = q_end;
         let truncated_ts = &bytes[0..ts_start + 4];
@@ -1249,11 +1249,19 @@ mod tests_coverage {
             env::set_var("AEGIS_TEE_SGX", "1");
         }
         // Verify env var is set
-        assert!(env::var("AEGIS_TEE_SGX").is_ok(), "Environment variable AEGIS_TEE_SGX not set!");
-        
+        assert!(
+            env::var("AEGIS_TEE_SGX").is_ok(),
+            "Environment variable AEGIS_TEE_SGX not set!"
+        );
+
         let provider = AttestationProvider::new();
-        assert_eq!(provider.platform(), TeePlatform::IntelSgx, "Expected IntelSgx, got {:?}", provider.platform());
-        
+        assert_eq!(
+            provider.platform(),
+            TeePlatform::IntelSgx,
+            "Expected IntelSgx, got {:?}",
+            provider.platform()
+        );
+
         let quote = provider.generate_quote(b"n", b"u").unwrap();
         assert_eq!(quote.platform, TeePlatform::IntelSgx);
         assert_eq!(quote.quote_bytes, b"SGX_QUOTE_V3_MOCK_DATA");

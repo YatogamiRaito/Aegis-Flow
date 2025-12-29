@@ -1376,4 +1376,112 @@ mod tests {
         let invalid_pk87 = vec![0u8; alg87.public_key_size() - 1];
         assert!(MlDsaVerifier::new(invalid_pk87, alg87).is_err());
     }
+
+    #[test]
+    fn test_mldsa44_signer_debug() {
+        let signer = MlDsa44Signer::generate().unwrap();
+        let debug_str = format!("{:?}", signer);
+        assert!(debug_str.contains("MlDsa44Signer"));
+        assert!(debug_str.contains("bytes"));
+        assert!(debug_str.contains("REDACTED"));
+    }
+
+    #[test]
+    fn test_mldsa65_signer_debug() {
+        let signer = MlDsa65Signer::generate().unwrap();
+        let debug_str = format!("{:?}", signer);
+        assert!(debug_str.contains("MlDsa65Signer"));
+        assert!(debug_str.contains("bytes"));
+        assert!(debug_str.contains("REDACTED"));
+    }
+
+    #[test]
+    fn test_mldsa87_signer_debug() {
+        let signer = MlDsa87Signer::generate().unwrap();
+        let debug_str = format!("{:?}", signer);
+        assert!(debug_str.contains("MlDsa87Signer"));
+        assert!(debug_str.contains("bytes"));
+        assert!(debug_str.contains("REDACTED"));
+    }
+
+    #[test]
+    fn test_mldsa_verifier_debug() {
+        let signer = MlDsa65Signer::generate().unwrap();
+        let verifier =
+            MlDsaVerifier::new(signer.public_key().to_vec(), MlDsaAlgorithm::MlDsa65).unwrap();
+        let debug_str = format!("{:?}", verifier);
+        assert!(debug_str.contains("MlDsaVerifier"));
+        assert!(debug_str.contains("bytes"));
+    }
+
+    #[test]
+    fn test_hybrid_signer_debug() {
+        let signer = HybridSigner::generate().unwrap();
+        let debug_str = format!("{:?}", signer);
+        assert!(debug_str.contains("HybridSigner"));
+    }
+
+    #[test]
+    fn test_hybrid_verifier_debug() {
+        let signer = HybridSigner::generate().unwrap();
+        let pk = signer.public_key();
+        let verifier = HybridVerifier::new(&pk).unwrap();
+        let debug_str = format!("{:?}", verifier);
+        assert!(debug_str.contains("HybridVerifier"));
+    }
+
+    #[test]
+    fn test_verifier_verify_all_algorithms() {
+        // MlDsa44
+        let signer44 = MlDsa44Signer::generate().unwrap();
+        let verifier44 =
+            MlDsaVerifier::new(signer44.public_key().to_vec(), MlDsaAlgorithm::MlDsa44).unwrap();
+        let msg = b"test";
+        let sig44 = signer44.sign(msg).unwrap();
+        assert!(verifier44.verify(msg, &sig44).unwrap());
+
+        // MlDsa87
+        let signer87 = MlDsa87Signer::generate().unwrap();
+        let verifier87 =
+            MlDsaVerifier::new(signer87.public_key().to_vec(), MlDsaAlgorithm::MlDsa87).unwrap();
+        let sig87 = signer87.sign(msg).unwrap();
+        assert!(verifier87.verify(msg, &sig87).unwrap());
+    }
+
+    #[test]
+    fn test_verifier_verify_invalid_signature_all_algorithms() {
+        let msg = b"test";
+        let invalid_sig = vec![0u8; 50];
+
+        // MlDsa44
+        let signer44 = MlDsa44Signer::generate().unwrap();
+        let verifier44 =
+            MlDsaVerifier::new(signer44.public_key().to_vec(), MlDsaAlgorithm::MlDsa44).unwrap();
+        let result44 = verifier44.verify(msg, &invalid_sig);
+        assert!(result44.is_err() || !result44.unwrap());
+
+        // MlDsa87
+        let signer87 = MlDsa87Signer::generate().unwrap();
+        let verifier87 =
+            MlDsaVerifier::new(signer87.public_key().to_vec(), MlDsaAlgorithm::MlDsa87).unwrap();
+        let result87 = verifier87.verify(msg, &invalid_sig);
+        assert!(result87.is_err() || !result87.unwrap());
+    }
+
+    #[test]
+    fn test_hybrid_verifier_verify_mldsa_only() {
+        let signer = HybridSigner::generate().unwrap();
+        let pk = signer.public_key();
+        let verifier = HybridVerifier::new(&pk).unwrap();
+
+        let msg = b"test mldsa only";
+        let hybrid_sig = signer.sign(msg).unwrap();
+
+        // Verify only the ML-DSA component
+        assert!(
+            verifier
+                .verify_mldsa_only(msg, &hybrid_sig.mldsa_sig)
+                .unwrap()
+        );
+    }
 }
