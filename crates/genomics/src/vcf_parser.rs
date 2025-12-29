@@ -294,12 +294,12 @@ chr1	100	.	A	T	99.0	PASS	DP=50
         struct ErrorReader;
         impl std::io::Read for ErrorReader {
             fn read(&mut self, _buf: &mut [u8]) -> std::io::Result<usize> {
-                Err(std::io::Error::new(std::io::ErrorKind::Other, "Read error"))
+                Err(std::io::Error::other("Read error"))
             }
         }
         impl std::io::BufRead for ErrorReader {
             fn fill_buf(&mut self) -> std::io::Result<&[u8]> {
-                Err(std::io::Error::new(std::io::ErrorKind::Other, "Read error"))
+                Err(std::io::Error::other("Read error"))
             }
             fn consume(&mut self, _amt: usize) {}
         }

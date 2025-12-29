@@ -1224,6 +1224,6 @@ mod tests {
 
         // Tolerance for time drift
         let days = cert.days_until_expiry();
-        assert!(days >= 9 && days <= 10);
+        assert!((9..=10).contains(&days));
     }
 }

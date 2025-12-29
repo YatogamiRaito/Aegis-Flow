@@ -5,7 +5,7 @@
 
 use crate::{PqcProxyServer, ProxyConfig, server};
 use anyhow::Result;
-use tracing::{Level, info};
+use tracing::info;
 use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
 /// Initialize the application and run the server
@@ -171,9 +171,14 @@ mod tests {
         let (tx, rx) = tokio::sync::oneshot::channel();
 
         // Use dynamic port (0) to avoid conflicts
-        let mut config = ProxyConfig::default();
-        config.port = 0;
-        config.health.port = 0; // Also use dynamic port for health server
+        let config = ProxyConfig {
+            port: 0,
+            health: crate::config::HealthConfig {
+                port: 0,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
 
         let handle = tokio::spawn(async move {
             // We use a short run

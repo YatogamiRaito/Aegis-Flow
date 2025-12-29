@@ -868,7 +868,7 @@ mod tests {
             max_intensity: 500.0,
             ..Default::default()
         };
-        let mut client = MockEnergyClient::new();
+        let client = MockEnergyClient::new();
         let cache = CarbonIntensityCache::new(300);
 
         let router = CarbonRouter::new(config, client, cache);
