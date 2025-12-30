@@ -1422,4 +1422,53 @@ mod tests_coverage {
         assert!(recovered.signature.is_none());
         assert_eq!(recovered.user_data, vec![0x99]);
     }
+
+    #[test]
+    fn test_verify_quote_nonce_mismatch() {
+        // Line 429-431: verify_quote returns false on nonce mismatch
+        let provider = AttestationProvider::new();
+        let nonce = b"correct-nonce";
+        let user_data = b"test-data";
+
+        let quote = provider.generate_quote(nonce, user_data).unwrap();
+
+        // Verify with wrong nonce should return Ok(false)
+        let wrong_nonce = b"wrong-nonce";
+        let result = provider.verify_quote(&quote, wrong_nonce).unwrap();
+        assert!(!result, "Should return false for nonce mismatch");
+    }
+
+    #[test]
+    fn test_verify_quote_stale() {
+        // Line 435-437: verify_quote returns false for stale quote
+        let provider = AttestationProvider::new();
+        let nonce = b"test-nonce";
+        let user_data = b"test-data";
+
+        // Create quote with old timestamp
+        let mut quote = provider.generate_quote(nonce, user_data).unwrap();
+        // Set timestamp to 10 minutes ago (quote is fresh for 5 minutes = 300 seconds)
+        quote.timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64
+            - 600;
+
+        // Verify should return Ok(false) for stale quote
+        let result = provider.verify_quote(&quote, nonce).unwrap();
+        assert!(!result, "Should return false for stale quote");
+    }
+
+    #[test]
+    fn test_verify_quote_simulation_always_passes() {
+        // Line 445: Simulation mode always passes after nonce and freshness check
+        let provider = AttestationProvider::new();
+        assert_eq!(provider.platform(), TeePlatform::None);
+
+        let nonce = b"sim-nonce";
+        let quote = provider.generate_quote(nonce, b"data").unwrap();
+
+        let result = provider.verify_quote(&quote, nonce).unwrap();
+        assert!(result, "Simulation mode should pass");
+    }
 }

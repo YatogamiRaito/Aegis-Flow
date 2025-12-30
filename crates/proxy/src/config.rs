@@ -1231,4 +1231,3 @@ upstream_addr: "test:8080"
         assert!(!manager.check_for_changes());
     }
 }
-

@@ -1408,7 +1408,8 @@ mod tests {
     #[test]
     fn test_load_from_file_nonexistent() {
         // Line 186-188: load_from_file should error on nonexistent file
-        let result = CertManager::load_from_file(std::path::Path::new("/nonexistent/path/cert.pem"));
+        let result =
+            CertManager::load_from_file(std::path::Path::new("/nonexistent/path/cert.pem"));
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("Failed to read"));
     }
