@@ -42,9 +42,8 @@ async fn test_http_proxy_metrics_endpoint() {
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     // 4. Use HTTP/1.1 client (server now serves HTTP/1.1)
-    let client =
-        hyper_util::client::legacy::Client::builder(hyper_util::rt::TokioExecutor::new())
-            .build_http::<Empty<Bytes>>();
+    let client = hyper_util::client::legacy::Client::builder(hyper_util::rt::TokioExecutor::new())
+        .build_http::<Empty<Bytes>>();
 
     // Send request to /health
     let uri: hyper::Uri = format!("http://{}/health", proxy_addr).parse().unwrap();
@@ -118,9 +117,8 @@ async fn test_http_proxy_multiple_requests() {
     tokio::time::sleep(Duration::from_millis(150)).await;
 
     // Use HTTP/1.1 client (server now serves HTTP/1.1)
-    let client =
-        hyper_util::client::legacy::Client::builder(hyper_util::rt::TokioExecutor::new())
-            .build_http::<Empty<Bytes>>();
+    let client = hyper_util::client::legacy::Client::builder(hyper_util::rt::TokioExecutor::new())
+        .build_http::<Empty<Bytes>>();
 
     // Send multiple requests to built-in endpoints
     for path in ["/health", "/metrics", "/health"] {
@@ -160,9 +158,8 @@ async fn test_http_proxy_with_post_request() {
     tokio::time::sleep(Duration::from_millis(150)).await;
 
     // Use HTTP/1.1 client (server now serves HTTP/1.1)
-    let client =
-        hyper_util::client::legacy::Client::builder(hyper_util::rt::TokioExecutor::new())
-            .build_http::<http_body_util::Full<Bytes>>();
+    let client = hyper_util::client::legacy::Client::builder(hyper_util::rt::TokioExecutor::new())
+        .build_http::<http_body_util::Full<Bytes>>();
 
     // POST request to non-builtin endpoint (forwards to upstream, returns BAD_GATEWAY when unreachable)
     let req = hyper::Request::builder()
