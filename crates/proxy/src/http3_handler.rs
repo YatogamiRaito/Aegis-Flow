@@ -575,7 +575,7 @@ mod tests {
         // Create request with unusual method not explicitly handled
         let req = Http3Request::new("BREW", "/pot");
         let resp = handler.handle_request(req).await;
-        
+
         // Should default to 404 Not Found for unhandled paths/methods
         assert_eq!(resp.status, 404);
         let body_str = String::from_utf8(resp.body.to_vec()).unwrap();

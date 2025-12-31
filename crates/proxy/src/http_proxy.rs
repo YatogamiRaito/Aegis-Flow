@@ -434,7 +434,7 @@ mod tests {
         };
         let proxy = HttpProxy::new(config_bad);
         let result = proxy.run_with_shutdown(async {}).await;
-        
+
         // This should return an error due to permission denied (EACCES) or similar
         assert!(result.is_err());
         let err_msg = result.unwrap_err().to_string();

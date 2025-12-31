@@ -1664,17 +1664,20 @@ mod tests {
 
         // Cross-verify should fail
         // 44 verifier vs 65/87 sigs
-        let verifier44 = MlDsaVerifier::new(signer44.public_key().to_vec(), MlDsaAlgorithm::MlDsa44).unwrap();
+        let verifier44 =
+            MlDsaVerifier::new(signer44.public_key().to_vec(), MlDsaAlgorithm::MlDsa44).unwrap();
         assert!(!verifier44.verify(msg, &sig65).unwrap_or(false));
         assert!(!verifier44.verify(msg, &sig87).unwrap_or(false));
 
         // 65 verifier vs 44/87 sigs
-        let verifier65 = MlDsaVerifier::new(signer65.public_key().to_vec(), MlDsaAlgorithm::MlDsa65).unwrap();
+        let verifier65 =
+            MlDsaVerifier::new(signer65.public_key().to_vec(), MlDsaAlgorithm::MlDsa65).unwrap();
         assert!(!verifier65.verify(msg, &sig44).unwrap_or(false));
         assert!(!verifier65.verify(msg, &sig87).unwrap_or(false));
 
         // 87 verifier vs 44/65 sigs
-        let verifier87 = MlDsaVerifier::new(signer87.public_key().to_vec(), MlDsaAlgorithm::MlDsa87).unwrap();
+        let verifier87 =
+            MlDsaVerifier::new(signer87.public_key().to_vec(), MlDsaAlgorithm::MlDsa87).unwrap();
         assert!(!verifier87.verify(msg, &sig44).unwrap_or(false));
         assert!(!verifier87.verify(msg, &sig65).unwrap_or(false));
     }

@@ -1478,10 +1478,16 @@ mod tests_coverage {
         // Use a new provider to check platform behavior in default test env (likely MacOS)
         let provider = AttestationProvider::new();
         let platform = provider.platform();
-        // On MacOS this should be None, but tests might run elsewhere. 
+        // On MacOS this should be None, but tests might run elsewhere.
         // We mainly want to ensure it doesn't panic and returns a valid enum variant.
-        assert!(matches!(platform, TeePlatform::None | TeePlatform::IntelSgx | TeePlatform::IntelTdx | TeePlatform::AmdSevSnp));
-        
+        assert!(matches!(
+            platform,
+            TeePlatform::None
+                | TeePlatform::IntelSgx
+                | TeePlatform::IntelTdx
+                | TeePlatform::AmdSevSnp
+        ));
+
         // Debug string check
         let debug_str = format!("{:?}", platform);
         assert!(!debug_str.is_empty());
