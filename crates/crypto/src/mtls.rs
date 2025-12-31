@@ -1372,7 +1372,7 @@ mod tests {
         let ca_der = ca_cert.der();
 
         // Trust the CA
-        let mut ca_parsed = CertManager::parse_der(&ca_der).unwrap();
+        let mut ca_parsed = CertManager::parse_der(ca_der).unwrap();
         ca_parsed.cert_type = crate::certmanager::CertType::RootCa;
         ca_parsed.issuer_cn = ca_parsed.subject_cn.clone(); // It is self-signed
         auth.cert_manager.add_trusted_ca(ca_parsed).unwrap();
