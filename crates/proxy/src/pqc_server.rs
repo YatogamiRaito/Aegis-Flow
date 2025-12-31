@@ -707,4 +707,346 @@ mod tests {
 
         tokio::time::sleep(Duration::from_millis(50)).await;
     }
+
+    #[tokio::test]
+    async fn test_pqc_handshake_partial_ciphertext_read() {
+        // Test when client sends incomplete ciphertext (covers lines 100-101)
+        let config = ProxyConfig {
+            host: "127.0.0.1".to_string(),
+            port: 0,
+            pqc_enabled: true,
+            ..Default::default()
+        };
+        let server = PqcProxyServer::new(config);
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        tokio::spawn(async move {
+            server
+                .run_with_listener(listener, std::future::pending())
+                .await
+                .ok();
+        });
+
+        tokio::time::sleep(Duration::from_millis(20)).await;
+
+        let mut stream = TcpStream::connect(addr).await.unwrap();
+
+        // Read PK length and PK
+        let mut pk_len_bytes = [0u8; 4];
+        stream.read_exact(&mut pk_len_bytes).await.unwrap();
+        let pk_len = u32::from_be_bytes(pk_len_bytes) as usize;
+        let mut pk_bytes = vec![0u8; pk_len];
+        stream.read_exact(&mut pk_bytes).await.unwrap();
+
+        // Send valid ciphertext length (e.g., 500 bytes)
+        let ct_len: u32 = 500;
+        stream.write_all(&ct_len.to_be_bytes()).await.unwrap();
+
+        // Send only partial ciphertext (less than 500 bytes) then close
+        let partial_data = [0xBBu8; 50]; // Only 50 bytes instead of 500
+        stream.write_all(&partial_data).await.unwrap();
+        stream.shutdown().await.unwrap();
+
+        // Server should fail to read full ciphertext - give it time to process
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+
+    #[tokio::test]
+    async fn test_pqc_handshake_partial_ciphertext_length_read() {
+        // Test when client sends incomplete ciphertext length (covers line 87-89)
+        let config = ProxyConfig {
+            host: "127.0.0.1".to_string(),
+            port: 0,
+            pqc_enabled: true,
+            ..Default::default()
+        };
+        let server = PqcProxyServer::new(config);
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        tokio::spawn(async move {
+            server
+                .run_with_listener(listener, std::future::pending())
+                .await
+                .ok();
+        });
+
+        tokio::time::sleep(Duration::from_millis(20)).await;
+
+        let mut stream = TcpStream::connect(addr).await.unwrap();
+
+        // Read PK length and PK
+        let mut pk_len_bytes = [0u8; 4];
+        stream.read_exact(&mut pk_len_bytes).await.unwrap();
+        let pk_len = u32::from_be_bytes(pk_len_bytes) as usize;
+        let mut pk_bytes = vec![0u8; pk_len];
+        stream.read_exact(&mut pk_bytes).await.unwrap();
+
+        // Send only 2 bytes of ciphertext length instead of 4
+        stream.write_all(&[0x00, 0x01]).await.unwrap();
+        stream.shutdown().await.unwrap();
+
+        // Give server time to hit read error
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+
+    #[tokio::test]
+    async fn test_pqc_handshake_http2_connection_error() {
+        // Test HTTP/2 connection error path (covers line 147)
+        use crate::http_proxy::TokioExecutor;
+        use bytes::Bytes;
+        use http_body_util::Full;
+        use hyper::Request;
+
+        let config = ProxyConfig {
+            host: "127.0.0.1".to_string(),
+            port: 0,
+            pqc_enabled: true,
+            upstream_addr: "127.0.0.1:1".to_string(), // Invalid upstream
+            ..Default::default()
+        };
+
+        let listener = TcpListener::bind(format!("{}:{}", config.host, config.port))
+            .await
+            .unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        let server = Arc::new(PqcProxyServer::new(config.clone()));
+        let (tx, rx) = tokio::sync::oneshot::channel();
+
+        let server_clone = Arc::clone(&server);
+        tokio::spawn(async move {
+            server_clone
+                .run_with_listener(listener, async {
+                    rx.await.ok();
+                })
+                .await
+        });
+
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        let mut client = TcpStream::connect(addr).await.unwrap();
+        let client_handshake = PqcHandshake::new(PqcTlsConfig::default());
+
+        // Complete handshake
+        let mut pk_len_bytes = [0u8; 4];
+        client.read_exact(&mut pk_len_bytes).await.unwrap();
+        let pk_len = u32::from_be_bytes(pk_len_bytes) as usize;
+
+        let mut pk_bytes = vec![0u8; pk_len];
+        client.read_exact(&mut pk_bytes).await.unwrap();
+
+        let server_pk = aegis_crypto::HybridPublicKey::from_bytes(&pk_bytes).unwrap();
+        let (ciphertext, client_channel) = client_handshake.client_complete(&server_pk).unwrap();
+
+        let ct_bytes = ciphertext.to_bytes();
+        client
+            .write_all(&(ct_bytes.len() as u32).to_be_bytes())
+            .await
+            .unwrap();
+        client.write_all(&ct_bytes).await.unwrap();
+
+        // Setup encrypted stream
+        let key = client_channel.encryption_key().as_bytes();
+        let encrypted_client = EncryptedStream::new(client, key);
+        let io = get_tokio_io(encrypted_client);
+
+        // Initiate HTTP/2 connection
+        let (mut request_sender, connection) =
+            hyper::client::conn::http2::handshake(TokioExecutor, io)
+                .await
+                .unwrap();
+
+        tokio::spawn(async move {
+            let _ = connection.await;
+        });
+
+        // Send request that will fail due to invalid upstream
+        let request = Request::builder()
+            .method("GET")
+            .uri("http://localhost/test")
+            .body(Full::new(Bytes::default()))
+            .unwrap();
+
+        // This request should fail since upstream is invalid
+        let result = request_sender.send_request(request).await;
+        // We don't care about the result, just that the error path is exercised
+
+        tx.send(()).unwrap();
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+
+    #[tokio::test]
+    async fn test_pqc_handshake_complete_success_path() {
+        // Test complete successful handshake path (covers line 125 channel_id logging)
+        use crate::http_proxy::TokioExecutor;
+        use bytes::Bytes;
+        use http_body_util::Full;
+        use hyper::Request;
+
+        let config = ProxyConfig {
+            host: "127.0.0.1".to_string(),
+            port: 0,
+            pqc_enabled: true,
+            upstream_addr: "127.0.0.1:8080".to_string(),
+            ..Default::default()
+        };
+
+        let listener = TcpListener::bind(format!("{}:{}", config.host, config.port))
+            .await
+            .unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        let server = Arc::new(PqcProxyServer::new(config.clone()));
+        let (tx, rx) = tokio::sync::oneshot::channel();
+
+        let server_clone = Arc::clone(&server);
+        tokio::spawn(async move {
+            server_clone
+                .run_with_listener(listener, async {
+                    rx.await.ok();
+                })
+                .await
+        });
+
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        let mut client = TcpStream::connect(addr).await.unwrap();
+        let client_handshake = PqcHandshake::new(PqcTlsConfig::default());
+
+        // Complete handshake
+        let mut pk_len_bytes = [0u8; 4];
+        client.read_exact(&mut pk_len_bytes).await.unwrap();
+        let pk_len = u32::from_be_bytes(pk_len_bytes) as usize;
+
+        let mut pk_bytes = vec![0u8; pk_len];
+        client.read_exact(&mut pk_bytes).await.unwrap();
+
+        let server_pk = aegis_crypto::HybridPublicKey::from_bytes(&pk_bytes).unwrap();
+        let (ciphertext, client_channel) = client_handshake.client_complete(&server_pk).unwrap();
+
+        let ct_bytes = ciphertext.to_bytes();
+        client
+            .write_all(&(ct_bytes.len() as u32).to_be_bytes())
+            .await
+            .unwrap();
+        client.write_all(&ct_bytes).await.unwrap();
+
+        // Setup encrypted stream
+        let key = client_channel.encryption_key().as_bytes();
+        let encrypted_client = EncryptedStream::new(client, key);
+        let io = get_tokio_io(encrypted_client);
+
+        // Initiate HTTP/2 connection
+        let (mut request_sender, connection) =
+            hyper::client::conn::http2::handshake(TokioExecutor, io)
+                .await
+                .unwrap();
+
+        tokio::spawn(async move {
+            let _ = connection.await;
+        });
+
+        // Send health request
+        let request = Request::builder()
+            .method("GET")
+            .uri("http://localhost/health")
+            .body(Full::new(Bytes::default()))
+            .unwrap();
+
+        let response = request_sender.send_request(request).await.unwrap();
+        assert!(response.status().is_success());
+
+        tx.send(()).unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_pqc_multiple_connections() {
+        // Test multiple concurrent connections to ensure loop works (covers line 49)
+        let config = ProxyConfig {
+            host: "127.0.0.1".to_string(),
+            port: 0,
+            pqc_enabled: true,
+            ..Default::default()
+        };
+        let server = PqcProxyServer::new(config);
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        let (tx, rx) = tokio::sync::oneshot::channel();
+
+        tokio::spawn(async move {
+            server
+                .run_with_listener(listener, async {
+                    rx.await.ok();
+                })
+                .await
+                .ok();
+        });
+
+        tokio::time::sleep(Duration::from_millis(20)).await;
+
+        // Connect multiple clients
+        for _ in 0..3 {
+            let mut stream = TcpStream::connect(addr).await.unwrap();
+            // Read PK length
+            let mut pk_len_bytes = [0u8; 4];
+            let _ = stream.read_exact(&mut pk_len_bytes).await;
+            drop(stream);
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+
+        tx.send(()).unwrap();
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+
+    #[tokio::test]
+    async fn test_pqc_handshake_ciphertext_parse_error() {
+        // Test when ciphertext data is too short to parse (< 32 bytes)
+        // This covers lines 108-110: HybridCiphertext::from_bytes error
+        let config = ProxyConfig {
+            host: "127.0.0.1".to_string(),
+            port: 0,
+            pqc_enabled: true,
+            ..Default::default()
+        };
+        let server = PqcProxyServer::new(config);
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        tokio::spawn(async move {
+            server
+                .run_with_listener(listener, std::future::pending())
+                .await
+                .ok();
+        });
+
+        tokio::time::sleep(Duration::from_millis(20)).await;
+
+        let mut stream = TcpStream::connect(addr).await.unwrap();
+
+        // Read PK length and PK
+        let mut pk_len_bytes = [0u8; 4];
+        stream.read_exact(&mut pk_len_bytes).await.unwrap();
+        let pk_len = u32::from_be_bytes(pk_len_bytes) as usize;
+        let mut pk_bytes = vec![0u8; pk_len];
+        stream.read_exact(&mut pk_bytes).await.unwrap();
+
+        // Send ciphertext length of 20 bytes (less than required 32 bytes for HybridCiphertext)
+        let ct_len: u32 = 20;
+        stream.write_all(&ct_len.to_be_bytes()).await.unwrap();
+
+        // Send 20 bytes of junk data - this will cause from_bytes to fail
+        let short_data = [0xCCu8; 20];
+        stream.write_all(&short_data).await.unwrap();
+
+        // Server should fail to parse ciphertext and close connection
+        let mut check_buf = [0u8; 1];
+        let n = stream.read(&mut check_buf).await.unwrap();
+        assert_eq!(
+            n, 0,
+            "Server should close connection on ciphertext parse error"
+        );
+    }
 }

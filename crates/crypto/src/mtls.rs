@@ -219,35 +219,20 @@ impl MtlsAuthenticator {
         if self.config.require_client_cert {
             if let Some(ref cert) = client_cert {
                 // Verify certificate chain (check against trusted CAs)
-                match self.cert_manager.verify_chain(cert) {
-                    Ok(true) => {
-                        if !cert.is_valid_now() {
-                            client.state =
-                                AuthState::Failed("Client certificate expired".to_string());
-                            return Err(AegisError::Crypto(
-                                "Client certificate expired".to_string(),
-                            ));
-                        }
-                        debug!("Client certificate verified: {}", cert.subject_cn);
-                        // Continue to PQC
-                    }
-                    Ok(false) => {
-                        // This path is technically unreachable with current CertManager::verify_chain
-                        // but needed for match exhaustiveness on Result<bool>
-                        client.state =
-                            AuthState::Failed("Client certificate verification failed".to_string());
-                        return Err(AegisError::Crypto(
-                            "Client certificate verification failed".to_string(),
-                        ));
-                    }
-                    Err(e) => {
-                        client.state = AuthState::Failed(format!(
-                            "Client certificate verification failed: {}",
-                            e
-                        ));
-                        return Err(e);
-                    }
+                // Verify certificate chain (check against trusted CAs)
+                if let Err(e) = self.cert_manager.verify_chain(cert) {
+                    client.state =
+                        AuthState::Failed(format!("Client certificate verification failed: {}", e));
+                    return Err(e);
                 }
+
+                // If we get here, verify_chain returned Ok(true) (it never returns Ok(false))
+                if !cert.is_valid_now() {
+                    client.state = AuthState::Failed("Client certificate expired".to_string());
+                    return Err(AegisError::Crypto("Client certificate expired".to_string()));
+                }
+                debug!("Client certificate verified: {}", cert.subject_cn);
+                // Continue to PQC
             } else {
                 client.state = AuthState::Failed("Client certificate required".to_string());
                 return Err(AegisError::Crypto(

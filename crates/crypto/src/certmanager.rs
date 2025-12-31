@@ -1598,10 +1598,11 @@ mod tests {
             .with_test_writer()
             .try_init();
 
-        let long_san = "a".repeat(300); // Too long for DNS
+        // " " cannot be parsed as IP and is invalid DNS label
+        let invalid_san_space = "invalid san".to_string();
         let sans = vec![
             "1.2.3.999".to_string(), // Invalid IP
-            long_san,                // Invalid DNS
+            invalid_san_space,
         ];
 
         let result = CertManager::generate_self_signed("test", &sans, 1);

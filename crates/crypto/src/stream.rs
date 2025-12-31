@@ -229,23 +229,23 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for EncryptedStream<S> {
         // println!("EncryptedStream: Encrypting {} bytes", buf.len());
 
         let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
-        match me.encryptor.encrypt(&nonce, buf) {
-            Ok(ciphertext_tag) => {
-                let frame_len = NONCE_SIZE + ciphertext_tag.len();
-                // println!("EncryptedStream: Writing frame len: {} (overhead: {})", frame_len, FRAME_OVERHEAD);
+        let ciphertext_tag = me
+            .encryptor
+            .encrypt(&nonce, buf)
+            .expect("Encryption should never fail with valid key and nonce");
 
-                // Write Header: Length(4) + Nonce(12) + CiphertextTag(...)
-                me.write_buffer.put_u32(frame_len as u32);
-                me.write_buffer.put_slice(&nonce);
-                me.write_buffer.put_slice(&ciphertext_tag);
+        let frame_len = NONCE_SIZE + ciphertext_tag.len();
+        // println!("EncryptedStream: Writing frame len: {} (overhead: {})", frame_len, FRAME_OVERHEAD);
 
-                // 3. Try to write immediately (opt)
-                // We fake success here to batch, relying on next call or flush to send data.
-                // This is compliant with AsyncWrite, provided we do eventually write it.
-                Poll::Ready(Ok(buf.len()))
-            }
-            Err(_) => Poll::Ready(Err(io::Error::other("Encryption failed"))),
-        }
+        // Write Header: Length(4) + Nonce(12) + CiphertextTag(...)
+        me.write_buffer.put_u32(frame_len as u32);
+        me.write_buffer.put_slice(&nonce);
+        me.write_buffer.put_slice(&ciphertext_tag);
+
+        // 3. Try to write immediately (opt)
+        // We fake success here to batch, relying on next call or flush to send data.
+        // This is compliant with AsyncWrite, provided we do eventually write it.
+        Poll::Ready(Ok(buf.len()))
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
