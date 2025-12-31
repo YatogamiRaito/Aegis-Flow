@@ -52,7 +52,7 @@
     *   **cargo-deny** & **cargo-audit:** Automated dependency scanning for vulnerabilities and license compliance.
     *   **Miri:** Detection of undefined behavior in `unsafe` code blocks (if any).
     *   **DCO:** Developer Certificate of Origin enforcement for all commits.
-*   **Test Coverage:** **cargo-tarpaulin**
-    *   *Rationale:* Ensure >90% code coverage as per project guidelines.
+*   **Test Coverage:** **cargo-llvm-cov**
+    *   *Rationale:* LLVM source-based coverage for accurate line/branch coverage. Works on macOS/Linux.
 *   **Supply Chain Security (SLSA L3):** **Syft** (SBOM generation) & **Cosign** (Artifact signing)
     *   *Rationale:* Guarantees the integrity and provenance of build artifacts for enterprise adoption.

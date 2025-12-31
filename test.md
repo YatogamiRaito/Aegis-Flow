@@ -1,5 +1,5 @@
 # Test Coverage Report
-Run cargo tarpaulin --workspace
+Run `cargo llvm-cov --workspace`
 
 ## Overall Status
 **Total Coverage:** 91.56% (2885/3151 lines covered)

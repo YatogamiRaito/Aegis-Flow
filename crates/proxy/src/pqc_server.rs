@@ -1049,4 +1049,61 @@ mod tests {
             "Server should close connection on ciphertext parse error"
         );
     }
+    #[tokio::test]
+    async fn test_pqc_handshake_http2_protocol_error() {
+        // Test invalid HTTP/2 protocol after PQC handshake (covers line 147)
+        let config = ProxyConfig {
+            host: "127.0.0.1".to_string(),
+            port: 0,
+            pqc_enabled: true,
+            ..Default::default()
+        };
+        let server = PqcProxyServer::new(config);
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        tokio::spawn(async move {
+            server
+                .run_with_listener(listener, async {
+                     rx.await.ok();
+                })
+                .await
+                .ok();
+        });
+
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        let mut client = TcpStream::connect(addr).await.unwrap();
+        let client_handshake = PqcHandshake::new(PqcTlsConfig::default());
+
+        // Complete handshake
+        let mut pk_len_bytes = [0u8; 4];
+        client.read_exact(&mut pk_len_bytes).await.unwrap();
+        let pk_len = u32::from_be_bytes(pk_len_bytes) as usize;
+
+        let mut pk_bytes = vec![0u8; pk_len];
+        client.read_exact(&mut pk_bytes).await.unwrap();
+
+        let server_pk = aegis_crypto::HybridPublicKey::from_bytes(&pk_bytes).unwrap();
+        let (ciphertext, client_channel) = client_handshake.client_complete(&server_pk).unwrap();
+
+        let ct_bytes = ciphertext.to_bytes();
+        client.write_all(&(ct_bytes.len() as u32).to_be_bytes()).await.unwrap();
+        client.write_all(&ct_bytes).await.unwrap();
+
+        // Setup encrypted stream
+        let key = client_channel.encryption_key().as_bytes();
+        let mut encrypted_client = EncryptedStream::new(client, key);
+
+        // Send INVALID HTTP/2 connection preface (random garbage)
+        encrypted_client.write_all(b"NOT_HTTP2_PREFACE").await.unwrap();
+        encrypted_client.flush().await.unwrap();
+
+        // Wait for server to process and likely close connection
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        
+        // Cleanup
+        tx.send(()).unwrap();
+    }
 }

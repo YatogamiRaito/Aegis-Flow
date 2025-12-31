@@ -84,21 +84,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - name: Cache cargo-tarpaulin
-        uses: actions/cache@v4
         with:
-          path: ~/.cargo/bin/cargo-tarpaulin
-          key: ${{ runner.os }}-tarpaulin-0.27
-      - name: Install cargo-tarpaulin
-        run: command -v cargo-tarpaulin || cargo install cargo-tarpaulin --locked
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
       - name: Generate coverage
-        run: cargo tarpaulin --workspace --out Xml --output-dir coverage
+        run: cargo llvm-cov --workspace --lcov --output-path lcov.info
       - name: Upload coverage
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: coverage/cobertura.xml
+          files: lcov.info
           fail_ci_if_error: false
 
   build:

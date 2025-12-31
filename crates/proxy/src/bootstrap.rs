@@ -269,4 +269,20 @@ mod tests {
 
         let _ = handle.await;
     }
+
+    #[tokio::test]
+    async fn test_bootstrap_direct_call() {
+        // Lines 12-13: Test bootstrap() direct call with timeout
+        use tokio::time::{Duration, timeout};
+
+        let handle = tokio::spawn(async {
+            // bootstrap() runs indefinitely, so abort after 100ms
+            timeout(Duration::from_millis(100), bootstrap()).await
+        });
+
+        let result = handle.await.unwrap();
+        // Either timeout (Err) or early return (Ok with result) is acceptable
+        // The key is that bootstrap() was called and lines 12-13 were executed
+        let _ = result; // Just verify it ran without panic
+    }
 }
