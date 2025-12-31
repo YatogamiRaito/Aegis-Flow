@@ -1066,7 +1066,7 @@ mod tests {
         tokio::spawn(async move {
             server
                 .run_with_listener(listener, async {
-                     rx.await.ok();
+                    rx.await.ok();
                 })
                 .await
                 .ok();
@@ -1089,7 +1089,10 @@ mod tests {
         let (ciphertext, client_channel) = client_handshake.client_complete(&server_pk).unwrap();
 
         let ct_bytes = ciphertext.to_bytes();
-        client.write_all(&(ct_bytes.len() as u32).to_be_bytes()).await.unwrap();
+        client
+            .write_all(&(ct_bytes.len() as u32).to_be_bytes())
+            .await
+            .unwrap();
         client.write_all(&ct_bytes).await.unwrap();
 
         // Setup encrypted stream
@@ -1097,12 +1100,15 @@ mod tests {
         let mut encrypted_client = EncryptedStream::new(client, key);
 
         // Send INVALID HTTP/2 connection preface (random garbage)
-        encrypted_client.write_all(b"NOT_HTTP2_PREFACE").await.unwrap();
+        encrypted_client
+            .write_all(b"NOT_HTTP2_PREFACE")
+            .await
+            .unwrap();
         encrypted_client.flush().await.unwrap();
 
         // Wait for server to process and likely close connection
         tokio::time::sleep(Duration::from_millis(100)).await;
-        
+
         // Cleanup
         tx.send(()).unwrap();
     }

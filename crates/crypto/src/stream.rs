@@ -1289,7 +1289,9 @@ mod tests {
         let mut slow = SlowReader { inner: cursor };
         let mut empty_buf = [0u8; 0];
         let mut read_buf = tokio::io::ReadBuf::new(&mut empty_buf);
-        let _ = std::future::poll_fn(|cx| std::pin::Pin::new(&mut slow).poll_read(cx, &mut read_buf)).await;
+        let _ =
+            std::future::poll_fn(|cx| std::pin::Pin::new(&mut slow).poll_read(cx, &mut read_buf))
+                .await;
 
         // Line 551-558: FailingWriter write zero mode
         let writer = FailingWriter {
@@ -1310,7 +1312,9 @@ mod tests {
         };
         let mut buf = [0u8; 10];
         let mut read_buf = tokio::io::ReadBuf::new(&mut buf);
-        let result = std::future::poll_fn(|cx| std::pin::Pin::new(&mut reader).poll_read(cx, &mut read_buf)).await;
+        let result =
+            std::future::poll_fn(|cx| std::pin::Pin::new(&mut reader).poll_read(cx, &mut read_buf))
+                .await;
         assert!(result.is_ok()); // Should identify as EOF
 
         // Line 680-692: FailingReader AsyncWrite impl
