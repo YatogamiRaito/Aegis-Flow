@@ -359,10 +359,7 @@ mod tests {
                 async move {
                     if attempts == 1 {
                         // First attempt fails
-                        Err(std::io::Error::new(
-                            std::io::ErrorKind::Other,
-                            "Accept failed",
-                        ))
+                        Err(std::io::Error::other("Accept failed"))
                     } else {
                         // Second attempt hangs (simulation of waiting for next connection)
                         std::future::pending().await
@@ -384,10 +381,7 @@ mod tests {
     async fn test_handle_connection_read_error() {
         // Mock a stream that fails on first read
         let mock = tokio_test::io::Builder::new()
-            .read_error(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "Read failed",
-            ))
+            .read_error(std::io::Error::other("Read failed"))
             .build();
 
         let addr = "127.0.0.1:1234".parse().unwrap();
@@ -401,10 +395,7 @@ mod tests {
         // Mock a stream that reads ok but fails on write
         let mock = tokio_test::io::Builder::new()
             .read(b"test data")
-            .write_error(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "Write failed",
-            ))
+            .write_error(std::io::Error::other("Write failed"))
             .build();
 
         let addr = "127.0.0.1:1234".parse().unwrap();
@@ -421,5 +412,20 @@ mod tests {
 
         let addr = "127.0.0.1:1234".parse().unwrap();
         handle_connection(mock, addr).await;
+    }
+
+    #[test]
+    fn test_proxy_config_defaults() {
+        let config = ProxyConfig {
+            host: "127.0.0.1".to_string(),
+            port: 8080,
+            ..Default::default()
+        };
+        assert_eq!(config.host, "127.0.0.1");
+        assert_eq!(config.port, 8080);
+        
+        let default_config = ProxyConfig::default();
+        assert_eq!(default_config.host, "127.0.0.1");
+        assert_eq!(default_config.port, 0); 
     }
 }
