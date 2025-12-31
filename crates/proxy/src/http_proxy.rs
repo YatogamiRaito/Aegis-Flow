@@ -7,7 +7,7 @@ use bytes::Bytes;
 use http_body_util::{BodyExt, Full};
 use hyper::{Method, Request, Response, StatusCode, server::conn::http1, service::service_fn};
 use hyper_util::rt::TokioIo;
-use reqwest;
+
 use std::net::SocketAddr;
 use std::time::Instant;
 use tokio::net::TcpListener;
@@ -234,10 +234,10 @@ async fn forward_to_upstream(
 
     // Copy headers from incoming request (except Host)
     for (name, value) in headers.iter() {
-        if name.as_str().to_lowercase() != "host" {
-            if let Ok(v) = value.to_str() {
-                upstream_req = upstream_req.header(name.as_str(), v);
-            }
+        if name.as_str().to_lowercase() != "host"
+            && let Ok(v) = value.to_str()
+        {
+            upstream_req = upstream_req.header(name.as_str(), v);
         }
     }
 
