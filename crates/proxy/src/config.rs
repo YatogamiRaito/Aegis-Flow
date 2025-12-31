@@ -5,7 +5,7 @@
 
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use serde_norway::{self as yaml};
+use serde_yaml as yaml;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::SystemTime;

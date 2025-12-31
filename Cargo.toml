@@ -72,7 +72,7 @@ hkdf = "0.12"
 sha2 = "0.10"
 
 # Configuration
-serde_norway = "0.9"
+serde_yaml = "0.9"
 toml = "0.8"
 
 # Certificate Management

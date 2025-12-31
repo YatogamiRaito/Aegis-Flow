@@ -486,4 +486,36 @@ mod tests {
         assert_eq!(header.version, None);
         assert_eq!(header.references.len(), 0);
     }
+
+    #[test]
+    fn test_parse_fields_without_colon() {
+        // Test HD, SQ, RG, PG lines with fields that don't have colons
+        // These should be silently ignored by split_once returning None
+        let text = "@HD\tVN:1.6\tNOCOLON\n\
+                    @SQ\tSN:chr1\tLN:1000\tNOCOLON\n\
+                    @RG\tID:rg1\tNOCOLON\n\
+                    @PG\tID:pg1\tNOCOLON";
+        let header = BamHeader::from_sam_text(text).unwrap();
+
+        // Should still parse the valid fields
+        assert_eq!(header.version, Some("1.6".to_string()));
+        assert_eq!(header.references.len(), 1);
+        assert_eq!(header.read_groups.len(), 1);
+        assert_eq!(header.programs.len(), 1);
+    }
+
+    #[test]
+    fn test_parse_empty_fields() {
+        // Test lines with empty tab-separated fields
+        let text = "@HD\tVN:1.6\t\t\n\
+                    @SQ\tSN:chr1\t\tLN:1000\n\
+                    @RG\t\tID:rg1\n\
+                    @PG\tID:pg1\t";
+        let header = BamHeader::from_sam_text(text).unwrap();
+
+        assert_eq!(header.version, Some("1.6".to_string()));
+        assert_eq!(header.references.len(), 1);
+        assert_eq!(header.read_groups.len(), 1);
+        assert_eq!(header.programs.len(), 1);
+    }
 }
