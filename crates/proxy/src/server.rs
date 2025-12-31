@@ -423,7 +423,7 @@ mod tests {
         };
         assert_eq!(config.host, "127.0.0.1");
         assert_eq!(config.port, 8080);
-        
+
         let default_config = ProxyConfig::default();
         assert_eq!(default_config.host, "0.0.0.0");
         assert_eq!(default_config.port, 8443);
@@ -481,7 +481,7 @@ mod tests {
             .read(b"world")
             .write(b"world")
             // Implicit EOF at end matches Ok(0)
-            .build(); 
+            .build();
 
         let addr = "127.0.0.1:1234".parse().unwrap();
         handle_connection(mock, addr).await;
