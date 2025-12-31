@@ -376,7 +376,7 @@ mod tests {
     #[test]
     fn test_health_config_default_values() {
         let config = HealthConfig::default();
-        assert_eq!(config.port, 8080);
+        assert_eq!(config.port, 8081); // Default health port (avoids conflict with frontend dev servers)
         assert!(config.enabled);
     }
 

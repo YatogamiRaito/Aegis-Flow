@@ -1122,7 +1122,7 @@ upstream_addr: "test:8080"
     fn test_health_config_defaults_explicit() {
         let health = HealthConfig::default();
         assert!(health.enabled);
-        assert_eq!(health.port, 8080); // Default health port
+        assert_eq!(health.port, 8081); // Default health port (avoids conflict with frontend dev servers)
         assert_eq!(health.liveness_path, "/healthz");
         assert_eq!(health.readiness_path, "/ready");
     }
