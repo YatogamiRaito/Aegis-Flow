@@ -8,8 +8,8 @@
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![CI](https://github.com/YatogamiRaito/Aegis-Flow/actions/workflows/ci.yml/badge.svg)](https://github.com/YatogamiRaito/Aegis-Flow/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/YatogamiRaito/Aegis-Flow/graph/badge.svg?token=YOUR_TOKEN)](https://codecov.io/gh/YatogamiRaito/Aegis-Flow)
-[![Tests](https://img.shields.io/badge/tests-155%20passing-brightgreen.svg)]()
-[![Version](https://img.shields.io/badge/version-0.10.0-blue.svg)]()
+[![Tests](https://img.shields.io/badge/tests-1028%20passing-brightgreen.svg)]()
+[![Version](https://img.shields.io/badge/version-0.14.0-blue.svg)]()
 
 </div>
 
@@ -29,7 +29,7 @@ Aegis-Flow is a high-performance service mesh data plane written in Rust, featur
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│                        Aegis-Flow v0.4.0                      │
+│                        Aegis-Flow v0.14.0                     │
 ├──────────────────────────────────────────────────────────────┤
 │  ┌─────────────┐  ┌─────────────┐  ┌──────────┐  ┌─────────┐ │
 │  │ aegis-proxy │  │aegis-crypto │  │  common  │  │ energy  │ │
@@ -54,7 +54,7 @@ Aegis-Flow is a high-performance service mesh data plane written in Rust, featur
 cargo build --release
 
 # Run the proxy
-cargo run
+cargo run --release
 
 # Run tests
 cargo test --workspace
@@ -70,6 +70,41 @@ Copy the default configuration:
 ```bash
 cp config/default.toml config/local.toml
 ```
+
+## 🔌 Integration with Web Projects
+
+Aegis-Flow can act as a **reverse proxy** in front of your existing web applications.
+
+### Example: ElysiaJS/Bun Backend
+
+```bash
+# 1. Start your ElysiaJS backend (port 3000)
+cd your-elysia-project && bun run dev
+
+# 2. Start Aegis-Flow with custom upstream
+cd aegis-flow
+AEGIS_UPSTREAM="127.0.0.1:3000" cargo run --release
+
+# 3. Access via proxy: http://localhost:8080
+```
+
+### Example: Node.js/Express Backend
+
+```bash
+# 1. Start Express server (port 4000)
+cd express-app && npm start
+
+# 2. Configure and run Aegis-Flow
+# Edit config/local.toml:
+#   [http2]
+#   upstream_addr = "127.0.0.1:4000"
+cargo run --release
+```
+
+### Preset Configurations
+
+- `config/hali-saha.toml` - ElysiaJS/Bun project integration
+- `config/default.toml` - Default settings (upstream: 127.0.0.1:9000)
 
 ## 📊 Performance
 

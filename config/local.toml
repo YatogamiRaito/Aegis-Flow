@@ -1,0 +1,47 @@
+# Aegis-Flow Proxy Configuration for Halı Saha Project
+# ElysiaJS/Bun backend integration
+#
+# Usage:
+#   AEGIS_CONFIG=config/hali-saha.toml cargo run --release
+#
+# Or copy to config/local.toml and run normally
+
+# Server settings
+[server]
+host = "0.0.0.0"
+port = 8888         # Changed: was 8080 (conflicts with Vite frontend)
+pqc_enabled = false  # Start simple, enable later for PQC testing
+tls_enabled = false  # Disable TLS for local development
+worker_threads = 0   # 0 = auto-detect
+
+# HTTP/2 settings - Key part for proxying to ElysiaJS
+[http2]
+listen_addr = "0.0.0.0:8888"  # Changed: was 8080
+upstream_addr = "127.0.0.1:3000"  # ElysiaJS backend
+max_concurrent_streams = 100
+initial_window_size = 65535
+
+# Post-Quantum Cryptography settings (disabled for initial testing)
+[pqc]
+algorithm = "X25519Only"  # Simple mode for testing
+cipher = "Aes256Gcm"
+
+# Observability - Prometheus metrics available at :9090
+[observability]
+log_level = "debug"  # More verbose for testing
+log_format = "pretty"  # Human-readable logs
+metrics_enabled = true
+metrics_port = 9090
+
+# TLS settings (disabled for local dev)
+[tls]
+cert_path = ""
+key_path = ""
+ca_path = ""
+mtls_enabled = false
+
+# Health check endpoints
+[health]
+enabled = true
+path = "/health"
+ready_path = "/ready"

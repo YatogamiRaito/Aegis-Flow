@@ -3,14 +3,16 @@
 //! This module contains the main startup logic extracted from main.rs
 //! to allow for integration testing.
 
-use crate::{PqcProxyServer, ProxyConfig, server};
+use crate::{PqcProxyServer, ProxyConfig, http_proxy::{HttpProxy, HttpProxyConfig}};
 use anyhow::Result;
 use tracing::info;
 use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
 /// Initialize the application and run the server
 pub async fn bootstrap() -> Result<()> {
-    bootstrap_with_config(ProxyConfig::default(), std::future::pending()).await
+    let mut config = ProxyConfig::default();
+    config.apply_env_overrides();
+    bootstrap_with_config(config, std::future::pending()).await
 }
 
 /// Initialize with custom config and shutdown signal
@@ -82,7 +84,14 @@ where
             // pqc_server.run() takes &self.
             pqc_server.run().await
         } else {
-            server::run(config).await
+            info!("🔓 PQC disabled - using plain HTTP/2 proxy");
+            let http_config = HttpProxyConfig {
+                listen_addr: format!("{}:{}", config.host, config.port).parse().unwrap(),
+                upstream_addr: config.upstream_addr.clone(),
+                ..Default::default()
+            };
+            let http_proxy = HttpProxy::new(http_config);
+            http_proxy.run().await
         }
     };
 

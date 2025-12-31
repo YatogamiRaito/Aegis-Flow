@@ -4,9 +4,10 @@
 
 use anyhow::Result;
 use bytes::Bytes;
-use http_body_util::Full;
-use hyper::{Method, Request, Response, StatusCode, server::conn::http2, service::service_fn};
+use http_body_util::{Full, BodyExt};
+use hyper::{Method, Request, Response, StatusCode, server::conn::http1, service::service_fn};
 use hyper_util::rt::TokioIo;
+use reqwest;
 use std::net::SocketAddr;
 use std::time::Instant;
 use tokio::net::TcpListener;
@@ -93,11 +94,11 @@ impl HttpProxy {
                                     async move { handle_request(req, &upstream).await }
                                 });
 
-                                if let Err(e) = http2::Builder::new(TokioExecutor)
+                                if let Err(e) = http1::Builder::new()
                                     .serve_connection(io, service)
                                     .await
                                 {
-                                    error!("❌ HTTP/2 connection error: {}", e);
+                                    error!("❌ HTTP/1.1 connection error: {}", e);
                                 }
                             });
                         }
@@ -120,7 +121,7 @@ impl HttpProxy {
 #[instrument(skip(req))]
 pub(crate) async fn handle_request<B>(
     req: Request<B>,
-    _upstream: &str,
+    upstream: &str,
 ) -> Result<Response<Full<Bytes>>, hyper::Error>
 where
     B: hyper::body::Body + Send + 'static,
@@ -130,68 +131,159 @@ where
     let start = Instant::now();
     let method = req.method().clone();
     let uri = req.uri().clone();
+    let headers = req.headers().clone();
+    
+    // Read request body for forwarding
+    let body_bytes = match req.collect().await {
+        Ok(collected) => collected.to_bytes(),
+        Err(_) => Bytes::new(),
+    };
 
     debug!("📨 {} {}", method, uri);
 
-    // Process request
-    let response = match (method.clone(), uri.path()) {
-        (Method::GET, "/health") => Ok(Response::builder()
+    // Handle CORS preflight
+    if method == Method::OPTIONS {
+        return Ok(build_cors_preflight());
+    }
+
+    // Handle built-in endpoints
+    let response: Response<Full<Bytes>> = if uri.path() == "/health" && method == Method::GET {
+        Response::builder()
             .status(StatusCode::OK)
+            .header("Access-Control-Allow-Origin", "*")
             .body(Full::new(Bytes::from("OK")))
-            .unwrap()),
-
-        (Method::GET, "/ready") => Ok(Response::builder()
+            .unwrap()
+    } else if uri.path() == "/ready" && method == Method::GET {
+        Response::builder()
             .status(StatusCode::OK)
+            .header("Access-Control-Allow-Origin", "*")
             .body(Full::new(Bytes::from("{\"status\":\"ready\"}")))
-            .unwrap()),
-
-        (Method::GET, "/metrics") => {
-            let body = if let Some(handle) = metrics::get_metrics_handle() {
-                handle.render()
-            } else {
-                "# metrics not initialized".to_string()
-            };
-            Ok(Response::builder()
-                .status(StatusCode::OK)
-                .header("content-type", "text/plain; version=0.0.4")
-                .body(Full::new(Bytes::from(body)))
-                .unwrap())
-        }
-
-        _ => {
-            // Echo request info for testing
-            let body = format!(
-                "{{\"method\":\"{}\",\"path\":\"{}\",\"version\":\"{:?}\"}}",
-                method,
-                uri.path(),
-                req.version()
-            );
-            Ok(Response::builder()
-                .status(StatusCode::OK)
-                .header("content-type", "application/json")
-                .body(Full::new(Bytes::from(body)))
-                .unwrap())
-        }
+            .unwrap()
+    } else if uri.path() == "/metrics" && method == Method::GET {
+        let body = if let Some(handle) = metrics::get_metrics_handle() {
+            handle.render()
+        } else {
+            "# metrics not initialized".to_string()
+        };
+        Response::builder()
+            .status(StatusCode::OK)
+            .header("content-type", "text/plain; version=0.0.4")
+            .header("Access-Control-Allow-Origin", "*")
+            .body(Full::new(Bytes::from(body)))
+            .unwrap()
+    } else {
+        // Forward request to upstream
+        forward_to_upstream(upstream, &method, &uri, &headers, body_bytes).await
     };
 
     // Record metrics
-    let status = response
-        .as_ref()
-        .map(|r| r.status().as_u16())
-        .unwrap_or(500);
+    let status_code = response.status().as_u16();
     let duration = start.elapsed().as_secs_f64();
 
-    metrics::record_request(method.as_str(), uri.path(), status, duration);
+    metrics::record_request(method.as_str(), uri.path(), status_code, duration);
 
     // Energy estimation (simplified model)
-    // Formula: Energy = (Overhead) + (Bytes * CostPerByte)
-    let estimated_bytes = 1024.0; // Placeholder for avg request size
-    let energy_j = (estimated_bytes * 0.5e-9) + 0.01; // 0.5 nJ/bit + 10mJ overhead
-    let carbon_g = energy_j / 3.6e6 * 150.0; // Assuming 150g/kWh avg intensity
+    let estimated_bytes = 1024.0;
+    let energy_j = (estimated_bytes * 0.5e-9) + 0.01;
+    let carbon_g = energy_j / 3.6e6 * 150.0;
 
     metrics::record_energy_impact(energy_j, carbon_g, "unknown");
 
-    response
+    Ok(response)
+}
+
+/// Build CORS preflight response
+fn build_cors_preflight() -> Response<Full<Bytes>> {
+    Response::builder()
+        .status(StatusCode::OK)
+        .header("Access-Control-Allow-Origin", "*")
+        .header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+        .header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        .body(Full::new(Bytes::new()))
+        .unwrap()
+}
+
+/// Forward request to upstream server
+async fn forward_to_upstream(
+    upstream: &str,
+    method: &Method,
+    uri: &hyper::Uri,
+    headers: &hyper::HeaderMap,
+    body: Bytes,
+) -> Response<Full<Bytes>> {
+    let path_and_query = uri.path_and_query()
+        .map(|pq| pq.as_str())
+        .unwrap_or(uri.path());
+    let upstream_url = format!("http://{}{}", upstream, path_and_query);
+    
+    debug!("🔄 Forwarding to: {}", upstream_url);
+    
+    let client = reqwest::Client::new();
+    
+    // Build upstream request
+    let reqwest_method = reqwest::Method::from_bytes(method.as_str().as_bytes())
+        .unwrap_or(reqwest::Method::GET);
+    let mut upstream_req = client.request(reqwest_method, &upstream_url);
+    
+    // Copy headers from incoming request (except Host)
+    for (name, value) in headers.iter() {
+        if name.as_str().to_lowercase() != "host" {
+            if let Ok(v) = value.to_str() {
+                upstream_req = upstream_req.header(name.as_str(), v);
+            }
+        }
+    }
+    
+    // Add body if present
+    if !body.is_empty() {
+        upstream_req = upstream_req.body(body.to_vec());
+    }
+    
+    // Send request and get response
+    let result: Result<reqwest::Response, reqwest::Error> = upstream_req.send().await;
+    
+    match result {
+        Ok(resp) => {
+            let resp_status = resp.status();
+            let status_code = StatusCode::from_u16(resp_status.as_u16()).unwrap_or(StatusCode::OK);
+            
+            // Get body as text - simpler type inference
+            let body_result: Result<String, reqwest::Error> = resp.text().await;
+            
+            match body_result {
+                Ok(body_text) => {
+                    let body_len = body_text.len();
+                    info!("✅ Forwarded {} {} -> {} ({} bytes)", method, uri.path(), resp_status, body_len);
+                    
+                    Response::builder()
+                        .status(status_code)
+                        .header("Access-Control-Allow-Origin", "*")
+                        .header("Content-Type", "application/json")
+                        .body(Full::new(Bytes::from(body_text)))
+                        .unwrap()
+                }
+                Err(e) => {
+                    error!("❌ Body read error: {}", e);
+                    build_error_response(StatusCode::BAD_GATEWAY, &format!("Body read error: {}", e))
+                }
+            }
+        }
+        Err(e) => {
+            error!("❌ Upstream error: {}", e);
+            build_error_response(StatusCode::BAD_GATEWAY, &format!("Upstream error: {}", e))
+        }
+    }
+}
+
+/// Build error response
+fn build_error_response(status: StatusCode, message: &str) -> Response<Full<Bytes>> {
+    let body = format!("{{\"error\":\"proxy_error\",\"message\":\"{}\"}}", message);
+    Response::builder()
+        .status(status)
+        .header("content-type", "application/json")
+        .header("Access-Control-Allow-Origin", "*")
+        .body(Full::new(Bytes::from(body)))
+        .unwrap()
 }
 
 /// Tokio executor for Hyper
