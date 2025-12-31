@@ -471,4 +471,11 @@ mod tests {
         assert_eq!(breakdown.storage_joules, 10.0); // 5 + 5
         assert_eq!(breakdown.memory_joules, 2.0); // 2 pages
     }
+    #[test]
+    fn test_finish_request_invalid_id() {
+        let metrics = EbpfMetrics::new();
+        // Try to finish a request that was never started
+        let result = metrics.finish_request("invalid-id", "/test", "GET", Duration::from_secs(1));
+        assert!(result.is_none());
+    }
 }

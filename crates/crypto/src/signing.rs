@@ -1650,4 +1650,32 @@ mod tests {
         let result = verifier.verify(msg, &invalid_sig).unwrap();
         assert!(!result); // Should return Ok(false) for bad signature
     }
+    #[test]
+    fn test_algorithm_mismatch_explicit() {
+        // Generate keys for different algorithms
+        let signer44 = MlDsa44Signer::generate().unwrap();
+        let signer65 = MlDsa65Signer::generate().unwrap();
+        let signer87 = MlDsa87Signer::generate().unwrap();
+
+        let msg = b"test message";
+        let sig44 = signer44.sign(msg).unwrap();
+        let sig65 = signer65.sign(msg).unwrap();
+        let sig87 = signer87.sign(msg).unwrap();
+
+        // Cross-verify should fail
+        // 44 verifier vs 65/87 sigs
+        let verifier44 = MlDsaVerifier::new(signer44.public_key().to_vec(), MlDsaAlgorithm::MlDsa44).unwrap();
+        assert!(!verifier44.verify(msg, &sig65).unwrap_or(false));
+        assert!(!verifier44.verify(msg, &sig87).unwrap_or(false));
+
+        // 65 verifier vs 44/87 sigs
+        let verifier65 = MlDsaVerifier::new(signer65.public_key().to_vec(), MlDsaAlgorithm::MlDsa65).unwrap();
+        assert!(!verifier65.verify(msg, &sig44).unwrap_or(false));
+        assert!(!verifier65.verify(msg, &sig87).unwrap_or(false));
+
+        // 87 verifier vs 44/65 sigs
+        let verifier87 = MlDsaVerifier::new(signer87.public_key().to_vec(), MlDsaAlgorithm::MlDsa87).unwrap();
+        assert!(!verifier87.verify(msg, &sig44).unwrap_or(false));
+        assert!(!verifier87.verify(msg, &sig65).unwrap_or(false));
+    }
 }

@@ -427,15 +427,19 @@ mod tests {
     #[tokio::test]
     async fn test_accept_error() {
         // Testing explicit binding failure is easier than accept error
-        // Verify bind error with invalid address (privileged port)
+        // Verify bind error with invalid address (privileged port 1 on 127.0.0.1 usually fails)
         let config_bad = HttpProxyConfig {
             listen_addr: "127.0.0.1:1".parse().unwrap(),
             ..Default::default()
         };
         let proxy = HttpProxy::new(config_bad);
         let result = proxy.run_with_shutdown(async {}).await;
-        // Typically fails with EACCES
+        
+        // This should return an error due to permission denied (EACCES) or similar
         assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        // Error message varies by OS ("Permission denied" or "address already in use" etc), so just check it's an I/O error context
+        assert!(!err_msg.is_empty());
     }
 
     #[tokio::test]

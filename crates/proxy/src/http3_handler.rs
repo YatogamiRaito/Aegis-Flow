@@ -569,4 +569,16 @@ mod tests {
 
         assert_eq!(resp.status, 404);
     }
+    #[tokio::test]
+    async fn test_unsupported_method() {
+        let handler = Http3Handler::new(Http3Config::default(), "127.0.0.1:8080".to_string());
+        // Create request with unusual method not explicitly handled
+        let req = Http3Request::new("BREW", "/pot");
+        let resp = handler.handle_request(req).await;
+        
+        // Should default to 404 Not Found for unhandled paths/methods
+        assert_eq!(resp.status, 404);
+        let body_str = String::from_utf8(resp.body.to_vec()).unwrap();
+        assert_eq!(body_str, "Not Found");
+    }
 }

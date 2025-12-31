@@ -477,4 +477,13 @@ mod tests {
         let text = "@HD\tVN:1.6\n@SQ\tSN:chr1\tLN:1000\n@RG\tID:rg1";
         let _ = BamHeader::from_sam_text(text).unwrap();
     }
+    #[test]
+    fn test_parse_garbage_input() {
+        // Ensure parser ignores lines not starting with standard tags or malformed tags
+        let text = "Not a header\n@UNKNOWN\tVN:1.6\n@InvalidTag\tID:1";
+        let header = BamHeader::from_sam_text(text).unwrap();
+        // Should ignore everything that doesn't strictly match expected start patterns
+        assert_eq!(header.version, None);
+        assert_eq!(header.references.len(), 0);
+    }
 }

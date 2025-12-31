@@ -589,12 +589,10 @@ mod tests {
         let server = QuicServer::new(config, ProxyConfig::default());
         let result = server.check_certificates();
         assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("certificate not found")
-        );
+        
+        // Verify precise error message
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("TLS certificate not found"));
     }
 
     #[tokio::test]
