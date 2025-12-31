@@ -1593,8 +1593,30 @@ mod tests {
     }
 
     #[test]
+    fn test_hybrid_verify_mldsa_failure() {
+        let signer = HybridSigner::generate().unwrap();
+        let message = b"test message";
+        let mut signature = signer.sign(message).unwrap();
+
+        // Pass Ed25519 check, but fail ML-DSA check (lines 642-643)
+        // Corrupt ML-DSA part
+        if !signature.mldsa_sig.is_empty() {
+             signature.mldsa_sig[0] ^= 0xFF;
+        }
+
+        let result = signer.verify(message, &signature);
+        assert!(result.is_ok());
+        assert!(!result.unwrap(), "Hybrid signature should be invalid if ML-DSA fails");
+    }
+
+    #[test]
+    fn test_hybrid_signer_sign_log() {
+        // Just exercise the sign method to ensure debug! log is hit (lines 610-611)
+        let signer = HybridSigner::generate().unwrap();
+        let _ = signer.sign(b"test");
+    }
+    #[test]
     fn test_hybrid_verifier_verify_invalid_ed25519_length() {
-        // Lines 718-719, 733: HybridVerifier::verify with wrong Ed25519 sig length
         let signer = HybridSigner::generate().unwrap();
         let pk = signer.public_key();
         let verifier = HybridVerifier::new(&pk).unwrap();

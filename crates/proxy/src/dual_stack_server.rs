@@ -460,4 +460,42 @@ mod tests {
         let header = config.alt_svc_header();
         assert!(header.contains(":8443"));
     }
+
+    #[tokio::test]
+    async fn test_dual_stack_stats_method() {
+        // Line 84-85: stats() method coverage
+        let server = DualStackServer::with_defaults(ProxyConfig::default());
+        let stats = server.stats().await;
+        assert_eq!(stats.http2_requests, 0);
+    }
+
+    #[tokio::test]
+    async fn test_run_method_wrapper() {
+        // Line 94-95: run() wrapper
+        let server = DualStackServer::with_defaults(ProxyConfig::default());
+        let handle = tokio::spawn(async move {
+            server.run().await
+        });
+        // Abort immediately as run() blocks forever
+        handle.abort();
+    }
+
+    #[tokio::test]
+    async fn test_quic_startup_failure() {
+        // Line 169-170: QUIC task error logging
+        // Use a definitely invalid address for QUIC bind (e.g. invalid IP)
+        // Or privileged port without sudo
+        let config = DualStackConfig {
+            quic_config: QuicConfig {
+                bind_address: "256.256.256.256:443".to_string(), // Invalid IP
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let server = DualStackServer::new(config, ProxyConfig::default());
+        
+        let result = server.run_with_shutdown(std::future::pending()).await;
+        // Should return Ok because error is logged in background task
+        assert!(result.is_ok());
+    }
 }

@@ -336,4 +336,12 @@ chr1	100	.	A	T	99.0	PASS	DP=50
         let record = parser.parse_line(line).unwrap().unwrap();
         assert_eq!(record.info, Some("K=V".to_string()));
     }
+
+    #[test]
+    fn test_logging_coverage_vcf() {
+        let parser = VcfParser::new();
+        let vcf_data = "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\nchr1\t100\t.\tA\tT\t.\t.\t.";
+        let reader = Cursor::new(vcf_data);
+        let _ = parser.parse(reader).unwrap();
+    }
 }

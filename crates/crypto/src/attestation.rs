@@ -1471,4 +1471,58 @@ mod tests_coverage {
         let result = provider.verify_quote(&quote, nonce).unwrap();
         assert!(result, "Simulation mode should pass");
     }
+
+    #[test]
+    fn test_coverage_explicit_errors() {
+        // Line 145-146: Quote too short
+        let short_bytes = vec![0u8; 10]; 
+        match AttestationQuote::from_bytes(&short_bytes) {
+            Err(AegisError::Crypto(msg)) => assert_eq!(msg, "Quote too short"),
+            _ => panic!("Expected 'Quote too short' error"),
+        }
+
+        // Line 176: We need at least 22 bytes to pass initial check.
+        // Platform (1) + NonceLen (4) + Nonce (large value pointing past end)
+        let mut bytes = vec![0u8; 22];
+        bytes[0] = 255; // Platform::None
+        // NonceLen at bytes[1..5] = a large value that offset + nonce_len > bytes.len()
+        bytes[1..5].copy_from_slice(&1000u32.to_le_bytes()); // NonceLen = 1000
+        // offset = 1 + 4 = 5. nonce_len = 1000. offset + nonce_len = 1005 > 22.
+        // Should trigger "Invalid nonce length" on line 168-169.
+        match AttestationQuote::from_bytes(&bytes) {
+            Err(AegisError::Crypto(msg)) => assert_eq!(msg, "Invalid nonce length"),
+            _ => panic!("Expected 'Invalid nonce length' error"),
+        }
+
+        // Line 193: Missing quote length
+        // Platform (1) + NonceLen=0 (4) + Nonce(0) + UserDataLen=0 (4) + UserData(0)
+        // Total = 1 + 4 + 0 + 4 + 0 = 9 bytes of "real" data.
+        // We need 22 bytes to pass initial check, but after parsing, offset + 4 > len for quote_len.
+        // Provide exactly enough to pass early checks but fail on quote_len read.
+        let mut bytes = vec![0u8; 22];
+        bytes[0] = 255; // Platform
+        bytes[1..5].copy_from_slice(&0u32.to_le_bytes()); // NonceLen = 0
+        // offset = 5. Nonce is empty.
+        bytes[5..9].copy_from_slice(&0u32.to_le_bytes()); // UserDataLen = 0
+        // offset = 9. UserData is empty.
+        // Now we need QuoteLen at bytes[9..13]. But we only have 22 bytes, so that should work.
+        // But we want offset + 4 > len. So we need to make len < offset + 4.
+        // After offset = 9, we need offset + 4 = 13 <= 22, which is true, so no error here.
+        // We need to make the quote data invalid. Let's set QuoteLen to a huge value.
+        bytes[9..13].copy_from_slice(&1000u32.to_le_bytes()); // QuoteLen = 1000
+        // offset = 13, quote_len = 1000. offset + quote_len = 1013 > 22.
+        // Should trigger "Invalid quote length" on line 201-202.
+        
+        match AttestationQuote::from_bytes(&bytes) {
+            Err(AegisError::Crypto(msg)) => assert_eq!(msg, "Invalid quote length"),
+            _ => panic!("Expected 'Invalid quote length' error"),
+        }
+    }
+
+    #[test]
+    fn test_coverage_generate_quote_log() {
+        // Cover lines 411-413 (debug log arguments)
+        let provider = AttestationProvider::new();
+        let _ = provider.generate_quote(b"nonce", b"user_data");
+    }
 }

@@ -470,4 +470,11 @@ mod tests {
         let pg = &header.programs[0];
         assert_eq!(pg.id, "p1");
     }
+
+    #[test]
+    fn test_logging_coverage() {
+        // Just ensures the methods are called with typical data to hit log lines
+        let text = "@HD\tVN:1.6\n@SQ\tSN:chr1\tLN:1000\n@RG\tID:rg1";
+        let _ = BamHeader::from_sam_text(text).unwrap();
+    }
 }

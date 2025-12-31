@@ -407,4 +407,36 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.headers().get("Content-Type").unwrap(), "text/plain");
     }
+
+    #[tokio::test]
+    async fn test_health_server_protocol_error() {
+        // Line 59-61: Trigger error in serve_connection
+        // We start the server, connect, and send garbage.
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let lifecycle = Arc::new(LifecycleManager::new());
+        let (tx, rx) = tokio::sync::oneshot::channel();
+
+        // Spawn server
+        let server_handle = tokio::spawn(async move {
+            run_health_server_with_listener(listener, lifecycle, None, async {
+                rx.await.ok();
+            })
+            .await
+        });
+        
+        // Connect and send garbage to trigger protocol error in http1::serve_connection
+        use tokio::io::AsyncWriteExt;
+        let mut stream = tokio::net::TcpStream::connect(addr).await.unwrap();
+        stream.write_all(b"NOT HTTP\r\n\r\n").await.unwrap();
+        // Close write to force EOF or let server react
+        // The server might log a warn. We can't verify the log easily but we hit the path.
+        
+        // Wait a bit
+        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+        
+        // Clean shutdown
+        tx.send(()).unwrap();
+        let _ = server_handle.await;
+    }
 }

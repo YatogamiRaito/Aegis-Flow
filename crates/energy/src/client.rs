@@ -933,4 +933,156 @@ mod tests {
         let result = client.get_carbon_intensity(&region).await.unwrap();
         assert_eq!(result.rating.as_deref(), Some("very_high"));
     }
+
+    #[tokio::test]
+    async fn test_watttime_by_location() {
+        // Line 167: get_carbon_intensity_by_location
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/login"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "token": "token"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/region-from-loc"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "abbrev": "CAISO",
+                "name": "California"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/signal-index"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "ba": "CAISO",
+                "point_time": "2025-01-01T12:00:00Z",
+                "moer": 500.0,
+                "percent": 50
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = WattTimeClient::new("u".into(), "p".into()).with_base_url(mock_server.uri());
+        let result = client.get_carbon_intensity_by_location(10.0, 20.0).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_watttime_date_parse_error() {
+        // Line 145: Date parse error
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/login"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "token": "token"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/signal-index"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "ba": "CAISO",
+                "point_time": "INVALID_DATE",
+                "moer": 500.0
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = WattTimeClient::new("u".into(), "p".into()).with_base_url(mock_server.uri());
+        let region = Region::new("CAISO", "Cal");
+        let result = client.get_carbon_intensity(&region).await;
+        
+        match result {
+            Err(EnergyApiError::ParseError(_)) => {},
+            _ => panic!("Expected ParseError"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_electricity_maps_date_parse_error_region() {
+        // Line 259: Date parse error in get_carbon_intensity
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/carbon-intensity/latest"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "zone": "DE",
+                "carbonIntensity": 250.0,
+                "datetime": "INVALID_DATE",
+                "updatedAt": "INVALID_DATE"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = ElectricityMapsClient::new("k".into()).with_base_url(mock_server.uri());
+        let region = Region::new("DE", "Germany");
+        let result = client.get_carbon_intensity(&region).await;
+
+        match result {
+            Err(EnergyApiError::ParseError(_)) => {},
+            _ => panic!("Expected ParseError"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_electricity_maps_date_parse_error_location() {
+        // Line 304: Date parse error in get_carbon_intensity_by_location
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/carbon-intensity/latest"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "zone": "DE",
+                "carbonIntensity": 250.0,
+                "datetime": "INVALID_DATE",
+                "updatedAt": "INVALID_DATE"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = ElectricityMapsClient::new("k".into()).with_base_url(mock_server.uri());
+        let result = client.get_carbon_intensity_by_location(50.0, 10.0).await;
+
+        match result {
+            Err(EnergyApiError::ParseError(_)) => {},
+            _ => panic!("Expected ParseError"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_watttime_token_race_stress() {
+        // Line 78: Race condition check.
+        
+        let mock_server = MockServer::start().await;
+        
+        Mock::given(method("GET"))
+            .and(path("/login"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "token": "race_token"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = Arc::new(WattTimeClient::new("u".into(), "p".into()).with_base_url(mock_server.uri()));
+
+        let mut handles = vec![];
+        for _ in 0..10 {
+            let c = client.clone();
+            handles.push(tokio::spawn(async move {
+                c.ensure_token().await
+            }));
+        }
+
+        for h in handles {
+            let token = h.await.unwrap().unwrap();
+            assert_eq!(token, "race_token");
+        }
+    }
 }
