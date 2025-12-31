@@ -218,6 +218,7 @@ impl MtlsAuthenticator {
         // Verify client certificate if required
         if self.config.require_client_cert {
             if let Some(ref cert) = client_cert {
+                // Verify certificate chain (check against trusted CAs)
                 match self.cert_manager.verify_chain(cert) {
                     Ok(true) => {
                         if !cert.is_valid_now() {
@@ -228,15 +229,23 @@ impl MtlsAuthenticator {
                             ));
                         }
                         debug!("Client certificate verified: {}", cert.subject_cn);
+                        // Continue to PQC
                     }
-                    Ok(false) | Err(_) => {
-                        let msg = if let Err(e) = self.cert_manager.verify_chain(cert) {
-                            format!("Client certificate verification failed: {}", e)
-                        } else {
-                            "Client certificate verification failed".to_string()
-                        };
-                        client.state = AuthState::Failed(msg.clone());
-                        return Err(AegisError::Crypto(msg));
+                    Ok(false) => {
+                        // This path is technically unreachable with current CertManager::verify_chain
+                        // but needed for match exhaustiveness on Result<bool>
+                        client.state =
+                            AuthState::Failed("Client certificate verification failed".to_string());
+                        return Err(AegisError::Crypto(
+                            "Client certificate verification failed".to_string(),
+                        ));
+                    }
+                    Err(e) => {
+                        client.state = AuthState::Failed(format!(
+                            "Client certificate verification failed: {}",
+                            e
+                        ));
+                        return Err(e);
                     }
                 }
             } else {
@@ -1297,5 +1306,109 @@ mod tests {
         std::fs::remove_file(cert_path).ok();
         std::fs::remove_file(key_path).ok();
         std::fs::remove_file(ca_path).ok();
+    }
+
+    #[test]
+    fn test_complete_handshake_success_logging() {
+        // Line 230: successful handshake debug log
+        let _subscriber = tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::DEBUG)
+            .with_test_writer()
+            .try_init();
+
+        let config = MtlsConfig {
+            require_client_cert: true,
+            pqc_enabled: true,
+            ..Default::default()
+        };
+        let mut auth = MtlsAuthenticator::new(config).unwrap();
+        auth.init_self_signed("server").unwrap();
+
+        // Generate a valid client cert
+        let mut params = rcgen::CertificateParams::default();
+        params
+            .distinguished_name
+            .push(rcgen::DnType::CommonName, "logging-client");
+        let key_pair = rcgen::KeyPair::generate().unwrap();
+        let client_cert = params.self_signed(&key_pair).unwrap();
+        let client_der = client_cert.der().to_vec();
+
+        // Trust it
+        let mut client_cert_parsed = CertManager::parse_der(&client_der).unwrap();
+        client_cert_parsed.cert_type = crate::certmanager::CertType::RootCa;
+        client_cert_parsed.issuer_cn = client_cert_parsed.subject_cn.clone();
+        auth.cert_manager
+            .add_trusted_ca(client_cert_parsed)
+            .unwrap();
+
+        let (conn_id, server_pk) = auth.accept_connection().unwrap();
+
+        let client_handshake = PqcHandshake::new(PqcTlsConfig::default());
+        let (ciphertext, _) = client_handshake.client_complete(&server_pk).unwrap();
+
+        let result = auth.complete_handshake(conn_id, &ciphertext, Some(&client_der));
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_complete_handshake_expired_client_cert_chained() {
+        // Covers lines 223-227: Verify chain succeeds (CA valid), but client cert itself is expired.
+        let config = MtlsConfig {
+            require_client_cert: true,
+            pqc_enabled: true,
+            ..Default::default()
+        };
+        let mut auth = MtlsAuthenticator::new(config).unwrap();
+        auth.init_self_signed("server").unwrap();
+
+        // 1. Generate VALID CA
+        let mut ca_params = rcgen::CertificateParams::default();
+        ca_params
+            .distinguished_name
+            .push(rcgen::DnType::CommonName, "Valid CA");
+        ca_params.is_ca = rcgen::IsCa::Ca(rcgen::BasicConstraints::Unconstrained);
+        let ca_key = rcgen::KeyPair::generate().unwrap();
+        let ca_cert = ca_params.self_signed(&ca_key).unwrap();
+        let ca_der = ca_cert.der();
+
+        // Trust the CA
+        let mut ca_parsed = CertManager::parse_der(&ca_der).unwrap();
+        ca_parsed.cert_type = crate::certmanager::CertType::RootCa;
+        ca_parsed.issuer_cn = ca_parsed.subject_cn.clone(); // It is self-signed
+        auth.cert_manager.add_trusted_ca(ca_parsed).unwrap();
+
+        // 2. Generate EXPIRED Client Cert signed by Valid CA
+        let mut client_params = rcgen::CertificateParams::default();
+        client_params
+            .distinguished_name
+            .push(rcgen::DnType::CommonName, "expired-client");
+
+        // Expired yesterday
+        let now = ::time::OffsetDateTime::now_utc();
+        let past = now - ::time::Duration::days(1);
+        let before_past = past - ::time::Duration::days(1);
+        client_params.not_before = before_past;
+        client_params.not_after = past;
+
+        let client_key = rcgen::KeyPair::generate().unwrap();
+        let client_cert = client_params
+            .signed_by(&client_key, &ca_cert, &ca_key)
+            .unwrap();
+        let client_der = client_cert.der().to_vec();
+
+        let (conn_id, server_pk) = auth.accept_connection().unwrap();
+
+        // Client handshake (PQC) - we need valid ciphertext
+        let client_handshake = PqcHandshake::new(PqcTlsConfig::default());
+        let (ciphertext, _) = client_handshake.client_complete(&server_pk).unwrap();
+
+        // Complete handshake
+        let result = auth.complete_handshake(conn_id, &ciphertext, Some(&client_der));
+
+        assert!(result.is_err());
+        if let Err(AegisError::Crypto(msg)) = result {
+            // Must match the exact error from line 227 "Client certificate expired"
+            assert_eq!(msg, "Client certificate expired");
+        }
     }
 }

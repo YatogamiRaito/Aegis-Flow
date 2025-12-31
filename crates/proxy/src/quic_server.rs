@@ -912,7 +912,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[tokio::test]
     async fn test_quic_server_full_integration() {
         use s2n_quic::client::Connect;
         use s2n_quic::{Client, provider::tls};

@@ -1589,4 +1589,22 @@ mod tests {
         // We rely on visual inspection of logs or future rcgen updates for the warn path.
         // The primary goal here is ensuring the function runs and logs INFO.
     }
+
+    #[test]
+    fn test_generate_self_signed_invalid_san_coverage() {
+        // Lines 270-271: Covers warning for invalid SAN
+        let _subscriber = tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::WARN)
+            .with_test_writer()
+            .try_init();
+
+        let long_san = "a".repeat(300); // Too long for DNS
+        let sans = vec![
+            "1.2.3.999".to_string(), // Invalid IP
+            long_san,                // Invalid DNS
+        ];
+
+        let result = CertManager::generate_self_signed("test", &sans, 1);
+        assert!(result.is_ok());
+    }
 }

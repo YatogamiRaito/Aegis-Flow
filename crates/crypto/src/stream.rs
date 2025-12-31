@@ -797,6 +797,60 @@ mod tests {
         assert_eq!(MAX_FRAME_SIZE, 64 * 1024);
     }
 
+    struct PendingWriter {
+        pub flushed: bool,
+    }
+
+    impl Unpin for PendingWriter {}
+
+    impl tokio::io::AsyncWrite for PendingWriter {
+        fn poll_write(
+            self: Pin<&mut Self>,
+            _cx: &mut Context<'_>,
+            buf: &[u8],
+        ) -> Poll<io::Result<usize>> {
+            Poll::Ready(Ok(buf.len()))
+        }
+
+        fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+            if !self.flushed {
+                self.flushed = true;
+                // Wake up immediately to avoid hanging, but return Pending once
+                cx.waker().wake_by_ref();
+                return Poll::Pending;
+            }
+            Poll::Ready(Ok(()))
+        }
+
+        fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+            self.poll_flush(cx)
+        }
+    }
+
+    impl tokio::io::AsyncRead for PendingWriter {
+        fn poll_read(
+            self: Pin<&mut Self>,
+            _cx: &mut Context<'_>,
+            _buf: &mut tokio::io::ReadBuf<'_>,
+        ) -> Poll<io::Result<()>> {
+            Poll::Ready(Ok(()))
+        }
+    }
+
+    #[tokio::test]
+    async fn test_stream_shutdown_pending() {
+        let key = [0xDDu8; 32];
+        let writer = PendingWriter { flushed: false };
+        let mut enc_stream = EncryptedStream::new(writer, &key);
+
+        // write something so we have work to do (optional, but good for state)
+        enc_stream.write_all(b"data").await.unwrap();
+
+        // shutdown calls poll_flush under the hood in our impl
+        // First call should recurse to PendingWriter::poll_flush which returns Pending once
+        enc_stream.shutdown().await.unwrap();
+    }
+
     #[tokio::test]
     async fn test_stream_empty_write() {
         let key = [0xFFu8; 32];
