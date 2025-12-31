@@ -25,6 +25,12 @@ impl EbpfLoader {
         }
     }
 
+    #[cfg(test)]
+    /// Force mock mode for testing
+    pub fn set_mock_mode(&mut self, mode: bool) {
+        self.mock_mode = mode;
+    }
+
     /// Check if running in mock mode
     pub fn is_mock(&self) -> bool {
         self.mock_mode
@@ -233,5 +239,32 @@ mod tests {
 
         shared.load().unwrap();
         assert!(clone.is_loaded());
+    }
+
+    #[test]
+    fn test_loader_no_ebpf_feature_logging() {
+        let subscriber = tracing_subscriber::fmt()
+            .with_test_writer()
+            .with_max_level(tracing::Level::INFO)
+            .finish();
+        let _guard = tracing::subscriber::set_default(subscriber);
+
+        let mut loader = EbpfLoader::new();
+        // Force mock_mode to false to simulate "attempting" to load real eBPF
+        // This exercises the code path where the feature is disabled (if compiled without feature)
+        // or where it tries to load and falls back.
+        // Specifically targeting lines 53, 56-57
+        #[cfg(not(feature = "ebpf"))]
+        {
+            loader.set_mock_mode(false);
+            loader.load().unwrap();
+            assert!(loader.is_loaded());
+        }
+
+        #[cfg(feature = "ebpf")]
+        {
+            // If feature is enabled, we just want to ensure we don't regress
+            loader.load().unwrap();
+        }
     }
 }

@@ -460,4 +460,19 @@ mod tests {
         assert!(metrics.total_joules() > 0.0);
         assert_eq!(metrics.endpoint, "/debug-path");
     }
+
+    #[test]
+    fn test_debug_logging() {
+        let subscriber = tracing_subscriber::fmt()
+            .with_test_writer()
+            .with_max_level(tracing::Level::DEBUG)
+            .finish();
+
+        // Ensure debug! macro is evaluated
+        let _guard = tracing::subscriber::set_default(subscriber);
+
+        let estimator = EnergyEstimator::new();
+        let _ =
+            estimator.estimate_from_duration("/logged-path", "PUT", Duration::from_millis(50), 128);
+    }
 }

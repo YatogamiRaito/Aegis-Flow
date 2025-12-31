@@ -478,4 +478,21 @@ mod tests {
         let result = metrics.finish_request("invalid-id", "/test", "GET", Duration::from_secs(1));
         assert!(result.is_none());
     }
+
+    #[test]
+    fn test_metrics_debug_logging() {
+        let subscriber = tracing_subscriber::fmt()
+            .with_test_writer()
+            .with_max_level(tracing::Level::DEBUG)
+            .finish();
+
+        let _guard = tracing::subscriber::set_default(subscriber);
+
+        let metrics = EbpfMetrics::new();
+        metrics.start_request("debug-req");
+        metrics.record_cpu_cycles("debug-req", 1000);
+
+        let result = metrics.finish_request("debug-req", "/debug", "GET", Duration::from_millis(5));
+        assert!(result.is_some());
+    }
 }
