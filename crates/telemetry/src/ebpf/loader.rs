@@ -249,6 +249,7 @@ mod tests {
             .finish();
         let _guard = tracing::subscriber::set_default(subscriber);
 
+        #[allow(unused_mut)]
         let mut loader = EbpfLoader::new();
         // Force mock_mode to false to simulate "attempting" to load real eBPF
         // This exercises the code path where the feature is disabled (if compiled without feature)

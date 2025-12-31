@@ -6,6 +6,9 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 use tracing::{error, info, instrument, warn};
 
+use std::net::SocketAddr;
+use tokio::io::{AsyncRead, AsyncWrite};
+
 /// Run the proxy server with the given configuration
 #[instrument(skip(config))]
 pub async fn run(config: ProxyConfig) -> Result<()> {
@@ -22,38 +25,41 @@ pub async fn run_with_listener(
     listener: TcpListener,
     shutdown: impl std::future::Future<Output = ()>,
 ) -> Result<()> {
+    run_accept_loop(listener, shutdown).await
+}
+
+/// Trait to abstract connection accepting for testing
+pub trait ConnectionAcceptor {
+    type Stream: AsyncRead + AsyncWrite + Unpin + Send + 'static;
+    fn accept(
+        &mut self,
+    ) -> impl std::future::Future<Output = std::io::Result<(Self::Stream, SocketAddr)>> + Send;
+}
+
+impl ConnectionAcceptor for TcpListener {
+    type Stream = tokio::net::TcpStream;
+    async fn accept(&mut self) -> std::io::Result<(Self::Stream, SocketAddr)> {
+        TcpListener::accept(self).await
+    }
+}
+
+/// Generic accept loop that works with any ConnectionAcceptor
+pub async fn run_accept_loop<A>(
+    mut acceptor: A,
+    shutdown: impl std::future::Future<Output = ()>,
+) -> Result<()>
+where
+    A: ConnectionAcceptor + Send,
+{
     tokio::pin!(shutdown);
 
     loop {
         tokio::select! {
-            accept_result = listener.accept() => {
+            accept_result = acceptor.accept() => {
                 match accept_result {
-                    Ok((mut socket, peer_addr)) => {
+                    Ok((socket, peer_addr)) => {
                         info!("📥 New connection from: {}", peer_addr);
-
-                        tokio::spawn(async move {
-                            let mut buf = [0u8; 4096];
-
-                            loop {
-                                match socket.read(&mut buf).await {
-                                    Ok(0) => {
-                                        info!("📤 Connection closed: {}", peer_addr);
-                                        break;
-                                    }
-                                    Ok(n) => {
-                                        // Echo server for MVP
-                                        if let Err(e) = socket.write_all(&buf[..n]).await {
-                                            error!("❌ Write error: {}", e);
-                                            break;
-                                        }
-                                    }
-                                    Err(e) => {
-                                        error!("❌ Read error: {}", e);
-                                        break;
-                                    }
-                                }
-                            }
-                        });
+                        tokio::spawn(handle_connection(socket, peer_addr));
                     }
                     Err(e) => {
                         warn!("⚠️ Accept error: {}", e);
@@ -67,6 +73,34 @@ pub async fn run_with_listener(
         }
     }
     Ok(())
+}
+
+/// Handle a single client connection
+pub async fn handle_connection<S>(mut socket: S, peer_addr: SocketAddr)
+where
+    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+{
+    let mut buf = [0u8; 4096];
+
+    loop {
+        match socket.read(&mut buf).await {
+            Ok(0) => {
+                info!("📤 Connection closed: {}", peer_addr);
+                break;
+            }
+            Ok(n) => {
+                // Echo server for MVP
+                if let Err(e) = socket.write_all(&buf[..n]).await {
+                    error!("❌ Write error: {}", e);
+                    break;
+                }
+            }
+            Err(e) => {
+                error!("❌ Read error: {}", e);
+                break;
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -294,5 +328,98 @@ mod tests {
         // We'll just rely on this increasing probability of hitting error path.
         drop(client);
         tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+
+    struct MockAcceptor<F> {
+        accept_fn: F,
+    }
+
+    impl<F, Fut> ConnectionAcceptor for MockAcceptor<F>
+    where
+        F: FnMut() -> Fut + Send,
+        Fut: std::future::Future<Output = std::io::Result<(tokio_test::io::Mock, SocketAddr)>>
+            + Send,
+    {
+        type Stream = tokio_test::io::Mock;
+        fn accept(
+            &mut self,
+        ) -> impl std::future::Future<Output = std::io::Result<(Self::Stream, SocketAddr)>> + Send
+        {
+            (self.accept_fn)()
+        }
+    }
+
+    #[tokio::test]
+    async fn test_accept_loop_error() {
+        // Test that accept errors are logged but don't crash the server loop immediately
+        let mut attempts = 0;
+        let acceptor = MockAcceptor {
+            accept_fn: move || {
+                attempts += 1;
+                async move {
+                    if attempts == 1 {
+                        // First attempt fails
+                        Err(std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            "Accept failed",
+                        ))
+                    } else {
+                        // Second attempt hangs (simulation of waiting for next connection)
+                        std::future::pending().await
+                    }
+                }
+            },
+        };
+
+        // Run for a short time to process the first error
+        let result = tokio::select! {
+             res = run_accept_loop(acceptor, std::future::pending()) => res,
+             _ = tokio::time::sleep(Duration::from_millis(50)) => Ok(()),
+        };
+
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_handle_connection_read_error() {
+        // Mock a stream that fails on first read
+        let mock = tokio_test::io::Builder::new()
+            .read_error(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Read failed",
+            ))
+            .build();
+
+        let addr = "127.0.0.1:1234".parse().unwrap();
+
+        // Should handle error gracefully (log and exit)
+        handle_connection(mock, addr).await;
+    }
+
+    #[tokio::test]
+    async fn test_handle_connection_write_error() {
+        // Mock a stream that reads ok but fails on write
+        let mock = tokio_test::io::Builder::new()
+            .read(b"test data")
+            .write_error(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Write failed",
+            ))
+            .build();
+
+        let addr = "127.0.0.1:1234".parse().unwrap();
+
+        handle_connection(mock, addr).await;
+    }
+
+    #[tokio::test]
+    async fn test_handle_connection_closed_by_peer() {
+        // Mock a stream that returns 0 bytes (EOF) immediately
+        let mock = tokio_test::io::Builder::new()
+            .read(b"") // 0 bytes read
+            .build();
+
+        let addr = "127.0.0.1:1234".parse().unwrap();
+        handle_connection(mock, addr).await;
     }
 }
