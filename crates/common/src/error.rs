@@ -107,11 +107,11 @@ mod tests {
     fn test_error_io_kind() {
         let io_err = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "access denied");
         let aegis_err: AegisError = io_err.into();
-        if let AegisError::Io(e) = aegis_err {
-            assert_eq!(e.kind(), std::io::ErrorKind::PermissionDenied);
-        } else {
-            panic!("Expected Io variant");
-        }
+        // The From<std::io::Error> impl always produces AegisError::Io, so match directly
+        let AegisError::Io(e) = aegis_err else {
+            unreachable!("From<std::io::Error> always produces Io variant");
+        };
+        assert_eq!(e.kind(), std::io::ErrorKind::PermissionDenied);
     }
 
     #[test]
