@@ -1546,4 +1546,42 @@ mod tests_coverage {
         let provider = AttestationProvider::new();
         let _ = provider.generate_quote(b"nonce", b"user_data");
     }
+    #[test]
+    fn test_attestation_quote_from_bytes_missing_user_data_len() {
+        let mut bytes = vec![0u8; 25];
+        bytes[0] = 0; // Platform::IntelSgx
+        bytes[1..5].copy_from_slice(&20u32.to_le_bytes());
+
+        match AttestationQuote::from_bytes(&bytes) {
+            Err(AegisError::Crypto(msg)) => assert_eq!(msg, "Missing user data length"),
+            _ => panic!(
+                "Expected 'Missing user data length' error, got {:?}",
+                AttestationQuote::from_bytes(&bytes)
+            ),
+        }
+    }
+
+    #[test]
+    fn test_attestation_quote_from_bytes_missing_quote_len() {
+        let mut bytes = vec![0u8; 29];
+        bytes[0] = 0; // Platform
+        bytes[1..5].copy_from_slice(&0u32.to_le_bytes()); // NonceLen=0
+        bytes[5..9].copy_from_slice(&20u32.to_le_bytes()); // UserDataLen=20
+
+        match AttestationQuote::from_bytes(&bytes) {
+            Err(AegisError::Crypto(msg)) => assert_eq!(msg, "Missing quote length"),
+            _ => panic!("Expected 'Missing quote length' error"),
+        }
+    }
+
+    #[test]
+    fn test_generate_quote_logging() {
+        let _subscriber = tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::DEBUG)
+            .with_test_writer()
+            .try_init();
+
+        let provider = AttestationProvider::new();
+        let _ = provider.generate_quote(b"nonce", b"user_data");
+    }
 }

@@ -910,4 +910,114 @@ mod tests {
         assert!(result.is_ok(), "Should not time out"); // Timeout means loop didn't break
         assert!(result.unwrap().is_ok()); // Inner result should be Ok
     }
+
+    #[tokio::test]
+    #[tokio::test]
+    async fn test_quic_server_full_integration() {
+        use s2n_quic::client::Connect;
+        use s2n_quic::{Client, provider::tls};
+        use std::net::SocketAddr;
+        use std::time::Duration;
+
+        let cert_dir =
+            std::env::temp_dir().join(format!("aegis_quic_int_{}", rand::random::<u32>()));
+        std::fs::create_dir_all(&cert_dir).unwrap();
+        let cert_path = cert_dir.join("server.crt");
+        let key_path = cert_dir.join("server.key");
+
+        let certified_key =
+            rcgen::generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
+        std::fs::write(&cert_path, certified_key.cert.pem()).unwrap();
+        std::fs::write(&key_path, certified_key.key_pair.serialize_pem()).unwrap();
+
+        let mut port;
+        let mut bind_addr = String::new();
+        let mut server_task = None;
+        let mut tx_signal = None;
+
+        for _ in 0..10 {
+            port = 50000 + (rand::random::<u16>() % 10000);
+            bind_addr = format!("127.0.0.1:{}", port);
+
+            let config = QuicConfig {
+                bind_address: bind_addr.clone(),
+                cert_path: cert_path.to_str().unwrap().to_string(),
+                key_path: key_path.to_str().unwrap().to_string(),
+                enable_0rtt: false,
+                pqc_enabled: false,
+                ..Default::default()
+            };
+
+            let server = QuicServer::new(config, ProxyConfig::default());
+            let (tx, rx) = tokio::sync::oneshot::channel();
+
+            let task = tokio::spawn(async move {
+                server
+                    .run_with_shutdown(async {
+                        rx.await.ok();
+                    })
+                    .await
+            });
+
+            tokio::time::sleep(Duration::from_millis(50)).await;
+
+            if !task.is_finished() {
+                server_task = Some(task);
+                tx_signal = Some(tx);
+                break;
+            }
+        }
+
+        let server_task = server_task.expect("Failed to bind server to any port");
+        let tx = tx_signal.unwrap();
+
+        let tls = tls::default::Client::builder()
+            .with_certificate(cert_path.as_path())
+            .unwrap()
+            .build()
+            .unwrap();
+
+        let client = Client::builder()
+            .with_tls(tls)
+            .unwrap()
+            .with_io("0.0.0.0:0")
+            .unwrap()
+            .start()
+            .unwrap();
+
+        let connect_addr: SocketAddr = bind_addr.parse().unwrap();
+        let connect = Connect::new(connect_addr).with_server_name("localhost");
+
+        let mut connection = client
+            .connect(connect)
+            .await
+            .expect("Client failed to connect");
+
+        let mut stream = connection
+            .open_bidirectional_stream()
+            .await
+            .expect("Failed to open stream");
+
+        stream
+            .send(bytes::Bytes::from_static(b"GET / HTTP/3\r\n\r\n"))
+            .await
+            .expect("Failed to send");
+        stream.finish().expect("Failed to finish stream");
+
+        let mut response = Vec::new();
+        while let Ok(Some(chunk)) = stream.receive().await {
+            response.extend_from_slice(&chunk);
+        }
+
+        let response_str = String::from_utf8_lossy(&response);
+        assert!(
+            response_str.contains("HTTP/3"),
+            "Response should contain HTTP/3"
+        );
+
+        tx.send(()).unwrap();
+        let _ = tokio::time::timeout(Duration::from_secs(1), server_task).await;
+
+        std::fs::remove_dir_all(cert_dir).unwrap();
+    }
 }

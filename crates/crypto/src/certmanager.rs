@@ -1504,4 +1504,89 @@ mod tests {
         let result = manager.set_server_cert(ca_cert, "key".to_string());
         assert!(result.is_ok());
     }
+    #[test]
+    fn test_parse_other_san_type() {
+        use rcgen::{CertificateParams, DnType, Ia5String, SanType};
+        use std::convert::TryFrom;
+
+        let mut params = CertificateParams::default();
+        params
+            .distinguished_name
+            .push(DnType::CommonName, "email-san-test");
+        let email = Ia5String::try_from("test@example.com").unwrap();
+        params.subject_alt_names.push(SanType::Rfc822Name(email));
+
+        let key_pair = KeyPair::generate().unwrap();
+        let cert = params.self_signed(&key_pair).unwrap();
+        let pem = cert.pem();
+
+        let parsed = CertManager::parse_pem(pem.as_bytes()).unwrap();
+
+        // Ensure email SAN is ignored/not present in our simplified SAN list (which only keeps DNS/IP)
+        assert!(!parsed.san.contains(&"test@example.com".to_string()));
+    }
+
+    #[test]
+    fn test_verify_chain_logging() {
+        let _subscriber = tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::DEBUG)
+            .with_test_writer()
+            .try_init();
+
+        let (ca_pem, _ca_key_pem) =
+            CertManager::generate_self_signed("Logging CA", &[], 365).unwrap();
+        let mut ca_cert = CertManager::parse_pem(ca_pem.as_bytes()).unwrap();
+        ca_cert.cert_type = CertType::RootCa; // MARK AS CA explicitly
+
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        let child_cert = ParsedCert {
+            subject_cn: "Child".to_string(),
+            issuer_cn: "Logging CA".to_string(), // Matches CA
+            serial: "100".to_string(),
+            not_before: now - 100,
+            not_after: now + 1000,
+            cert_type: CertType::EndEntity,
+            fingerprint: "fp".to_string(),
+            san: vec![],
+            der_bytes: vec![],
+        };
+
+        let mut manager = CertManager::new();
+        manager.add_trusted_ca(ca_cert).unwrap();
+
+        assert!(manager.verify_chain(&child_cert).is_ok());
+    }
+
+    #[test]
+    fn test_generate_self_signed_logging_and_invalid_san() {
+        let _subscriber = tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::INFO)
+            .with_test_writer()
+            .try_init();
+
+        // rcgen 0.13 is very permissive with DnsName strings (accepts null bytes, long strings, etc.)
+        // so triggering the "Invalid SAN" warning path (lines 270-271) is difficult via integration test.
+        // However, this test successfully triggers the INFO log at line 293.
+        let invalid_san = "invalid_san_test";
+
+        let result = CertManager::generate_self_signed(
+            "logging-test",
+            &["valid.com".to_string(), invalid_san.to_string()],
+            1,
+        );
+
+        assert!(result.is_ok());
+        let (cert_pem, _) = result.unwrap();
+        let parsed = CertManager::parse_pem(cert_pem.as_bytes()).unwrap();
+
+        assert!(parsed.san.contains(&"valid.com".to_string()));
+        // Note: we do not assert !parsed.san.contains(invalid_san) because rcgen accepts it
+        // and includes it in the cert, so parse_pem reads it back.
+        // We rely on visual inspection of logs or future rcgen updates for the warn path.
+        // The primary goal here is ensuring the function runs and logs INFO.
+    }
 }
