@@ -115,7 +115,7 @@ async fn test_http_proxy_multiple_requests() {
             .await
     });
 
-    tokio::time::sleep(Duration::from_millis(50)).await;
+    tokio::time::sleep(Duration::from_millis(150)).await;
 
     // Use HTTP/1.1 client (server now serves HTTP/1.1)
     let client =
@@ -157,7 +157,7 @@ async fn test_http_proxy_with_post_request() {
             .await
     });
 
-    tokio::time::sleep(Duration::from_millis(50)).await;
+    tokio::time::sleep(Duration::from_millis(150)).await;
 
     // Use HTTP/1.1 client (server now serves HTTP/1.1)
     let client =
