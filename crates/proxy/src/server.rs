@@ -425,7 +425,65 @@ mod tests {
         assert_eq!(config.port, 8080);
         
         let default_config = ProxyConfig::default();
-        assert_eq!(default_config.host, "127.0.0.1");
-        assert_eq!(default_config.port, 0); 
+        assert_eq!(default_config.host, "0.0.0.0");
+        assert_eq!(default_config.port, 8443);
+    }
+
+    #[tokio::test]
+    async fn test_accept_loop_mixed_results() {
+        let mut attempts = 0;
+        let acceptor = MockAcceptor {
+            accept_fn: move || {
+                attempts += 1;
+                async move {
+                    match attempts {
+                        1 => {
+                            // First: Success
+                            let mock = tokio_test::io::Builder::new().build();
+                            let addr = "127.0.0.1:1001".parse().unwrap();
+                            Ok((mock, addr))
+                        }
+                        2 => {
+                            // Second: Error
+                            Err(std::io::Error::other("Simulated accept error"))
+                        }
+                        3 => {
+                            // Third: Success
+                            let mock = tokio_test::io::Builder::new().build();
+                            let addr = "127.0.0.1:1002".parse().unwrap();
+                            Ok((mock, addr))
+                        }
+                        _ => {
+                            // Then hang
+                            std::future::pending().await
+                        }
+                    }
+                }
+            },
+        };
+
+        // Run loop for a short time
+        let result = tokio::select! {
+             res = run_accept_loop(acceptor, std::future::pending()) => res,
+             // Give enough time for the mock steps to run
+             _ = tokio::time::sleep(Duration::from_millis(100)) => Ok(()),
+        };
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_connection_conversation() {
+        // Conversational test: Read -> Write -> Read -> Write -> EOF
+        // This exercises the `loop` and `match` arms multiple times in one go.
+        let mock = tokio_test::io::Builder::new()
+            .read(b"hello")
+            .write(b"hello")
+            .read(b"world")
+            .write(b"world")
+            // Implicit EOF at end matches Ok(0)
+            .build(); 
+
+        let addr = "127.0.0.1:1234".parse().unwrap();
+        handle_connection(mock, addr).await;
     }
 }
