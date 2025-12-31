@@ -3,7 +3,10 @@
 //! This module contains the main startup logic extracted from main.rs
 //! to allow for integration testing.
 
-use crate::{PqcProxyServer, ProxyConfig, http_proxy::{HttpProxy, HttpProxyConfig}};
+use crate::{
+    PqcProxyServer, ProxyConfig,
+    http_proxy::{HttpProxy, HttpProxyConfig},
+};
 use anyhow::Result;
 use tracing::info;
 use tracing_subscriber::{EnvFilter, fmt, prelude::*};

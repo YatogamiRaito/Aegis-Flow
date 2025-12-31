@@ -4,7 +4,7 @@
 
 use anyhow::Result;
 use bytes::Bytes;
-use http_body_util::{Full, BodyExt};
+use http_body_util::{BodyExt, Full};
 use hyper::{Method, Request, Response, StatusCode, server::conn::http1, service::service_fn};
 use hyper_util::rt::TokioIo;
 use reqwest;
@@ -132,7 +132,7 @@ where
     let method = req.method().clone();
     let uri = req.uri().clone();
     let headers = req.headers().clone();
-    
+
     // Read request body for forwarding
     let body_bytes = match req.collect().await {
         Ok(collected) => collected.to_bytes(),
@@ -197,8 +197,14 @@ fn build_cors_preflight() -> Response<Full<Bytes>> {
     Response::builder()
         .status(StatusCode::OK)
         .header("Access-Control-Allow-Origin", "*")
-        .header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-        .header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        .header(
+            "Access-Control-Allow-Methods",
+            "GET, POST, PUT, DELETE, OPTIONS",
+        )
+        .header(
+            "Access-Control-Allow-Headers",
+            "Content-Type, Authorization",
+        )
         .body(Full::new(Bytes::new()))
         .unwrap()
 }
@@ -211,20 +217,21 @@ async fn forward_to_upstream(
     headers: &hyper::HeaderMap,
     body: Bytes,
 ) -> Response<Full<Bytes>> {
-    let path_and_query = uri.path_and_query()
+    let path_and_query = uri
+        .path_and_query()
         .map(|pq| pq.as_str())
         .unwrap_or(uri.path());
     let upstream_url = format!("http://{}{}", upstream, path_and_query);
-    
+
     debug!("🔄 Forwarding to: {}", upstream_url);
-    
+
     let client = reqwest::Client::new();
-    
+
     // Build upstream request
-    let reqwest_method = reqwest::Method::from_bytes(method.as_str().as_bytes())
-        .unwrap_or(reqwest::Method::GET);
+    let reqwest_method =
+        reqwest::Method::from_bytes(method.as_str().as_bytes()).unwrap_or(reqwest::Method::GET);
     let mut upstream_req = client.request(reqwest_method, &upstream_url);
-    
+
     // Copy headers from incoming request (except Host)
     for (name, value) in headers.iter() {
         if name.as_str().to_lowercase() != "host" {
@@ -233,28 +240,34 @@ async fn forward_to_upstream(
             }
         }
     }
-    
+
     // Add body if present
     if !body.is_empty() {
         upstream_req = upstream_req.body(body.to_vec());
     }
-    
+
     // Send request and get response
     let result: Result<reqwest::Response, reqwest::Error> = upstream_req.send().await;
-    
+
     match result {
         Ok(resp) => {
             let resp_status = resp.status();
             let status_code = StatusCode::from_u16(resp_status.as_u16()).unwrap_or(StatusCode::OK);
-            
+
             // Get body as text - simpler type inference
             let body_result: Result<String, reqwest::Error> = resp.text().await;
-            
+
             match body_result {
                 Ok(body_text) => {
                     let body_len = body_text.len();
-                    info!("✅ Forwarded {} {} -> {} ({} bytes)", method, uri.path(), resp_status, body_len);
-                    
+                    info!(
+                        "✅ Forwarded {} {} -> {} ({} bytes)",
+                        method,
+                        uri.path(),
+                        resp_status,
+                        body_len
+                    );
+
                     Response::builder()
                         .status(status_code)
                         .header("Access-Control-Allow-Origin", "*")
@@ -264,7 +277,10 @@ async fn forward_to_upstream(
                 }
                 Err(e) => {
                     error!("❌ Body read error: {}", e);
-                    build_error_response(StatusCode::BAD_GATEWAY, &format!("Body read error: {}", e))
+                    build_error_response(
+                        StatusCode::BAD_GATEWAY,
+                        &format!("Body read error: {}", e),
+                    )
                 }
             }
         }

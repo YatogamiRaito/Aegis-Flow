@@ -114,7 +114,7 @@ pub struct HealthConfig {
 }
 
 fn default_health_port() -> u16 {
-    8081  // Changed from 8080 to avoid conflict with frontend dev servers
+    8081 // Changed from 8080 to avoid conflict with frontend dev servers
 }
 fn default_liveness_path() -> String {
     "/healthz".to_string()
