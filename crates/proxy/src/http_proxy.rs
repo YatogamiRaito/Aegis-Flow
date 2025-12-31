@@ -493,13 +493,12 @@ mod tests {
             .unwrap();
 
         let resp = handle_request(req, "upstream").await.unwrap();
-        assert_eq!(resp.status(), StatusCode::OK);
+        // Unknown paths are forwarded to upstream; when upstream is unreachable, returns BAD_GATEWAY
+        assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
         assert_eq!(
             resp.headers().get("content-type").unwrap(),
             "application/json"
         );
-        // Body verification would require reading the stream, which is a bit verbose with Full/Empty
-        // but status check covers the branch entry.
     }
 
     #[tokio::test]
@@ -593,7 +592,12 @@ mod tests {
                 .unwrap();
 
             let resp = handle_request(req, "upstream").await.unwrap();
-            assert_eq!(resp.status(), StatusCode::OK);
+            // OPTIONS returns 200 (CORS preflight), others forward to upstream and fail with BAD_GATEWAY
+            if method == Method::OPTIONS {
+                assert_eq!(resp.status(), StatusCode::OK);
+            } else {
+                assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
+            }
         }
     }
 
@@ -609,7 +613,8 @@ mod tests {
             .unwrap();
 
         let resp = handle_request(req, "upstream").await.unwrap();
-        assert!(resp.status().is_success());
+        // Forwards to upstream; when unreachable, returns BAD_GATEWAY
+        assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
     }
 
     #[tokio::test]
@@ -622,7 +627,8 @@ mod tests {
             .unwrap();
 
         let resp = handle_request(req, "upstream").await.unwrap();
-        assert!(resp.status().is_success());
+        // Forwards to upstream; when unreachable, returns BAD_GATEWAY
+        assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
     }
 
     #[tokio::test]
@@ -635,7 +641,8 @@ mod tests {
             .unwrap();
 
         let resp = handle_request(req, "upstream").await.unwrap();
-        assert!(resp.status().is_success());
+        // Forwards to upstream; when unreachable, returns BAD_GATEWAY
+        assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
     }
 
     #[test]
@@ -655,7 +662,8 @@ mod tests {
             .unwrap();
 
         let resp = handle_request(req, "upstream").await.unwrap();
-        assert!(resp.status().is_success());
+        // Forwards to upstream; when unreachable, returns BAD_GATEWAY
+        assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
     }
 
     #[test]
@@ -739,18 +747,18 @@ mod tests {
         let resp = handle_request(req, "upstream").await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
-        // 4. Default Echo
+        // 4. Upstream forwarding (fails with BAD_GATEWAY when upstream unreachable)
         let req = Request::builder()
             .method(Method::POST)
             .uri("/some/api")
             .body(Full::new(Bytes::new()))
             .unwrap();
         let resp = handle_request(req, "upstream").await.unwrap();
-        assert_eq!(resp.status(), StatusCode::OK);
+        // When upstream is unreachable, returns BAD_GATEWAY with error JSON
+        assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
         let body = resp.into_body().collect().await.unwrap().to_bytes();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-        assert_eq!(json["path"], "/some/api");
-        assert_eq!(json["method"], "POST");
+        assert_eq!(json["error"], "proxy_error");
     }
 
     #[tokio::test]
@@ -777,12 +785,11 @@ mod tests {
 
             let resp = handle_request(req, "upstream").await.unwrap();
 
-            // CONNECT usually handled differently, but here it likely goes to default
-            if method == Method::CONNECT {
-                // Should still get a response handled by default branch
-                assert!(resp.status().is_success());
+            // OPTIONS returns 200 (CORS preflight), others forward to upstream and fail with BAD_GATEWAY
+            if method == Method::OPTIONS {
+                assert_eq!(resp.status(), StatusCode::OK);
             } else {
-                assert!(resp.status().is_success());
+                assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
             }
         }
     }
@@ -835,9 +842,6 @@ mod tests {
     #[tokio::test]
     async fn test_proxy_integration_metrics_request() {
         use http_body_util::Empty;
-        use hyper::client::conn::http2;
-        use hyper_util::rt::TokioExecutor;
-        use tokio::net::TcpStream;
 
         // 1. Setup Server
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -860,24 +864,17 @@ mod tests {
                 .ok();
         });
 
-        // 2. Connect Client
-        let stream = TcpStream::connect(addr).await.unwrap();
-        let io = TokioIo::new(stream);
-        let (mut sender, conn) = http2::handshake(TokioExecutor::new(), io).await.unwrap();
+        // Give server time to start
+        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
 
-        tokio::spawn(async move {
-            if let Err(err) = conn.await {
-                eprintln!("Connection failed: {:?}", err);
-            }
-        });
+        // 2. Use HTTP/1.1 client (server now serves HTTP/1.1)
+        let client =
+            hyper_util::client::legacy::Client::builder(hyper_util::rt::TokioExecutor::new())
+                .build_http::<Empty<Bytes>>();
 
         // 3. Send Request
-        let req = Request::builder()
-            .uri(format!("http://{}/metrics", addr))
-            .body(Empty::<Bytes>::new())
-            .unwrap();
-
-        let res = sender.send_request(req).await.unwrap();
+        let uri: hyper::Uri = format!("http://{}/metrics", addr).parse().unwrap();
+        let res = client.get(uri).await.unwrap();
 
         // 4. Assert
         assert_eq!(res.status(), StatusCode::OK);
