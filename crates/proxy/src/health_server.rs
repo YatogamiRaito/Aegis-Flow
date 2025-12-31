@@ -424,17 +424,17 @@ mod tests {
             })
             .await
         });
-        
+
         // Connect and send garbage to trigger protocol error in http1::serve_connection
         use tokio::io::AsyncWriteExt;
         let mut stream = tokio::net::TcpStream::connect(addr).await.unwrap();
         stream.write_all(b"NOT HTTP\r\n\r\n").await.unwrap();
         // Close write to force EOF or let server react
         // The server might log a warn. We can't verify the log easily but we hit the path.
-        
+
         // Wait a bit
         tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
-        
+
         // Clean shutdown
         tx.send(()).unwrap();
         let _ = server_handle.await;

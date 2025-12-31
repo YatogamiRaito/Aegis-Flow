@@ -1601,12 +1601,15 @@ mod tests {
         // Pass Ed25519 check, but fail ML-DSA check (lines 642-643)
         // Corrupt ML-DSA part
         if !signature.mldsa_sig.is_empty() {
-             signature.mldsa_sig[0] ^= 0xFF;
+            signature.mldsa_sig[0] ^= 0xFF;
         }
 
         let result = signer.verify(message, &signature);
         assert!(result.is_ok());
-        assert!(!result.unwrap(), "Hybrid signature should be invalid if ML-DSA fails");
+        assert!(
+            !result.unwrap(),
+            "Hybrid signature should be invalid if ML-DSA fails"
+        );
     }
 
     #[test]

@@ -998,9 +998,9 @@ mod tests {
         let client = WattTimeClient::new("u".into(), "p".into()).with_base_url(mock_server.uri());
         let region = Region::new("CAISO", "Cal");
         let result = client.get_carbon_intensity(&region).await;
-        
+
         match result {
-            Err(EnergyApiError::ParseError(_)) => {},
+            Err(EnergyApiError::ParseError(_)) => {}
             _ => panic!("Expected ParseError"),
         }
     }
@@ -1026,7 +1026,7 @@ mod tests {
         let result = client.get_carbon_intensity(&region).await;
 
         match result {
-            Err(EnergyApiError::ParseError(_)) => {},
+            Err(EnergyApiError::ParseError(_)) => {}
             _ => panic!("Expected ParseError"),
         }
     }
@@ -1051,7 +1051,7 @@ mod tests {
         let result = client.get_carbon_intensity_by_location(50.0, 10.0).await;
 
         match result {
-            Err(EnergyApiError::ParseError(_)) => {},
+            Err(EnergyApiError::ParseError(_)) => {}
             _ => panic!("Expected ParseError"),
         }
     }
@@ -1059,9 +1059,9 @@ mod tests {
     #[tokio::test]
     async fn test_watttime_token_race_stress() {
         // Line 78: Race condition check.
-        
+
         let mock_server = MockServer::start().await;
-        
+
         Mock::given(method("GET"))
             .and(path("/login"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
@@ -1070,14 +1070,13 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = Arc::new(WattTimeClient::new("u".into(), "p".into()).with_base_url(mock_server.uri()));
+        let client =
+            Arc::new(WattTimeClient::new("u".into(), "p".into()).with_base_url(mock_server.uri()));
 
         let mut handles = vec![];
         for _ in 0..10 {
             let c = client.clone();
-            handles.push(tokio::spawn(async move {
-                c.ensure_token().await
-            }));
+            handles.push(tokio::spawn(async move { c.ensure_token().await }));
         }
 
         for h in handles {

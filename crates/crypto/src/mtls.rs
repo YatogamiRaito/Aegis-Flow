@@ -798,7 +798,7 @@ mod tests {
         // Line 211: Invalid client cert but not required -> should return Ok (continue to handshake)
         // We expect it to continue until it hits the PQC handshake part, which fails due to dummy ciphertext.
         // But the point is to exercise line 211.
-        
+
         let config = MtlsConfig {
             require_client_cert: false,
             ..Default::default()
@@ -815,46 +815,46 @@ mod tests {
         // Should NOT fail with "Invalid client certificate" because require is false
         // It will fail later with "Decapsulation failed" or similar from PQC
         let result = auth.complete_handshake(conn_id, &dummy_ct, Some(&invalid_der));
-        
+
         // Validation: verify error is NOT related to certificate
         match result {
             Err(AegisError::Crypto(msg)) => {
                 assert!(!msg.contains("Invalid client certificate"));
                 // Ideally checks for handshake error
-            },
-            Err(_) => {}, // Other error is fine
-            Ok(_) => {}, // Even better if it somehow passed, but unlikely with dummy CT
+            }
+            Err(_) => {} // Other error is fine
+            Ok(_) => {}  // Even better if it somehow passed, but unlikely with dummy CT
         }
     }
 
     #[test]
     fn test_mtls_handler_validate_paths_success() {
         // Line 352-353: validate_paths success
-        
+
         // Create temp files
         let cert_path = std::env::temp_dir().join("valid_server.crt");
         let key_path = std::env::temp_dir().join("valid_server.key");
         let ca_path = std::env::temp_dir().join("valid_ca.crt");
-        
+
         std::fs::write(&cert_path, "cert").unwrap();
         std::fs::write(&key_path, "key").unwrap();
         std::fs::write(&ca_path, "ca").unwrap();
-        
+
         let config = MtlsConfig {
             cert_path: cert_path.to_str().unwrap().to_string(),
             key_path: key_path.to_str().unwrap().to_string(),
             ca_path: Some(ca_path.to_str().unwrap().to_string()),
             ..Default::default()
         };
-        
+
         let handler = MtlsHandler::new(config);
         let result = handler.validate_paths();
-        
+
         // Cleanup
         let _ = std::fs::remove_file(cert_path);
         let _ = std::fs::remove_file(key_path);
         let _ = std::fs::remove_file(ca_path);
-        
+
         assert!(result.is_ok());
     }
 

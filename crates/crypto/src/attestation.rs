@@ -1475,7 +1475,7 @@ mod tests_coverage {
     #[test]
     fn test_coverage_explicit_errors() {
         // Line 145-146: Quote too short
-        let short_bytes = vec![0u8; 10]; 
+        let short_bytes = vec![0u8; 10];
         match AttestationQuote::from_bytes(&short_bytes) {
             Err(AegisError::Crypto(msg)) => assert_eq!(msg, "Quote too short"),
             _ => panic!("Expected 'Quote too short' error"),
@@ -1512,7 +1512,7 @@ mod tests_coverage {
         bytes[9..13].copy_from_slice(&1000u32.to_le_bytes()); // QuoteLen = 1000
         // offset = 13, quote_len = 1000. offset + quote_len = 1013 > 22.
         // Should trigger "Invalid quote length" on line 201-202.
-        
+
         match AttestationQuote::from_bytes(&bytes) {
             Err(AegisError::Crypto(msg)) => assert_eq!(msg, "Invalid quote length"),
             _ => panic!("Expected 'Invalid quote length' error"),

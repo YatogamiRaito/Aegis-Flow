@@ -812,7 +812,7 @@ mod tests {
     async fn test_stream_write_zero_during_flush_loop_in_poll_write() {
         // Line 201-203: WriteZero error inside poll_write loop.
         // Requires write_buffer not empty, and underlying write returning 0.
-        
+
         let key = [0x11u8; 32];
         // Fails immediately when trying to write
         let writer = FailingWriter {
@@ -820,23 +820,23 @@ mod tests {
             written: 0,
             fail_mode_write_zero: true,
         };
-        
+
         // Use with_capacity to ensure buffer behaviour is predictable if needed,
         // but here we just need to trigger the loop.
         let mut stream = EncryptedStream::new(writer, &key);
-        
+
         // First write buffers the data (encrypts it)
         // write_all calls poll_write. EncryptedStream::poll_write encrypts and returns Ready(n)
         // effectively buffering it. It does NOT flush proactively unless buffer full?
         // No, poll_write returns Ok(buf.len()) immediately after buffering.
         stream.write_all(b"test").await.unwrap();
-        
+
         // Second write:
         // poll_write start: loops to flush write_buffer.
         // Underlying writer returns 0 (fail_after_bytes=0, fail_mode_write_zero=true).
         // Should return WriteZero error.
         let result = stream.write_all(b"test2").await;
-        
+
         assert!(result.is_err());
         assert_eq!(result.unwrap_err().kind(), io::ErrorKind::WriteZero);
     }
@@ -845,18 +845,18 @@ mod tests {
     async fn test_stream_shutdown_error() {
         // Line 261-262: Shutdown error propagation
         // FailingWriter with fail_mode_write_zero=false (BrokenPipe)
-        
+
         let key = [0x22u8; 32];
         let writer = FailingWriter {
             fail_after_bytes: 0,
             written: 0,
             fail_mode_write_zero: false,
         };
-        
+
         let mut stream = EncryptedStream::new(writer, &key);
         // We need something in the buffer to trigger flush during shutdown
         stream.write_all(b"data").await.unwrap();
-        
+
         let result = stream.shutdown().await;
         assert!(result.is_err());
         assert_eq!(result.unwrap_err().kind(), io::ErrorKind::BrokenPipe);
@@ -866,7 +866,7 @@ mod tests {
     async fn test_stream_buffer_growth_logic() {
         // Lines 91-92, 139-140: Buffer growth
         let key = [0x33u8; 32];
-        
+
         // Start with very small capacity (less than U32_SIZE = 4)
         // This forces growth when reading length header
         let mut network_buffer = Vec::new();
@@ -881,12 +881,12 @@ mod tests {
 
         let cursor = std::io::Cursor::new(network_buffer);
         let mut stream = EncryptedStream::new_with_capacity(cursor, &key, 2); // Cap 2 < 4
-        
+
         let mut buf = [0u8; 10];
         // Read should trigger reserve logic
         let n = stream.read(&mut buf).await.unwrap();
         assert_eq!(&buf[..n], b"hi");
-        
+
         // To cover line 139-140 (total_required check), we need frame_len > capacity
         // Our capacity grew to 4 + ... maybe?
         // Let's force it again with a larger frame
@@ -898,13 +898,13 @@ mod tests {
             writer.write_all(&payload).await.unwrap();
             writer.flush().await.unwrap();
         }
-        
+
         // New stream with small cap
         let cursor2 = std::io::Cursor::new(network_buffer2);
         let mut stream2 = EncryptedStream::new_with_capacity(cursor2, &key, 20); // Cap 20
         // Frame len will be ~100 + overhead. Cap 20 is enough for header, but not full frame.
         // Should trigger second reserve logic.
-        
+
         let mut buf2 = vec![0u8; 150];
         let n = stream2.read(&mut buf2).await.unwrap();
         assert_eq!(n, 100);

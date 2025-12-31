@@ -803,26 +803,28 @@ mod tests {
     fn test_load_from_file_der() {
         // Line 194: load_from_file with DER (not starting with -----BEGIN)
         use std::io::Write;
-        
+
         let mut params = CertificateParams::default();
-        params.distinguished_name.push(DnType::CommonName, "test-der");
+        params
+            .distinguished_name
+            .push(DnType::CommonName, "test-der");
         let key_pair = KeyPair::generate().unwrap();
         let cert = params.self_signed(&key_pair).unwrap();
         let der = cert.der();
-        
+
         // Write to temp file
         let mut temp_dir = std::env::temp_dir();
         temp_dir.push("aegis_test_cert.der");
-        
+
         {
             let mut file = std::fs::File::create(&temp_dir).unwrap();
             file.write_all(der).unwrap();
         }
-        
+
         let result = CertManager::load_from_file(&temp_dir);
         // Cleanup
         let _ = std::fs::remove_file(&temp_dir);
-        
+
         assert!(result.is_ok());
         assert_eq!(result.unwrap().subject_cn, "test-der");
     }
@@ -830,28 +832,32 @@ mod tests {
     #[test]
     fn test_verify_chain_trusted_ca_success() {
         // Line 230: Successful verification against trusted CA
-        
+
         // 1. Generate CA
         let mut ca_params = CertificateParams::default();
-        ca_params.distinguished_name.push(DnType::CommonName, "My CA");
+        ca_params
+            .distinguished_name
+            .push(DnType::CommonName, "My CA");
         ca_params.is_ca = rcgen::IsCa::Ca(rcgen::BasicConstraints::Unconstrained);
         let ca_key = KeyPair::generate().unwrap();
         let ca_cert = ca_params.self_signed(&ca_key).unwrap();
-        
+
         let ca_parsed = CertManager::parse_der(ca_cert.der()).unwrap();
-        
+
         // 2. Generate Leaf signed by CA
         let mut leaf_params = CertificateParams::default();
-        leaf_params.distinguished_name.push(DnType::CommonName, "My Leaf");
+        leaf_params
+            .distinguished_name
+            .push(DnType::CommonName, "My Leaf");
         let leaf_key = KeyPair::generate().unwrap();
         let leaf_cert = leaf_params.signed_by(&leaf_key, &ca_cert, &ca_key).unwrap();
-        
+
         let leaf_parsed = CertManager::parse_der(leaf_cert.der()).unwrap();
-        
+
         // 3. Setup Manager
         let mut manager = CertManager::new();
         manager.add_trusted_ca(ca_parsed).unwrap();
-        
+
         // 4. Verify
         let result = manager.verify_chain(&leaf_parsed);
         assert!(result.unwrap());

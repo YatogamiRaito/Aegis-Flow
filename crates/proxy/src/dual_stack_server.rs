@@ -473,9 +473,7 @@ mod tests {
     async fn test_run_method_wrapper() {
         // Line 94-95: run() wrapper
         let server = DualStackServer::with_defaults(ProxyConfig::default());
-        let handle = tokio::spawn(async move {
-            server.run().await
-        });
+        let handle = tokio::spawn(async move { server.run().await });
         // Abort immediately as run() blocks forever
         handle.abort();
     }
@@ -493,7 +491,7 @@ mod tests {
             ..Default::default()
         };
         let server = DualStackServer::new(config, ProxyConfig::default());
-        
+
         let result = server.run_with_shutdown(std::future::pending()).await;
         // Should return Ok because error is logged in background task
         assert!(result.is_ok());
