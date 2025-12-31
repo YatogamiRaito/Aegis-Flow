@@ -870,7 +870,7 @@ mod tests {
             .unwrap();
 
         // This request should fail since upstream is invalid
-        let result = request_sender.send_request(request).await;
+        let _result = request_sender.send_request(request).await;
         // We don't care about the result, just that the error path is exercised
 
         tx.send(()).unwrap();
