@@ -1,0 +1,8 @@
+{
+  "track_id": "upstream_lb_20260302",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-03-02T16:16:24Z",
+  "updated_at": "2026-03-02T16:16:24Z",
+  "description": "Upstream Groups & Advanced Load Balancing with health checks, sticky sessions, circuit breaker"
+}

@@ -1,0 +1,8 @@
+{
+  "track_id": "logging_cli_20260302",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-03-02T16:16:24Z",
+  "updated_at": "2026-03-02T16:16:24Z",
+  "description": "Log Management & CLI Interface - structured logging, rotation, TUI process monitor, startup scripts"
+}

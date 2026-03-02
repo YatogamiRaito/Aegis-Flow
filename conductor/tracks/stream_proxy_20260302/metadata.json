@@ -1,0 +1,8 @@
+{
+  "track_id": "stream_proxy_20260302",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-03-02T16:25:36Z",
+  "updated_at": "2026-03-02T16:25:36Z",
+  "description": "WebSocket, TCP/UDP Stream Proxy & Protocol Support - L4 proxying, WS upgrade, Proxy Protocol, FastCGI"
+}
