@@ -1,0 +1,8 @@
+{
+  "track_id": "response_transform_20260302",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-03-02T17:03:34Z",
+  "updated_at": "2026-03-02T17:03:34Z",
+  "description": "Response Transformation & Logging Extensions - sub_filter body rewriting, syslog, SSI"
+}

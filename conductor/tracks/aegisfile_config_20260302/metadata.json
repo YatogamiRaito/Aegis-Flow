@@ -1,0 +1,8 @@
+{
+  "track_id": "aegisfile_config_20260302",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-03-02T17:00:52Z",
+  "updated_at": "2026-03-02T17:00:52Z",
+  "description": "Aegisfile - Simple Configuration Format with Caddyfile-like DX"
+}

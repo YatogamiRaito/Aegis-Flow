@@ -119,3 +119,46 @@ This file tracks all major tracks for the project. Each track has its own detail
 *Link: [./tracks/stream_proxy_20260302/](./tracks/stream_proxy_20260302/)*
 *Priority: 8 - L4 proxy, WebSocket, PROXY Protocol, FastCGI, gRPC*
 
+---
+
+## [ ] Track 23: Automatic HTTPS & Certificate Management (v0.23.0)
+*Link: [./tracks/auto_https_20260302/](./tracks/auto_https_20260302/)*
+*Priority: 9 - ACME/Let's Encrypt, OCSP stapling, on-demand TLS*
+
+---
+
+## [ ] Track 24: Aegisfile — Simple Configuration Format (v0.24.0)
+*Link: [./tracks/aegisfile_config_20260302/](./tracks/aegisfile_config_20260302/)*
+*Priority: 10 - Caddyfile-like DX, nginx config import, formatter*
+
+---
+
+## [ ] Track 25: Dynamic Configuration API (v0.25.0)
+*Link: [./tracks/dynamic_config_api_20260302/](./tracks/dynamic_config_api_20260302/)*
+*Priority: 11 - REST admin API, runtime config CRUD, versioning & rollback*
+
+---
+
+## [ ] Track 26: Advanced Request Processing (v0.26.0)
+*Link: [./tracks/advanced_request_processing_20260302/](./tracks/advanced_request_processing_20260302/)*
+*Priority: 12 - map directive, split_clients A/B, auth_request, traffic mirroring*
+
+---
+
+## [ ] Track 27: Response Transformation & Logging Extensions (v0.27.0)
+*Link: [./tracks/response_transform_20260302/](./tracks/response_transform_20260302/)*
+*Priority: 13 - sub_filter body rewriting, syslog, SSI, image filter*
+
+---
+
+## [ ] Track 28: Multi-Worker Architecture (v0.28.0)
+*Link: [./tracks/multi_worker_20260302/](./tracks/multi_worker_20260302/)*
+*Priority: 14 - Master + N workers, SO_REUSEPORT, hot binary upgrade*
+
+---
+
+## [ ] Track 29: GeoIP Routing & Mail Proxy (v0.29.0)
+*Link: [./tracks/geoip_mail_20260302/](./tracks/geoip_mail_20260302/)*
+*Priority: 15 - MaxMind GeoIP2, geo directive, SMTP/IMAP/POP3 proxy*
+
+
