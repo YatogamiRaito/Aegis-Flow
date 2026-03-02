@@ -1,0 +1,19 @@
+[package]
+name = "aegis-procman"
+description = "Aegis-Flow Process Manager Core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+tokio.workspace = true
+serde.workspace = true
+nix = "0.29"
+sysinfo = "0.33"
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+anyhow.workspace = true
+parking_lot.workspace = true

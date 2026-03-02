@@ -6,6 +6,7 @@ members = [
     "crates/energy",
     "crates/genomics",
     "crates/plugins",
+    "crates/procman",
     "crates/proxy",
     "crates/telemetry",
     "examples",
