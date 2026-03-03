@@ -73,8 +73,9 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-## [ ] Track 15: Process Manager Core (v0.15.0)
+## [x] Track 15: Process Manager Core (v0.15.0)
 *Link: [./tracks/process_manager_20260302/](./tracks/process_manager_20260302/)*
+*Completion: 2026-03-03*
 *Priority: 1 - Foundation for nginx+PM2 unification*
 
 ---
