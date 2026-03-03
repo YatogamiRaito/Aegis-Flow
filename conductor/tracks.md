@@ -67,6 +67,11 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
+## [x] Track 14: Prometheus/Grafana Dashboard Expansion (v0.14.0)
+*Link: [./conductor/tracks/observability_dashboards_20251228/](./conductor/tracks/observability_dashboards_20251228/)*
+*Priority: 4 - LAST - Monitors all features*
+
+---
 
 ## [x] Track 15: Process Manager Core (v0.15.0)
 *Link: [./tracks/process_manager_20260302/](./tracks/process_manager_20260302/)*
