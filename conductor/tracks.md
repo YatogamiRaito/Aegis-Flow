@@ -80,7 +80,7 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-## [ ] Track 16: Static File Server & Compression (v0.16.0)
+## [~] Track 16: Static File Server & Compression (v0.16.0)
 *Link: [./tracks/static_server_20260302/](./tracks/static_server_20260302/)*
 *Priority: 2 - Core nginx feature: static content with Gzip/Brotli*
 
