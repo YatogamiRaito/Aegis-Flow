@@ -54,6 +54,10 @@ phf = { version = "0.11", features = ["macros"] }
 
 # HTTP Client for forwarding
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+lru = "0.16.3"
+moka = "0.12.14"
+sha2.workspace = true
+chrono = "0.4"
 
 [dev-dependencies]
 criterion.workspace = true

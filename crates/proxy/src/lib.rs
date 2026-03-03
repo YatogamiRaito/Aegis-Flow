@@ -4,6 +4,7 @@
 //! This is the library crate that provides all public APIs.
 
 pub mod bootstrap;
+pub mod caching;
 pub mod carbon_router;
 pub mod config;
 pub mod discovery;
