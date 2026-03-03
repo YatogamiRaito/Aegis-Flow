@@ -143,7 +143,13 @@ impl StaticFileServer {
     }
 
     /// Builds an HTTP response with proper headers for a file
-    pub fn serve_file(&self, path: &Path, override_mime: Option<&std::collections::HashMap<String, String>>) -> Result<hyper::Response<http_body_util::Full<bytes::Bytes>>, StaticFileError> {
+    /// Builds an HTTP response with proper headers for a file, handling Range requests if headers provided
+    pub fn serve_file(
+        &self, 
+        path: &Path, 
+        req_headers: Option<&hyper::HeaderMap>,
+        override_mime: Option<&std::collections::HashMap<String, String>>
+    ) -> Result<hyper::Response<http_body_util::Full<bytes::Bytes>>, StaticFileError> {
         use std::os::unix::fs::MetadataExt;
         
         let metadata = std::fs::metadata(path).map_err(StaticFileError::Io)?;
@@ -153,21 +159,103 @@ impl StaticFileServer {
         }
 
         let mime = crate::mime_types::get_mime_type(path, override_mime);
-        let contents = std::fs::read(path).map_err(StaticFileError::Io)?;
-        let size = contents.len();
-        
-        // Approximate last modified as standard HTTP format
-        // In a real system, we'd format with chrono/time crate. For now, a placeholder or simple format.
-        let mtime = metadata.mtime();
-        
-        let body = http_body_util::Full::new(bytes::Bytes::from(contents));
-        let response = hyper::Response::builder()
-            .status(hyper::StatusCode::OK)
-            .header("Content-Type", mime)
-            .header("Content-Length", size.to_string())
-            // Simplified Last-Modified (to be proper HTTP date later if needed, tests just check presence)
-            .header("Last-Modified", mtime.to_string())
-            .body(body)
+        let mut file = std::fs::File::open(path).map_err(StaticFileError::Io)?;
+        let size = metadata.len();
+        let mtime_str = metadata.mtime().to_string(); // Placeholder format
+
+        let mut status = hyper::StatusCode::OK;
+        let mut content_length = size;
+        let mut content_type = mime.clone();
+        let mut content_range = None;
+        let mut body_bytes = Vec::new();
+
+        // Check for range request
+        let mut is_range = false;
+        if let Some(headers) = req_headers {
+            if let Some(range_val) = headers.get(hyper::header::RANGE) {
+                if let Ok(range_str) = range_val.to_str() {
+                    if let Some(parsed_ranges) = crate::ranges::HttpRange::parse(range_str) {
+                        is_range = true;
+                        
+                        let mut resolved_ranges = Vec::new();
+                        for r in parsed_ranges {
+                            if let Some(resolved) = r.resolve(size) {
+                                resolved_ranges.push(resolved);
+                            }
+                        }
+
+                        if resolved_ranges.is_empty() {
+                            // Unsatisfiable
+                            let resp = hyper::Response::builder()
+                                .status(hyper::StatusCode::RANGE_NOT_SATISFIABLE)
+                                .header("Content-Range", format!("bytes */{}", size))
+                                .body(http_body_util::Full::new(bytes::Bytes::new()))
+                                .unwrap();
+                            return Ok(resp);
+                        }
+
+                        status = hyper::StatusCode::PARTIAL_CONTENT;
+
+                        if resolved_ranges.len() == 1 {
+                            // Single range
+                            use std::io::{Read, Seek, SeekFrom};
+                            let (start, end) = resolved_ranges[0];
+                            let length = end - start + 1;
+                            
+                            file.seek(SeekFrom::Start(start)).map_err(StaticFileError::Io)?;
+                            let mut buf = vec![0; length as usize];
+                            file.read_exact(&mut buf).map_err(StaticFileError::Io)?;
+                            
+                            body_bytes = buf;
+                            content_length = length;
+                            content_range = Some(format!("bytes {}-{}/{}", start, end, size));
+                        } else {
+                            // Multi-part ranges
+                            use std::io::{Read, Seek, SeekFrom};
+                            let boundary = crate::ranges::generate_boundary();
+                            content_type = format!("multipart/byteranges; boundary={}", boundary);
+                            
+                            for (start, end) in resolved_ranges {
+                                let mut part = format!("\r\n--{}\r\nContent-Type: {}\r\nContent-Range: bytes {}-{}/{}\r\n\r\n", 
+                                    boundary, mime, start, end, size).into_bytes();
+                                body_bytes.append(&mut part);
+                                
+                                let length = end - start + 1;
+                                file.seek(SeekFrom::Start(start)).map_err(StaticFileError::Io)?;
+                                let mut buf = vec![0; length as usize];
+                                file.read_exact(&mut buf).map_err(StaticFileError::Io)?;
+                                body_bytes.append(&mut buf);
+                            }
+                            
+                            let mut end_boundary = format!("\r\n--{}--\r\n", boundary).into_bytes();
+                            body_bytes.append(&mut end_boundary);
+                            content_length = body_bytes.len() as u64;
+                        }
+                    }
+                }
+            }
+        }
+
+        if !is_range {
+            use std::io::Read;
+            // Read whole file
+            body_bytes = vec![0; size as usize];
+            file.read_exact(&mut body_bytes).map_err(StaticFileError::Io)?;
+        }
+
+        let mut builder = hyper::Response::builder()
+            .status(status)
+            .header("Content-Type", content_type)
+            .header("Content-Length", content_length.to_string())
+            .header("Last-Modified", mtime_str)
+            .header("Accept-Ranges", "bytes");
+
+        if let Some(cr) = content_range {
+            builder = builder.header("Content-Range", cr);
+        }
+
+        let response = builder
+            .body(http_body_util::Full::new(bytes::Bytes::from(body_bytes)))
             .unwrap();
 
         Ok(response)
@@ -270,12 +358,81 @@ mod tests {
         let file_path = root.join("hello.txt");
         std::fs::write(&file_path, b"Hello World").unwrap();
 
-        let resp = server.serve_file(&file_path, None).unwrap();
-        
+        // No range headers
+        let resp = server.serve_file(&file_path, None, None).unwrap();
         assert_eq!(resp.status(), hyper::StatusCode::OK);
         assert_eq!(resp.headers().get("Content-Type").unwrap(), "text/plain; charset=utf-8");
         assert_eq!(resp.headers().get("Content-Length").unwrap(), "11");
-        assert!(resp.headers().contains_key("Last-Modified"));
+        assert_eq!(resp.headers().get("Accept-Ranges").unwrap(), "bytes");
+    }
+
+    #[test]
+    fn test_serve_file_range() {
+        let dir = tempdir().unwrap();
+        let root = dir.path().to_path_buf();
+        let server = StaticFileServer::new(StaticFileConfig { root: root.clone(), ..Default::default() });
+        let file_path = root.join("test.txt");
+        std::fs::write(&file_path, b"0123456789").unwrap();
+
+        let mut headers = hyper::HeaderMap::new();
+        headers.insert(hyper::header::RANGE, "bytes=0-4".parse().unwrap()); // first 5
+        let resp = server.serve_file(&file_path, Some(&headers), None).unwrap();
+        assert_eq!(resp.status(), hyper::StatusCode::PARTIAL_CONTENT);
+        assert_eq!(resp.headers().get("Content-Range").unwrap(), "bytes 0-4/10");
+        assert_eq!(resp.headers().get("Content-Length").unwrap(), "5");
+        
+        let mut headers = hyper::HeaderMap::new();
+        headers.insert(hyper::header::RANGE, "bytes=5-".parse().unwrap()); // 5 to end
+        let resp = server.serve_file(&file_path, Some(&headers), None).unwrap();
+        assert_eq!(resp.status(), hyper::StatusCode::PARTIAL_CONTENT);
+        assert_eq!(resp.headers().get("Content-Range").unwrap(), "bytes 5-9/10");
+        assert_eq!(resp.headers().get("Content-Length").unwrap(), "5");
+
+        let mut headers = hyper::HeaderMap::new();
+        headers.insert(hyper::header::RANGE, "bytes=-3".parse().unwrap()); // last 3
+        let resp = server.serve_file(&file_path, Some(&headers), None).unwrap();
+        assert_eq!(resp.status(), hyper::StatusCode::PARTIAL_CONTENT);
+        assert_eq!(resp.headers().get("Content-Range").unwrap(), "bytes 7-9/10");
+        assert_eq!(resp.headers().get("Content-Length").unwrap(), "3");
+    }
+
+    #[tokio::test]
+    async fn test_serve_file_multipart_range() {
+        let dir = tempdir().unwrap();
+        let root = dir.path().to_path_buf();
+        let server = StaticFileServer::new(StaticFileConfig { root: root.clone(), ..Default::default() });
+        let file_path = root.join("test.txt");
+        std::fs::write(&file_path, b"0123456789").unwrap();
+
+        let mut headers = hyper::HeaderMap::new();
+        headers.insert(hyper::header::RANGE, "bytes=0-2, 7-9".parse().unwrap());
+        let resp = server.serve_file(&file_path, Some(&headers), None).unwrap();
+        
+        assert_eq!(resp.status(), hyper::StatusCode::PARTIAL_CONTENT);
+        let ct = resp.headers().get("Content-Type").unwrap().to_str().unwrap();
+        assert!(ct.starts_with("multipart/byteranges; boundary="));
+        
+        use http_body_util::BodyExt;
+        let body = resp.into_body().collect().await.unwrap().to_bytes();
+        let body_str = String::from_utf8(body.to_vec()).unwrap();
+        assert!(body_str.contains("Content-Range: bytes 0-2/10"));
+        assert!(body_str.contains("Content-Range: bytes 7-9/10"));
+    }
+
+    #[test]
+    fn test_serve_file_invalid_range() {
+        let dir = tempdir().unwrap();
+        let root = dir.path().to_path_buf();
+        let server = StaticFileServer::new(StaticFileConfig { root: root.clone(), ..Default::default() });
+        let file_path = root.join("test.txt");
+        std::fs::write(&file_path, b"01234").unwrap();
+
+        let mut headers = hyper::HeaderMap::new();
+        headers.insert(hyper::header::RANGE, "bytes=10-20".parse().unwrap()); // unsatisfiable
+        let resp = server.serve_file(&file_path, Some(&headers), None).unwrap();
+        
+        assert_eq!(resp.status(), hyper::StatusCode::RANGE_NOT_SATISFIABLE);
+        assert_eq!(resp.headers().get("Content-Range").unwrap(), "bytes */5");
     }
 
     #[test]
