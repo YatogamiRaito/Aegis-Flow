@@ -113,16 +113,11 @@ impl ProcessManager {
 
     /// Monitor a process and restart it if it crashes
     pub async fn monitor_process(&self, name: String, config: ProcessConfig) {
-        let mut backoff = ExponentialBackoff::new();
+        let mut backoff = ExponentialBackoff::default();
         
-        loop {
-            // Check if process has been removed or stopped intentionally
-            if let Ok(info) = self.table.get(&name) {
-                if info.status == ProcessStatus::Stopped || info.status == ProcessStatus::Stopping {
-                    break;
-                }
-            } else {
-                break; // Process removed from table
+        while let Ok(info) = self.table.get(&name) {
+            if info.status == ProcessStatus::Stopped || info.status == ProcessStatus::Stopping {
+                break;
             }
 
             let process_waiter = {
@@ -230,6 +225,12 @@ impl ProcessManager {
 
 pub struct ExponentialBackoff {
     current_ms: u64,
+}
+
+impl Default for ExponentialBackoff {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ExponentialBackoff {
