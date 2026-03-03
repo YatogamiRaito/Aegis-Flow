@@ -14,9 +14,11 @@ pub mod http3_handler;
 mod http_proxy;
 pub mod lifecycle;
 pub mod metrics;
+pub mod mime_types;
 mod pqc_server;
 pub mod quic_server;
 pub mod server;
+pub mod static_files;
 pub mod tracing_otel;
 
 pub use carbon_router::{CarbonRouter, CarbonRouterConfig, RegionScore};
