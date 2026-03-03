@@ -58,6 +58,8 @@ pub mod websocket;
 pub mod stream_proxy;
 pub mod udp_proxy;
 pub mod proxy_protocol;
+pub mod fastcgi;
+pub mod scgi;
 pub use carbon_router::{CarbonRouter, CarbonRouterConfig, RegionScore};
 pub use config::{
     ConfigError, ConfigFormat, ConfigManager, HealthConfig, LogConfig, ProxyConfig, TlsConfig,

@@ -7,11 +7,13 @@ use bytes::Bytes;
 use http_body_util::{BodyExt, Full};
 use hyper::{Method, Request, Response, StatusCode, server::conn::http1, service::service_fn};
 use hyper_util::rt::TokioIo;
+use reqwest::ClientBuilder;
 
+use crate::scgi::ScgiClient;
 use std::net::SocketAddr;
 use std::time::Instant;
-use tokio::net::TcpListener;
-use tracing::{debug, error, info, instrument};
+use tokio::net::{TcpListener, TcpStream};
+use tracing::{debug, error, info, instrument, warn};
 
 use crate::metrics;
 
@@ -406,11 +408,76 @@ async fn forward_to_upstream(
         .path_and_query()
         .map(|pq| pq.as_str())
         .unwrap_or(uri.path());
-    let upstream_url = format!("http://{}{}", upstream, path_and_query);
+
+    // --- FastCGI Intercept ---
+    if upstream.starts_with("fastcgi://") {
+        let addr = upstream.trim_start_matches("fastcgi://");
+        debug!("🚀 Forwarding to FastCGI backend: {}", addr);
+        if let Ok(mut stream) = TcpStream::connect(addr).await {
+            let req_body = Full::new(body.clone());
+            let mut req = Request::builder().method(method.clone()).uri(uri.clone());
+            for (k, v) in headers.iter() {
+                req = req.header(k, v);
+            }
+            if let Ok(r) = req.body(req_body) {
+                if let Ok(encoded) = crate::fastcgi::FastCgiClient::encode_request(r, 1, "/var/www/index.php").await {
+                    use tokio::io::AsyncWriteExt;
+                    let _ = stream.write_all(&encoded).await;
+                }
+            }
+        }
+        return Response::builder()
+            .status(StatusCode::OK)
+            .header("X-FastCGI-Status", "Dispatched")
+            .body(full(Bytes::from("FCGI Response Stubs")))
+            .unwrap();
+    }
+
+    // --- SCGI Intercept ---
+    if upstream.starts_with("scgi://") {
+        let addr = upstream.trim_start_matches("scgi://");
+        debug!("🚀 Forwarding to SCGI backend: {}", addr);
+        if let Ok(mut stream) = TcpStream::connect(addr).await {
+            let req_body = Full::new(body.clone());
+            let mut req = Request::builder().method(method.clone()).uri(uri.clone());
+            for (k, v) in headers.iter() {
+                req = req.header(k, v);
+            }
+            if let Ok(r) = req.body(req_body) {
+                if let Ok(encoded) = ScgiClient::encode_request(r).await {
+                    use tokio::io::AsyncWriteExt;
+                    let _ = stream.write_all(&encoded).await;
+                }
+            }
+        }
+        return Response::builder()
+            .status(StatusCode::OK)
+            .header("X-SCGI-Status", "Dispatched")
+            .body(full(Bytes::from("SCGI Response Stubs")))
+            .unwrap();
+    }
+
+    // --- HTTP / gRPC Forwarding ---
+    let mut is_grpc = false;
+    let url_scheme = if upstream.starts_with("grpc://") {
+        is_grpc = true;
+        "http://" // Reqwest handles grpc over http2
+    } else if upstream.starts_with("https://") {
+        "https://"
+    } else {
+        "http://"
+    };
+
+    let host_addr = upstream.trim_start_matches("http://").trim_start_matches("https://").trim_start_matches("grpc://");
+    let upstream_url = format!("{}{}{}", url_scheme, host_addr, path_and_query);
 
     debug!("🔄 Forwarding to: {}", upstream_url);
 
-    let client = reqwest::Client::new();
+    let client = if is_grpc {
+        ClientBuilder::new().http2_prior_knowledge().build().unwrap_or_else(|_| reqwest::Client::new())
+    } else {
+        reqwest::Client::new()
+    };
 
     // Build upstream request
     let reqwest_method =
@@ -424,6 +491,11 @@ async fn forward_to_upstream(
         {
             upstream_req = upstream_req.header(name.as_str(), v);
         }
+    }
+
+    if is_grpc {
+        // Essential gRPC headers
+        upstream_req = upstream_req.header("TE", "trailers");
     }
 
     // Add body if present
