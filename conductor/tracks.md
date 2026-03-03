@@ -116,10 +116,10 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-## [ ] Track 22: WebSocket, TCP/UDP Stream & Protocol Support (v0.22.0)
+## [~] Track 22: WebSocket, TCP/UDP Stream & Protocol Support (v0.22.0)
 *Link: [./tracks/stream_proxy_20260302/](./tracks/stream_proxy_20260302/)*
 *Priority: 8 - L4 proxy, WebSocket, PROXY Protocol, FastCGI, gRPC*
-*Status: Missing - Missing L4 logic.*
+*Status: Partial - WebSocket and SSE completed. Missing L4 logic.*
 
 ---
 

@@ -29,6 +29,8 @@ pub mod names {
     pub const CACHE_MISSES: &str = "aegis_cache_misses_total";
     pub const CACHE_BYTES_SAVED: &str = "aegis_cache_bytes_saved_total";
     pub const CACHE_MEMORY_BYTES: &str = "aegis_cache_memory_bytes";
+    pub const WEBSOCKET_CONNECTIONS_ACTIVE: &str = "aegis_websocket_connections_active";
+    pub const WEBSOCKET_MESSAGES_TOTAL: &str = "aegis_websocket_messages_total";
 }
 
 /// Initialize the metrics system
@@ -90,6 +92,8 @@ pub fn init_metrics() -> PrometheusHandle {
             describe_counter!(names::CACHE_MISSES, "Total number of cache misses");
             describe_counter!(names::CACHE_BYTES_SAVED, "Total bytes served from cache instead of upstream");
             describe_gauge!(names::CACHE_MEMORY_BYTES, "Current size of the memory cache in bytes");
+            describe_gauge!(names::WEBSOCKET_CONNECTIONS_ACTIVE, "Number of active WebSocket connections");
+            describe_counter!(names::WEBSOCKET_MESSAGES_TOTAL, "Total WebSocket messages forwarded");
 
             METRICS_HANDLE.set(handle.clone()).ok();
             handle
@@ -191,6 +195,21 @@ pub fn record_cache_miss() {
 /// Update memory cache size gauge
 pub fn update_cache_memory_size(bytes: usize) {
     gauge!(names::CACHE_MEMORY_BYTES).set(bytes as f64);
+}
+
+/// Increment active WebSocket connections
+pub fn increment_websocket_connections() {
+    gauge!(names::WEBSOCKET_CONNECTIONS_ACTIVE).increment(1.0);
+}
+
+/// Decrement active WebSocket connections
+pub fn decrement_websocket_connections() {
+    gauge!(names::WEBSOCKET_CONNECTIONS_ACTIVE).decrement(1.0);
+}
+
+/// Record WebSocket messages forwarded
+pub fn record_websocket_message(direction: &str) {
+    counter!(names::WEBSOCKET_MESSAGES_TOTAL, "direction" => direction.to_string()).increment(1);
 }
 
 #[cfg(test)]

@@ -160,8 +160,10 @@ impl HttpProxy {
 
 use http_body_util::combinators::BoxBody;
 
-fn full<T: Into<Bytes>>(chunk: T) -> BoxBody<Bytes, hyper::Error> {
-    Full::new(chunk.into())
+pub type BoxError = Box<dyn std::error::Error + Send + Sync + 'static>;
+
+pub(crate) fn full<T: Into<Bytes>>(chunk: T) -> BoxBody<Bytes, BoxError> {
+    http_body_util::Full::new(chunk.into())
         .map_err(|never| match never {})
         .boxed()
 }
@@ -175,7 +177,7 @@ pub(crate) async fn handle_request<B>(
     memory_cache: Option<std::sync::Arc<crate::proxy_cache::MemoryCache>>,
     ttl_config: std::sync::Arc<crate::proxy_cache::TtlConfig>,
     bypass_check: std::sync::Arc<crate::proxy_cache::BypassCheck>,
-) -> Result<Response<BoxBody<Bytes, hyper::Error>>, hyper::Error>
+) -> Result<Response<BoxBody<Bytes, BoxError>>, hyper::Error>
 where
     B: hyper::body::Body + Send + 'static,
     B::Data: Send,
@@ -185,6 +187,10 @@ where
     let method = req.method().clone();
     let uri = req.uri().clone();
     let headers = req.headers().clone();
+
+    if crate::websocket::is_websocket_upgrade(&req) {
+        return crate::websocket::handle_websocket_upgrade(req, upstream).await;
+    }
 
     let body_bytes = match req.collect().await {
         Ok(collected) => collected.to_bytes(),
@@ -231,7 +237,7 @@ where
     }
 
     // Handle built-in endpoints
-    let response: Response<BoxBody<Bytes, hyper::Error>> = if uri.path() == "/health" && method == Method::GET {
+    let response: Response<BoxBody<Bytes, BoxError>> = if uri.path() == "/health" && method == Method::GET {
         Response::builder()
             .status(StatusCode::OK)
             .header("Access-Control-Allow-Origin", "*")
@@ -303,8 +309,27 @@ where
 
         // --- Forward request to upstream ---
         let res = forward_to_upstream(upstream, &method, &uri, &headers, body_bytes).await;
+        
+        let is_sse = res.headers().get("content-type").map_or(false, |v| v.to_str().unwrap_or("").contains("text/event-stream"));
+        let no_buffer = res.headers().get("x-accel-buffering").map_or(false, |v| v.to_str().unwrap_or("").eq_ignore_ascii_case("no"));
+
+        if is_sse || no_buffer {
+            // Unbuffered streaming response bypasses cache entirely mapping straight to the client
+            let (mut parts, upstream_body) = res.into_parts();
+            parts.headers.insert("x-cache-status", hyper::header::HeaderValue::from_static("BYPASS"));
+            
+            crate::metrics::record_request(method.as_str(), uri.path(), parts.status.as_u16(), start.elapsed().as_secs_f64());
+            return Ok(Response::from_parts(parts, upstream_body));
+        }
+
         let (mut parts, upstream_body) = res.into_parts();
-        let body_bytes_resp = upstream_body.collect().await.unwrap().to_bytes();
+        let body_bytes_resp = match upstream_body.collect().await {
+            Ok(c) => c.to_bytes(),
+            Err(e) => {
+                error!("❌ Upstream body stream collect error: {}", e);
+                return Ok(build_error_response(StatusCode::BAD_GATEWAY, "Upstream body read error").map(|b| b.map_err(|never| match never {}).boxed()));
+            }
+        };
 
         // --- Cache Store ---
         if can_cache {
@@ -376,7 +401,7 @@ async fn forward_to_upstream(
     uri: &hyper::Uri,
     headers: &hyper::HeaderMap,
     body: Bytes,
-) -> Response<Full<Bytes>> {
+) -> Response<BoxBody<Bytes, BoxError>> {
     let path_and_query = uri
         .path_and_query()
         .map(|pq| pq.as_str())
@@ -421,36 +446,29 @@ async fn forward_to_upstream(
                 builder = builder.header(name.as_str(), value.as_bytes());
             }
 
-            // Get body as bytes
-            let body_result = resp.bytes().await;
-
-            match body_result {
-                Ok(body_bytes) => {
-                    let body_len = body_bytes.len();
-                    info!(
-                        "✅ Forwarded {} {} -> {} ({} bytes)",
-                        method,
-                        uri.path(),
-                        resp_status,
-                        body_len
-                    );
-
-                    builder
-                        .body(Full::new(body_bytes))
-                        .unwrap()
+            // Get body as a stream instead of blocking buffers!
+            use futures_util::StreamExt;
+            
+            let stream = resp.bytes_stream().map(|result| {
+                match result {
+                    Ok(b) => Ok(hyper::body::Frame::data(b)),
+                    Err(e) => Err(Box::new(e) as BoxError),
                 }
-                Err(e) => {
-                    error!("❌ Body read error: {}", e);
-                    build_error_response(
-                        StatusCode::BAD_GATEWAY,
-                        &format!("Body read error: {}", e),
-                    )
-                }
-            }
+            });
+            
+            
+            let box_body = http_body_util::BodyExt::boxed(http_body_util::StreamBody::new(stream));
+            
+            
+            info!("✅ Forwarded {} {} -> {}", method, uri.path(), resp_status);
+            builder.body(box_body).unwrap()
         }
         Err(e) => {
             error!("❌ Upstream error: {}", e);
-            build_error_response(StatusCode::BAD_GATEWAY, &format!("Upstream error: {}", e))
+            build_error_response(
+                StatusCode::BAD_GATEWAY,
+                &format!("Upstream error: {}", e),
+            ).map(|b| b.map_err(|never| match never {}).boxed())
         }
     }
 }

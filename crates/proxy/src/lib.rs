@@ -54,6 +54,7 @@ pub mod variables;
 pub mod vhost;
 pub mod waf;
 pub mod zero_copy;
+pub mod websocket;
 
 pub use carbon_router::{CarbonRouter, CarbonRouterConfig, RegionScore};
 pub use config::{
