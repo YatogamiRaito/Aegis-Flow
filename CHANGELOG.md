@@ -9,9 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Prometheus/Grafana Dashboard Expansion (Track 14)**
+  - Fully implemented Grafana `dashboard.json` with Security, Performance, Energy, and Operational panels.
+  - Added Grafana auto-provisioning configs for zero-touch datasource & dashboards.
+  - Written Prometheus `prometheus_rules.yml` for high latency, error rate, handshake failures, and carbon spikes.
+  - Updated `docker-compose.yml` and `prometheus.yml` to automatically load dashboard & alert rules.
   - ServiceMonitor template for Prometheus Operator
   - Dashboard structure documentation
-  - Alert rule structure for P95 latency, error rates, PQC failures
   - Certificate expiry alerting framework
   - All 14 development tracks now complete!
 

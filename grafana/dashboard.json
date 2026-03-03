@@ -9,170 +9,86 @@
   "links": [],
   "panels": [
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "lineWidth": 2,
-            "pointSize": 5,
-            "spanNulls": false,
-            "stacking": {
-              "mode": "none"
-            }
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "reqps"
-        }
-      },
+      "collapsed": false,
       "gridPos": {
-        "h": 8,
-        "w": 12,
+        "h": 1,
+        "w": 24,
         "x": 0,
         "y": 0
       },
-      "id": 1,
-      "title": "Request Rate",
+      "id": 100,
+      "panels": [],
+      "title": "Security Dashboard",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 2
+          }
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
+      "id": 101,
+      "title": "PQC Handshake Success/Failure Rates",
       "type": "timeseries",
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "rate(aegis_requests_total[1m])",
-          "legendFormat": "{{method}} {{path}} ({{status}})"
+          "expr": "rate(aegis_handshakes_total{success=\"true\"}[1m])",
+          "legendFormat": "Success"
+        },
+        {
+          "expr": "rate(aegis_handshakes_total{success=\"false\"}[1m])",
+          "legendFormat": "Failure"
         }
       ]
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
+      "datasource": "Prometheus",
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 100
-              },
-              {
-                "color": "red",
-                "value": 500
-              }
-            ]
-          },
-          "unit": "short"
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "lineWidth": 1
+          }
         }
       },
-      "gridPos": {
-        "h": 8,
-        "w": 6,
-        "x": 12,
-        "y": 0
-      },
-      "id": 2,
-      "title": "Total Requests",
-      "type": "stat",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
+      "id": 102,
+      "title": "Key Exchange Algorithm Distribution",
+      "type": "barchart",
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum(aegis_requests_total)"
+          "expr": "sum by (algorithm) (rate(aegis_handshakes_total[5m]))",
+          "legendFormat": "{{algorithm}}"
         }
       ]
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 0.1
-              },
-              {
-                "color": "red",
-                "value": 0.5
-              }
-            ]
-          },
-          "unit": "s"
-        }
-      },
+      "collapsed": false,
       "gridPos": {
-        "h": 8,
-        "w": 6,
-        "x": 18,
-        "y": 0
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 9
       },
-      "id": 3,
-      "title": "Avg Response Time",
-      "type": "stat",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "avg(aegis_request_duration_seconds{quantile=\"0.5\"})"
-        }
-      ]
+      "id": 200,
+      "panels": [],
+      "title": "Performance Dashboard",
+      "type": "row"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
+      "datasource": "Prometheus",
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
+          "color": { "mode": "palette-classic" },
           "custom": {
             "drawStyle": "line",
             "fillOpacity": 20,
@@ -181,139 +97,186 @@
           "unit": "s"
         }
       },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 8
-      },
-      "id": 4,
-      "title": "Response Time (p50, p95, p99)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 10 },
+      "id": 201,
+      "title": "Response Time Percentiles (p50, p95, p99)",
       "type": "timeseries",
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "aegis_request_duration_seconds{quantile=\"0.5\"}",
+          "expr": "histogram_quantile(0.50, rate(aegis_request_duration_seconds_bucket[5m]))",
           "legendFormat": "p50"
         },
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "aegis_request_duration_seconds{quantile=\"0.95\"}",
+          "expr": "histogram_quantile(0.95, rate(aegis_request_duration_seconds_bucket[5m]))",
           "legendFormat": "p95"
         },
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "aegis_request_duration_seconds{quantile=\"0.99\"}",
+          "expr": "histogram_quantile(0.99, rate(aegis_request_duration_seconds_bucket[5m]))",
           "legendFormat": "p99"
         }
       ]
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
+      "datasource": "Prometheus",
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "thresholds"
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 2
           },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "blue",
-                "value": null
-              }
-            ]
-          },
-          "unit": "joule"
+          "unit": "reqps"
         }
       },
-      "gridPos": {
-        "h": 8,
-        "w": 6,
-        "x": 12,
-        "y": 8
-      },
-      "id": 5,
-      "title": "Energy Consumed",
-      "type": "stat",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 10 },
+      "id": 202,
+      "title": "Throughput (RPS) per Endpoint",
+      "type": "timeseries",
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum(aegis_estimated_energy_joules_total)"
+          "expr": "sum by (path) (rate(aegis_requests_total[1m]))",
+          "legendFormat": "{{path}}"
         }
       ]
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 18
       },
+      "id": 300,
+      "panels": [],
+      "title": "Energy & Carbon Dashboard",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
+          "color": { "mode": "thresholds" },
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 200 },
+              { "color": "red", "value": 400 }
             ]
           },
           "unit": "short"
         }
       },
-      "gridPos": {
-        "h": 8,
-        "w": 6,
-        "x": 18,
-        "y": 8
-      },
-      "id": 6,
-      "title": "Carbon Emissions (g)",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 19 },
+      "id": 301,
+      "title": "Real-time Carbon Intensity",
       "type": "stat",
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum(aegis_estimated_carbon_grams_total)"
+          "expr": "aegis_carbon_intensity",
+          "legendFormat": "gCO2/kWh"
+        }
+      ]
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "joule"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 19 },
+      "id": 302,
+      "title": "Energy Consumption / Req",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "rate(aegis_estimated_energy_total[1m]) / rate(aegis_requests_total[1m])",
+          "legendFormat": "Joules/Req"
+        }
+      ]
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 19 },
+      "id": 303,
+      "title": "Deferred Jobs Queue",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "aegis_deferred_jobs",
+          "legendFormat": "Jobs"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 27
+      },
+      "id": 400,
+      "panels": [],
+      "title": "Operational Dashboard",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 28 },
+      "id": 401,
+      "title": "Active Connections",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "aegis_connections_active",
+          "legendFormat": "Active"
+        }
+      ]
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "lineWidth": 1
+          }
+        }
+      },
+      "gridPos": { "h": 8, "w": 16, "x": 8, "y": 28 },
+      "id": 402,
+      "title": "Errors by Type",
+      "type": "barchart",
+      "targets": [
+        {
+          "expr": "sum by (type) (rate(aegis_errors_total[5m]))",
+          "legendFormat": "{{type}}"
         }
       ]
     }
   ],
   "schemaVersion": 38,
-  "tags": [
-    "aegis-flow",
-    "proxy"
-  ],
-  "templating": {
-    "list": []
-  },
-  "time": {
-    "from": "now-1h",
-    "to": "now"
-  },
+  "tags": [ "aegis-flow", "proxy", "security", "energy" ],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Aegis-Flow Dashboard",
-  "version": 1
+  "title": "Aegis-Flow Full Dashboard",
+  "uid": "aegis_main",
+  "version": 2
 }
