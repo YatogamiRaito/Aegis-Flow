@@ -134,6 +134,59 @@ impl Default for HealthConfig {
     }
 }
 
+/// Supported protocols for L4 streaming
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum StreamProtocol {
+    Tcp,
+    Udp,
+}
+
+impl Default for StreamProtocol {
+    fn default() -> Self {
+        Self::Tcp
+    }
+}
+
+/// A specific backend for a stream
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StreamServerConfig {
+    pub addr: String,
+    #[serde(default = "default_weight")]
+    pub weight: usize,
+}
+
+fn default_weight() -> usize {
+    1
+}
+
+/// Configuration for an L4 raw stream proxy (TCP/UDP)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StreamConfig {
+    /// Bind address (ip:port)
+    pub listen: String,
+    /// Protocol (tcp or udp)
+    #[serde(default)]
+    pub protocol: StreamProtocol,
+    /// Primary upstream server or pool address
+    pub proxy_pass: String,
+    /// Optional connection timeout
+    pub proxy_timeout: Option<String>,
+    /// UDP only: number of expected responses before closing the session
+    #[serde(default = "default_udp_responses")]
+    pub proxy_responses: usize,
+    /// Enable PROXY protocol receiving (TCP only)
+    #[serde(default)]
+    pub proxy_protocol: bool,
+    /// Load balancing backends (if more than `proxy_pass` are needed)
+    #[serde(rename = "server", default)]
+    pub servers: Vec<StreamServerConfig>,
+}
+
+fn default_udp_responses() -> usize {
+    1
+}
+
 /// Proxy server configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProxyConfig {
@@ -164,6 +217,9 @@ pub struct ProxyConfig {
     /// Health endpoint configuration
     #[serde(default)]
     pub health: HealthConfig,
+    /// TCP / UDP Stream Proxies
+    #[serde(rename = "stream", default)]
+    pub streams: Vec<StreamConfig>,
 }
 
 fn default_host() -> String {
@@ -188,6 +244,7 @@ impl Default for ProxyConfig {
             tls: TlsConfig::default(),
             logging: LogConfig::default(),
             health: HealthConfig::default(),
+            streams: Vec::new(),
         }
     }
 }
@@ -483,10 +540,43 @@ upstream_addr = "localhost:3000"
 [tls]
 enabled = true
 require_client_cert = true
+
+[[stream]]
+listen = "0.0.0.0:5432"
+proxy_pass = "localhost:5433"
+proxy_protocol = true
+
+    [[stream.server]]
+    addr = "10.0.0.1:5432"
+    weight = 5
+
+[[stream]]
+listen = "0.0.0.0:53"
+protocol = "udp"
+proxy_pass = "localhost:5353"
+proxy_responses = 1
+proxy_timeout = "10s"
 "#;
         let config = ProxyConfig::parse(toml_content, ConfigFormat::Toml).unwrap();
         assert_eq!(config.port, 8443);
         assert!(config.tls.require_client_cert);
+        
+        // Assert streams got parsed
+        assert_eq!(config.streams.len(), 2);
+        
+        let tcp_stream = &config.streams[0];
+        assert_eq!(tcp_stream.listen, "0.0.0.0:5432");
+        assert_eq!(tcp_stream.protocol, StreamProtocol::Tcp);
+        assert!(tcp_stream.proxy_protocol);
+        assert_eq!(tcp_stream.servers.len(), 1);
+        assert_eq!(tcp_stream.servers[0].addr, "10.0.0.1:5432");
+        assert_eq!(tcp_stream.servers[0].weight, 5);
+
+        let udp_stream = &config.streams[1];
+        assert_eq!(udp_stream.listen, "0.0.0.0:53");
+        assert_eq!(udp_stream.protocol, StreamProtocol::Udp);
+        assert_eq!(udp_stream.proxy_responses, 1);
+        assert_eq!(udp_stream.proxy_timeout.as_deref(), Some("10s"));
     }
 
     #[test]

@@ -55,7 +55,9 @@ pub mod vhost;
 pub mod waf;
 pub mod zero_copy;
 pub mod websocket;
-
+pub mod stream_proxy;
+pub mod udp_proxy;
+pub mod proxy_protocol;
 pub use carbon_router::{CarbonRouter, CarbonRouterConfig, RegionScore};
 pub use config::{
     ConfigError, ConfigFormat, ConfigManager, HealthConfig, LogConfig, ProxyConfig, TlsConfig,

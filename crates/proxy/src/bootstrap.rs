@@ -6,6 +6,9 @@
 use crate::{
     PqcProxyServer, ProxyConfig,
     http_proxy::{HttpProxy, HttpProxyConfig},
+    config::StreamProtocol,
+    stream_proxy::StreamProxyServer,
+    udp_proxy::UdpProxyServer,
 };
 use anyhow::Result;
 use tracing::info;
@@ -81,10 +84,32 @@ where
     // We need to run them IN SELECT with the shutdown signal.
 
     let server_task = async move {
+        // Spawn configured L4 Streams
+        for stream_cfg in &config.streams {
+            let stream_cfg = stream_cfg.clone();
+            match stream_cfg.protocol {
+                StreamProtocol::Tcp => {
+                    tokio::spawn(async move {
+                        let server = StreamProxyServer::new(stream_cfg);
+                        if let Err(e) = server.run().await {
+                            tracing::error!("TCP Stream server failed: {}", e);
+                        }
+                    });
+                }
+                StreamProtocol::Udp => {
+                    tokio::spawn(async move {
+                        let server = UdpProxyServer::new(stream_cfg);
+                        if let Err(e) = server.run().await {
+                            tracing::error!("UDP Stream server failed: {}", e);
+                        }
+                    });
+                }
+            }
+        }
+
         if config.pqc_enabled {
             info!("🛡️ PQC mode enabled - using hybrid key exchange");
             let pqc_server = PqcProxyServer::new(config);
-            // pqc_server.run() takes &self.
             pqc_server.run().await
         } else {
             info!("🔓 PQC disabled - using plain HTTP/2 proxy");
