@@ -24,6 +24,7 @@ pub mod ranges;
 pub mod server;
 pub mod static_files;
 pub mod tracing_otel;
+pub mod zero_copy;
 
 pub use carbon_router::{CarbonRouter, CarbonRouterConfig, RegionScore};
 pub use config::{

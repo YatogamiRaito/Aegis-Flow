@@ -26,6 +26,8 @@ pub struct HttpProxyConfig {
     pub max_concurrent_streams: u32,
     /// Initial window size
     pub initial_window_size: u32,
+    /// Optional Static File Server config
+    pub static_files: Option<crate::static_files::StaticFileConfig>,
 }
 
 impl Default for HttpProxyConfig {
@@ -35,6 +37,7 @@ impl Default for HttpProxyConfig {
             upstream_addr: "127.0.0.1:9000".to_string(),
             max_concurrent_streams: 100,
             initial_window_size: 65535,
+            static_files: None,
         }
     }
 }
@@ -42,12 +45,14 @@ impl Default for HttpProxyConfig {
 /// HTTP/2 Reverse Proxy Server
 pub struct HttpProxy {
     config: HttpProxyConfig,
+    static_server: Option<std::sync::Arc<crate::static_files::StaticFileServer>>,
 }
 
 impl HttpProxy {
     /// Create a new HTTP proxy
     pub fn new(config: HttpProxyConfig) -> Self {
-        Self { config }
+        let static_server = config.static_files.clone().map(|cfg| std::sync::Arc::new(crate::static_files::StaticFileServer::new(cfg)));
+        Self { config, static_server }
     }
 
     /// Run the proxy server
@@ -85,13 +90,15 @@ impl HttpProxy {
                         Ok((stream, peer_addr)) => {
                             let io = TokioIo::new(stream);
                             let upstream = self.config.upstream_addr.clone();
+                            let static_server = self.static_server.clone();
 
                             tokio::spawn(async move {
                                 debug!("📥 HTTP/2 connection from {}", peer_addr);
 
                                 let service = service_fn(move |req| {
                                     let upstream = upstream.clone();
-                                    async move { handle_request(req, &upstream).await }
+                                    let static_server = static_server.clone();
+                                    async move { handle_request(req, &upstream, static_server).await }
                                 });
 
                                 if let Err(e) = http1::Builder::new()
@@ -117,12 +124,21 @@ impl HttpProxy {
     }
 }
 
+use http_body_util::combinators::BoxBody;
+
+fn full<T: Into<Bytes>>(chunk: T) -> BoxBody<Bytes, hyper::Error> {
+    Full::new(chunk.into())
+        .map_err(|never| match never {})
+        .boxed()
+}
+
 /// Handle incoming HTTP request
-#[instrument(skip(req))]
+#[instrument(skip(req, static_server))]
 pub(crate) async fn handle_request<B>(
     req: Request<B>,
     upstream: &str,
-) -> Result<Response<Full<Bytes>>, hyper::Error>
+    static_server: Option<std::sync::Arc<crate::static_files::StaticFileServer>>,
+) -> Result<Response<BoxBody<Bytes, hyper::Error>>, hyper::Error>
 where
     B: hyper::body::Body + Send + 'static,
     B::Data: Send,
@@ -133,7 +149,6 @@ where
     let uri = req.uri().clone();
     let headers = req.headers().clone();
 
-    // Read request body for forwarding
     let body_bytes = match req.collect().await {
         Ok(collected) => collected.to_bytes(),
         Err(_) => Bytes::new(),
@@ -141,23 +156,55 @@ where
 
     debug!("📨 {} {}", method, uri);
 
-    // Handle CORS preflight
+    if let Some(static_server) = &static_server {
+        if method == Method::GET || method == Method::HEAD {
+            match static_server.try_files(uri.path(), &static_server.config().try_files) {
+                Ok(file_path) => {
+                    match static_server.serve_file(uri.path(), &file_path, Some(&headers), None) {
+                        Ok(response) => {
+                            let (parts, body) = response.into_parts();
+                            return Ok(Response::from_parts(parts, body.map_err(|never| match never {}).boxed()));
+                        }
+                        Err(crate::static_files::StaticFileError::NotFound(_)) => {
+                            // Fallback to proxy
+                        }
+                        Err(e) => {
+                            let (status, msg) = match e {
+                                crate::static_files::StaticFileError::PathTraversal(msg) => (StatusCode::BAD_REQUEST, msg),
+                                crate::static_files::StaticFileError::Forbidden(msg) => (StatusCode::FORBIDDEN, msg),
+                                crate::static_files::StaticFileError::Io(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+                                crate::static_files::StaticFileError::NotFound(m) => (StatusCode::NOT_FOUND, m),
+                            };
+                            return Ok(Response::builder()
+                                .status(status)
+                                .body(full(Bytes::from(msg)))
+                                .unwrap());
+                        }
+                    }
+                }
+                Err(_) => {
+                    // Fallback to proxy on not found or error
+                }
+            }
+        }
+    }
+
     if method == Method::OPTIONS {
-        return Ok(build_cors_preflight());
+        return Ok(build_cors_preflight().map(|b| b.map_err(|never| match never {}).boxed()));
     }
 
     // Handle built-in endpoints
-    let response: Response<Full<Bytes>> = if uri.path() == "/health" && method == Method::GET {
+    let response: Response<BoxBody<Bytes, hyper::Error>> = if uri.path() == "/health" && method == Method::GET {
         Response::builder()
             .status(StatusCode::OK)
             .header("Access-Control-Allow-Origin", "*")
-            .body(Full::new(Bytes::from("OK")))
+            .body(full(Bytes::from("OK")))
             .unwrap()
     } else if uri.path() == "/ready" && method == Method::GET {
         Response::builder()
             .status(StatusCode::OK)
             .header("Access-Control-Allow-Origin", "*")
-            .body(Full::new(Bytes::from("{\"status\":\"ready\"}")))
+            .body(full(Bytes::from("{\"status\":\"ready\"}")))
             .unwrap()
     } else if uri.path() == "/metrics" && method == Method::GET {
         let body = if let Some(handle) = metrics::get_metrics_handle() {
@@ -169,11 +216,13 @@ where
             .status(StatusCode::OK)
             .header("content-type", "text/plain; version=0.0.4")
             .header("Access-Control-Allow-Origin", "*")
-            .body(Full::new(Bytes::from(body)))
+            .body(full(Bytes::from(body)))
             .unwrap()
     } else {
         // Forward request to upstream
-        forward_to_upstream(upstream, &method, &uri, &headers, body_bytes).await
+        let res = forward_to_upstream(upstream, &method, &uri, &headers, body_bytes).await;
+        let (parts, body) = res.into_parts();
+        Response::from_parts(parts, body.map_err(|never| match never {}).boxed())
     };
 
     // Record metrics
@@ -331,6 +380,7 @@ mod tests {
     #[test]
     fn test_custom_config() {
         let config = HttpProxyConfig {
+            static_files: None,
             listen_addr: "127.0.0.1:9090".parse().unwrap(),
             upstream_addr: "backend:8080".to_string(),
             max_concurrent_streams: 50,
@@ -369,6 +419,7 @@ mod tests {
     #[test]
     fn test_config_listen_addr_parsing() {
         let config = HttpProxyConfig {
+            static_files: None,
             listen_addr: "0.0.0.0:3000".parse().unwrap(),
             ..Default::default()
         };
@@ -390,6 +441,7 @@ mod tests {
     #[test]
     fn test_proxy_new_preserves_config() {
         let config = HttpProxyConfig {
+            static_files: None,
             listen_addr: "127.0.0.1:7777".parse().unwrap(),
             upstream_addr: "custom-backend:8080".to_string(),
             max_concurrent_streams: 200,
@@ -477,7 +529,7 @@ mod tests {
             crate::metrics::init_metrics();
         });
 
-        let resp = handle_request(req, "localhost:9000").await.unwrap();
+        let resp = handle_request(req, "localhost:9000", None).await.unwrap();
 
         assert_eq!(resp.status(), StatusCode::OK);
         assert!(resp.headers().contains_key("content-type"));
@@ -492,7 +544,7 @@ mod tests {
             .body(Empty::<Bytes>::new())
             .unwrap();
 
-        let resp = handle_request(req, "upstream").await.unwrap();
+        let resp = handle_request(req, "upstream", None).await.unwrap();
         // Unknown paths are forwarded to upstream; when upstream is unreachable, returns BAD_GATEWAY
         assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
         assert_eq!(
@@ -514,7 +566,7 @@ mod tests {
             .body(Empty::<Bytes>::new())
             .unwrap();
 
-        let resp = handle_request(req, "upstream").await.unwrap();
+        let resp = handle_request(req, "upstream", None).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
@@ -558,7 +610,7 @@ mod tests {
             .body(Empty::<Bytes>::new())
             .unwrap();
 
-        let resp = handle_request(req, "upstream").await.unwrap();
+        let resp = handle_request(req, "upstream", None).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
@@ -571,7 +623,7 @@ mod tests {
             .body(Empty::<Bytes>::new())
             .unwrap();
 
-        let resp = handle_request(req, "upstream").await.unwrap();
+        let resp = handle_request(req, "upstream", None).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
         // Optionally verify body content
@@ -591,7 +643,7 @@ mod tests {
                 .body(Empty::<Bytes>::new())
                 .unwrap();
 
-            let resp = handle_request(req, "upstream").await.unwrap();
+            let resp = handle_request(req, "upstream", None).await.unwrap();
             // OPTIONS returns 200 (CORS preflight), others forward to upstream and fail with BAD_GATEWAY
             if method == Method::OPTIONS {
                 assert_eq!(resp.status(), StatusCode::OK);
@@ -612,7 +664,7 @@ mod tests {
             .body(Empty::<Bytes>::new())
             .unwrap();
 
-        let resp = handle_request(req, "upstream").await.unwrap();
+        let resp = handle_request(req, "upstream", None).await.unwrap();
         // Forwards to upstream; when unreachable, returns BAD_GATEWAY
         assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
     }
@@ -626,7 +678,7 @@ mod tests {
             .body(Empty::<Bytes>::new())
             .unwrap();
 
-        let resp = handle_request(req, "upstream").await.unwrap();
+        let resp = handle_request(req, "upstream", None).await.unwrap();
         // Forwards to upstream; when unreachable, returns BAD_GATEWAY
         assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
     }
@@ -640,7 +692,7 @@ mod tests {
             .body(Empty::<Bytes>::new())
             .unwrap();
 
-        let resp = handle_request(req, "upstream").await.unwrap();
+        let resp = handle_request(req, "upstream", None).await.unwrap();
         // Forwards to upstream; when unreachable, returns BAD_GATEWAY
         assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
     }
@@ -661,7 +713,7 @@ mod tests {
             .body(Empty::<Bytes>::new())
             .unwrap();
 
-        let resp = handle_request(req, "upstream").await.unwrap();
+        let resp = handle_request(req, "upstream", None).await.unwrap();
         // Forwards to upstream; when unreachable, returns BAD_GATEWAY
         assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
     }
@@ -707,7 +759,7 @@ mod tests {
             .unwrap();
 
         // This should return response even if metrics not init (returns "# metrics not initialized")
-        let resp = handle_request(req, "up").await.unwrap();
+        let resp = handle_request(req, "up", None).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         let body_bytes = resp.into_body().collect().await.unwrap().to_bytes();
         let body = String::from_utf8(body_bytes.to_vec()).unwrap();
@@ -724,7 +776,7 @@ mod tests {
             .uri("/health")
             .body(Full::new(Bytes::new()))
             .unwrap();
-        let resp = handle_request(req, "upstream").await.unwrap();
+        let resp = handle_request(req, "upstream", None).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         let body = resp.into_body().collect().await.unwrap().to_bytes();
         assert_eq!(body, "OK");
@@ -734,7 +786,7 @@ mod tests {
             .uri("/ready")
             .body(Full::new(Bytes::new()))
             .unwrap();
-        let resp = handle_request(req, "upstream").await.unwrap();
+        let resp = handle_request(req, "upstream", None).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         let body = resp.into_body().collect().await.unwrap().to_bytes();
         assert!(String::from_utf8_lossy(&body).contains("ready"));
@@ -744,7 +796,7 @@ mod tests {
             .uri("/metrics")
             .body(Full::new(Bytes::new()))
             .unwrap();
-        let resp = handle_request(req, "upstream").await.unwrap();
+        let resp = handle_request(req, "upstream", None).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
         // 4. Upstream forwarding (fails with BAD_GATEWAY when upstream unreachable)
@@ -753,7 +805,7 @@ mod tests {
             .uri("/some/api")
             .body(Full::new(Bytes::new()))
             .unwrap();
-        let resp = handle_request(req, "upstream").await.unwrap();
+        let resp = handle_request(req, "upstream", None).await.unwrap();
         // When upstream is unreachable, returns BAD_GATEWAY with error JSON
         assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
         let body = resp.into_body().collect().await.unwrap().to_bytes();
@@ -783,7 +835,7 @@ mod tests {
                 .body(Empty::<Bytes>::new())
                 .unwrap();
 
-            let resp = handle_request(req, "upstream").await.unwrap();
+            let resp = handle_request(req, "upstream", None).await.unwrap();
 
             // OPTIONS returns 200 (CORS preflight), others forward to upstream and fail with BAD_GATEWAY
             if method == Method::OPTIONS {

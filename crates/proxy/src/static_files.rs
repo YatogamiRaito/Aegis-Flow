@@ -23,6 +23,12 @@ pub struct StaticFileConfig {
     pub hide_dot_files: bool,
     #[serde(default)]
     pub compression: crate::compression::CompressionConfig,
+    #[serde(default = "default_try_files")]
+    pub try_files: Vec<String>,
+}
+
+fn default_try_files() -> Vec<String> {
+    vec!["$uri".to_string(), "$uri/".to_string()]
 }
 
 impl Default for StaticFileConfig {
@@ -34,6 +40,7 @@ impl Default for StaticFileConfig {
             follow_symlinks: true,
             hide_dot_files: true,
             compression: Default::default(),
+            try_files: default_try_files(),
         }
     }
 }
@@ -45,6 +52,10 @@ pub struct StaticFileServer {
 impl StaticFileServer {
     pub fn new(config: StaticFileConfig) -> Self {
         Self { config }
+    }
+
+    pub fn config(&self) -> &StaticFileConfig {
+        &self.config
     }
 
     /// Resolves returning absolute normalized path avoiding directory traversal.
