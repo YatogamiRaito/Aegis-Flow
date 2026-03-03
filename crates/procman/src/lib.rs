@@ -4,3 +4,4 @@ pub mod daemon;
 pub mod ipc;
 pub mod process;
 pub mod table;
+pub mod metrics;

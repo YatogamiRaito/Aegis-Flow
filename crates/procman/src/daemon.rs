@@ -47,8 +47,34 @@ impl ProcessManager {
         
         cmd.envs(&config.env);
 
-        let child = cmd.spawn()?;
+        let mut child = cmd
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()?;
         let pid = child.id();
+        
+        // Setup stdout/stderr logging
+        if let Some(stdout) = child.stdout.take() {
+            let name_clone = name.to_string();
+            tokio::spawn(async move {
+                use tokio::io::{AsyncBufReadExt, BufReader};
+                let mut reader = BufReader::new(stdout).lines();
+                while let Ok(Some(line)) = reader.next_line().await {
+                    tracing::info!(app = %name_clone, "{}", line);
+                }
+            });
+        }
+        
+        if let Some(stderr) = child.stderr.take() {
+            let name_clone = name.to_string();
+            tokio::spawn(async move {
+                use tokio::io::{AsyncBufReadExt, BufReader};
+                let mut reader = BufReader::new(stderr).lines();
+                while let Ok(Some(line)) = reader.next_line().await {
+                    tracing::warn!(app = %name_clone, "{}", line);
+                }
+            });
+        }
 
         let info = ProcessInfo {
             name: name.to_string(),

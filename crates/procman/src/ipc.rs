@@ -196,10 +196,12 @@ mod tests {
     use std::sync::Arc;
     use tokio::sync::Mutex;
     
+    static SOCKET_COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     // Create a temporary path for the socket
     fn get_temp_socket() -> PathBuf {
         let temp_dir = std::env::temp_dir();
-        temp_dir.join(format!("aegis-ipc-test-{}.sock", std::process::id()))
+        let idx = SOCKET_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        temp_dir.join(format!("aegis-ipc-test-{}-{}.sock", std::process::id(), idx))
     }
 
     #[tokio::test]
