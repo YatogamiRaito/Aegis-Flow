@@ -56,3 +56,10 @@
     *   *Rationale:* LLVM source-based coverage for accurate line/branch coverage. Works on macOS/Linux.
 *   **Supply Chain Security (SLSA L3):** **Syft** (SBOM generation) & **Cosign** (Artifact signing)
     *   *Rationale:* Guarantees the integrity and provenance of build artifacts for enterprise adoption.
+
+## 6. Observability
+*   **Metrics & Alerting:** **Prometheus**
+    *   *Rationale:* Industry standard for pulling time-series metrics and configuring rule-based alerting for latency, error rates, and security events.
+*   **Visualization:** **Grafana**
+    *   *Rationale:* Comprehensive dashboarding solution for security, performance, energy, and operational metrics.
+
