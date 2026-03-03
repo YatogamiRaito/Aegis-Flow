@@ -248,18 +248,66 @@ impl StaticFileServer {
 
         let mut content_encoding = None;
 
-        // Apply compression only if not a range request and status is OK
+        // Try pre-compressed static files first if enabled
+        let algo_accepted = crate::compression::negotiate_encoding(req_headers, &self.config.compression, &content_type, size);
+        
+        let mut served_precompressed = false;
+        
         if !is_range && status == hyper::StatusCode::OK {
-            let algo = crate::compression::negotiate_encoding(req_headers, &self.config.compression, &content_type, size);
-            if algo != crate::compression::CompressionAlgo::None {
-                if let Some(compressed) = crate::compression::compress_body(&body_bytes, algo, &self.config.compression) {
-                    body_bytes = compressed;
-                    content_length = body_bytes.len() as u64;
-                    content_encoding = Some(match algo {
-                        crate::compression::CompressionAlgo::Gzip => "gzip",
-                        crate::compression::CompressionAlgo::Brotli => "br",
-                        _ => unreachable!(),
-                    });
+            // Check for pre-compressed Brotli
+            if self.config.compression.static_brotli && algo_accepted == crate::compression::CompressionAlgo::Brotli {
+                let br_path = path.with_extension(format!("{}.br", path.extension().unwrap_or_default().to_string_lossy()));
+                if br_path.is_file() {
+                    if let Ok(mut br_file) = std::fs::File::open(&br_path) {
+                        use std::io::Read;
+                        let mut br_bytes = Vec::new();
+                        if br_file.read_to_end(&mut br_bytes).is_ok() {
+                            body_bytes = br_bytes;
+                            content_length = body_bytes.len() as u64;
+                            content_encoding = Some("br");
+                            served_precompressed = true;
+                        }
+                    }
+                }
+            }
+            
+            // Check for pre-compressed Gzip
+            if !served_precompressed && self.config.compression.static_gzip && (algo_accepted == crate::compression::CompressionAlgo::Gzip || algo_accepted == crate::compression::CompressionAlgo::Brotli) {
+                // If they asked for brotli but static br doesn't exist, we try gzip if gzip accepted too
+                // For simplicity, we just check if gzip is acceptable (negotiate returns best, but we'll accept gzip if it was requested)
+                let gzip_requested = req_headers.map(|h| {
+                    h.get(hyper::header::ACCEPT_ENCODING).and_then(|v| v.to_str().ok()).unwrap_or("").contains("gzip")
+                }).unwrap_or(false);
+
+                if (algo_accepted == crate::compression::CompressionAlgo::Gzip) || gzip_requested {
+                    let gz_path = path.with_extension(format!("{}.gz", path.extension().unwrap_or_default().to_string_lossy()));
+                    if gz_path.is_file() {
+                        if let Ok(mut gz_file) = std::fs::File::open(&gz_path) {
+                            use std::io::Read;
+                            let mut gz_bytes = Vec::new();
+                            if gz_file.read_to_end(&mut gz_bytes).is_ok() {
+                                body_bytes = gz_bytes;
+                                content_length = body_bytes.len() as u64;
+                                content_encoding = Some("gzip");
+                                served_precompressed = true;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Apply dynamic compression only if not a range request, status is OK, and we didn't serve a pre-compressed file
+            if !served_precompressed {
+                if algo_accepted != crate::compression::CompressionAlgo::None {
+                    if let Some(compressed) = crate::compression::compress_body(&body_bytes, algo_accepted, &self.config.compression) {
+                        body_bytes = compressed;
+                        content_length = body_bytes.len() as u64;
+                        content_encoding = Some(match algo_accepted {
+                            crate::compression::CompressionAlgo::Gzip => "gzip",
+                            crate::compression::CompressionAlgo::Brotli => "br",
+                            _ => unreachable!(),
+                        });
+                    }
                 }
             }
         }
@@ -270,6 +318,10 @@ impl StaticFileServer {
             .header("Content-Length", content_length.to_string())
             .header("Last-Modified", mtime_str)
             .header("Accept-Ranges", "bytes");
+
+        if self.config.compression.enabled {
+            builder = builder.header("Vary", "Accept-Encoding");
+        }
 
         if let Some(cr) = content_range {
             builder = builder.header("Content-Range", cr);

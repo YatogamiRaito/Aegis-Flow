@@ -20,6 +20,8 @@ pub struct CompressionConfig {
     pub gzip_level: u32,
     pub brotli_level: u32,
     pub min_size: u64,
+    pub static_brotli: bool,
+    pub static_gzip: bool,
 }
 
 impl Default for CompressionConfig {
@@ -29,6 +31,8 @@ impl Default for CompressionConfig {
             gzip_level: 6,
             brotli_level: 4,
             min_size: 1024,
+            static_brotli: false,
+            static_gzip: false,
         }
     }
 }
