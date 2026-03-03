@@ -9,7 +9,6 @@ use std::sync::Arc;
 use tracing::{debug, instrument};
 
 /// Trait for energy API clients
-#[allow(async_fn_in_trait)]
 pub trait EnergyApiClient: Send + Sync {
     /// Get current carbon intensity for a region
     async fn get_carbon_intensity(

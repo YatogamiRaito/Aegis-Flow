@@ -36,8 +36,8 @@ let server = Server::builder()
 - Integrate with existing Hyper-based routing
 
 ## Acceptance Criteria
-- [ ] QUIC server accepts connections on UDP port
-- [ ] HTTP/3 requests processed correctly
-- [ ] 0-RTT resumption working
-- [ ] Integration tests pass
-- [ ] Benchmarks show < 50ms connection time
+- [x] QUIC server accepts connections on UDP port
+- [x] HTTP/3 requests processed correctly
+- [x] 0-RTT resumption working
+- [x] Integration tests pass
+- [x] Benchmarks show < 50ms connection time

@@ -71,16 +71,16 @@ enforce_origin = true            # reject non-localhost requests without auth
 
 ## 4. Acceptance Criteria
 
-- [ ] Admin API listens on configured port (localhost only by default).
-- [ ] GET /config/ returns full running configuration.
-- [ ] POST/PUT/DELETE on server blocks dynamically adds/modifies/removes routes.
-- [ ] POST/DELETE on upstream servers dynamically changes backends.
-- [ ] Invalid config changes return 400 with descriptive error.
-- [ ] Config changes are applied without dropping active connections.
-- [ ] API key authentication works when configured.
-- [ ] Config versioning tracks changes and supports rollback.
-- [ ] Status endpoints return real-time connection and health data.
-- [ ] >90% test coverage.
+- [x] Admin API listens on configured port (localhost only by default).
+- [x] GET /config/ returns full running configuration.
+- [x] POST/PUT/DELETE on server blocks dynamically adds/modifies/removes routes.
+- [x] POST/DELETE on upstream servers dynamically changes backends.
+- [x] Invalid config changes return 400 with descriptive error.
+- [x] Config changes are applied without dropping active connections.
+- [x] API key authentication works when configured.
+- [x] Config versioning tracks changes and supports rollback.
+- [x] Status endpoints return real-time connection and health data.
+- [x] >90% test coverage.
 
 ## 5. Out of Scope
 

@@ -93,16 +93,16 @@ return = { code = 301, url = "https://$host$request_uri" }
 
 ## 4. Acceptance Criteria
 
-- [ ] Multiple server blocks serve different domains from a single instance.
-- [ ] SNI-based TLS certificate selection works per domain.
-- [ ] Location matching follows correct priority order (exact > ^~ prefix > regex > prefix).
-- [ ] `rewrite` directive transforms URLs with regex capture groups.
-- [ ] `return` directive serves static responses and redirects.
-- [ ] Header manipulation (proxy_set_header, add_header, proxy_hide_header) works.
-- [ ] HTTP→HTTPS redirect works via return directive and force_https option.
-- [ ] Variables ($uri, $host, $remote_addr, etc.) are correctly resolved.
-- [ ] Config validation rejects invalid configurations with descriptive errors.
-- [ ] >90% test coverage.
+- [x] Multiple server blocks serve different domains from a single instance.
+- [x] SNI-based TLS certificate selection works per domain.
+- [x] Location matching follows correct priority order (exact > ^~ prefix > regex > prefix).
+- [x] `rewrite` directive transforms URLs with regex capture groups.
+- [x] `return` directive serves static responses and redirects.
+- [x] Header manipulation (proxy_set_header, add_header, proxy_hide_header) works.
+- [x] HTTP→HTTPS redirect works via return directive and force_https option.
+- [x] Variables ($uri, $host, $remote_addr, etc.) are correctly resolved.
+- [x] Config validation rejects invalid configurations with descriptive errors.
+- [x] >90% test coverage.
 
 ## 5. Out of Scope
 

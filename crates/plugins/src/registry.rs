@@ -39,7 +39,6 @@ struct LoadedPlugin {
     /// Plugin info
     info: PluginInfo,
     /// Compiled module
-    #[allow(dead_code)]
     module: Module,
 }
 

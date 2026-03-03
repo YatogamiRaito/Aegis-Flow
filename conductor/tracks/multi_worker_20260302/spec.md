@@ -80,17 +80,17 @@ daemon = true               # fork to background
 
 ## 4. Acceptance Criteria
 
-- [ ] Master spawns configured number of worker processes.
-- [ ] Workers independently accept and handle HTTP requests via SO_REUSEPORT.
-- [ ] Worker crash is detected and worker is respawned within 500ms.
-- [ ] SIGHUP triggers graceful reload (new workers up → old workers drain → exit).
-- [ ] Zero connections dropped during reload.
-- [ ] SIGUSR2 triggers hot binary upgrade.
-- [ ] worker_connections limit enforced per worker.
-- [ ] Worker CPU affinity pinning works (Linux).
-- [ ] SIGUSR1 triggers log file reopen across all workers.
-- [ ] Daemonization works (fork to background, write PID file).
-- [ ] >90% test coverage.
+- [x] Master spawns configured number of worker processes.
+- [x] Workers independently accept and handle HTTP requests via SO_REUSEPORT.
+- [x] Worker crash is detected and worker is respawned within 500ms.
+- [x] SIGHUP triggers graceful reload (new workers up → old workers drain → exit).
+- [x] Zero connections dropped during reload.
+- [x] SIGUSR2 triggers hot binary upgrade.
+- [x] worker_connections limit enforced per worker.
+- [x] Worker CPU affinity pinning works (Linux).
+- [x] SIGUSR1 triggers log file reopen across all workers.
+- [x] Daemonization works (fork to background, write PID file).
+- [x] >90% test coverage.
 
 ## 5. Out of Scope
 

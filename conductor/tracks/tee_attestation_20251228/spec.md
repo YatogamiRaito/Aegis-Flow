@@ -30,10 +30,10 @@ Implement Remote Attestation protocol for Intel SGX/TDX and AMD SEV-SNP Trusted 
 - Comprehensive logging for audit trails
 
 ## Acceptance Criteria
-- [ ] Client can request and verify TEE attestation before establishing connection
-- [ ] Quote includes application-specific data (nonce, session info)
-- [ ] Verification validates enclave is in production mode
-- [ ] Integration tests with mock attestation service
+- [x] Client can request and verify TEE attestation before establishing connection
+- [x] Quote includes application-specific data (nonce, session info)
+- [x] Verification validates enclave is in production mode
+- [x] Integration tests with mock attestation service
 
 ## Out of Scope
 - Hardware procurement (assumes TEE-capable hardware)

@@ -122,7 +122,6 @@ mod tests {
     }
 
     #[test]
-    #[allow(deprecated)]
     fn test_legacy_key_exchange_variants() {
         // Ensure legacy variants can be constructed and compared
         assert_eq!(KeyExchangeType::Kyber768, KeyExchangeType::Kyber768);

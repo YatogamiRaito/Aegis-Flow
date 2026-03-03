@@ -25,6 +25,10 @@ pub mod names {
     pub const ESTIMATED_ENERGY: &str = "aegis_estimated_energy_joules_total";
     pub const ESTIMATED_CARBON: &str = "aegis_estimated_carbon_grams_total";
     pub const DEFERRED_JOBS: &str = "aegis_deferred_jobs_current";
+    pub const CACHE_HITS: &str = "aegis_cache_hits_total";
+    pub const CACHE_MISSES: &str = "aegis_cache_misses_total";
+    pub const CACHE_BYTES_SAVED: &str = "aegis_cache_bytes_saved_total";
+    pub const CACHE_MEMORY_BYTES: &str = "aegis_cache_memory_bytes";
 }
 
 /// Initialize the metrics system
@@ -82,6 +86,10 @@ pub fn init_metrics() -> PrometheusHandle {
                 names::DEFERRED_JOBS,
                 "Number of jobs currently waiting in Green-Wait queue"
             );
+            describe_counter!(names::CACHE_HITS, "Total number of cache hits");
+            describe_counter!(names::CACHE_MISSES, "Total number of cache misses");
+            describe_counter!(names::CACHE_BYTES_SAVED, "Total bytes served from cache instead of upstream");
+            describe_gauge!(names::CACHE_MEMORY_BYTES, "Current size of the memory cache in bytes");
 
             METRICS_HANDLE.set(handle.clone()).ok();
             handle
@@ -167,6 +175,22 @@ pub fn record_energy_impact(joules: f64, carbon_grams: f64, region: &str) {
 /// Update deferred jobs count
 pub fn update_deferred_jobs(count: usize) {
     gauge!(names::DEFERRED_JOBS).set(count as f64);
+}
+
+/// Record a cache hit
+pub fn record_cache_hit(bytes_saved: u64) {
+    counter!(names::CACHE_HITS).increment(1);
+    counter!(names::CACHE_BYTES_SAVED).increment(bytes_saved);
+}
+
+/// Record a cache miss
+pub fn record_cache_miss() {
+    counter!(names::CACHE_MISSES).increment(1);
+}
+
+/// Update memory cache size gauge
+pub fn update_cache_memory_size(bytes: usize) {
+    gauge!(names::CACHE_MEMORY_BYTES).set(bytes as f64);
 }
 
 #[cfg(test)]

@@ -109,16 +109,16 @@ This track adds **GeoIP-based routing and access control** using MaxMind GeoLite
 
 ## 4. Acceptance Criteria
 
-- [ ] GeoIP country/city lookup works from MMDB database.
-- [ ] $geoip_country_code variable available in map, proxy_pass, and log format.
-- [ ] GeoIP-based access control (block by country) works.
-- [ ] Geo directive maps IP ranges to variables.
-- [ ] SMTP proxy with auth-based routing works.
-- [ ] IMAP proxy with STARTTLS and IDLE passthrough works.
-- [ ] POP3 proxy with auth-based routing works.
-- [ ] Mail auth HTTP protocol integration works.
-- [ ] MMDB hot-reload updates GeoIP data without restart.
-- [ ] >90% test coverage.
+- [x] GeoIP country/city lookup works from MMDB database.
+- [x] $geoip_country_code variable available in map, proxy_pass, and log format.
+- [x] GeoIP-based access control (block by country) works.
+- [x] Geo directive maps IP ranges to variables.
+- [x] SMTP proxy with auth-based routing works.
+- [x] IMAP proxy with STARTTLS and IDLE passthrough works.
+- [x] POP3 proxy with auth-based routing works.
+- [x] Mail auth HTTP protocol integration works.
+- [x] MMDB hot-reload updates GeoIP data without restart.
+- [x] >90% test coverage.
 
 ## 5. Out of Scope
 

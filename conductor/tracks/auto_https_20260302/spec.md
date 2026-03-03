@@ -95,18 +95,18 @@ renew_before_days = 30
 
 ## 4. Acceptance Criteria
 
-- [ ] Configuring a domain name automatically obtains a Let's Encrypt certificate.
-- [ ] HTTP-01 challenge serves token on port 80 and completes successfully.
-- [ ] TLS-ALPN-01 challenge works when only port 443 is available.
-- [ ] DNS-01 challenge creates TXT record via Cloudflare API and obtains wildcard cert.
-- [ ] Certificates auto-renew 30 days before expiry.
-- [ ] Certificate hot-swap happens without connection drops.
-- [ ] OCSP stapling works and refreshes automatically.
-- [ ] On-demand TLS issues cert on first handshake for whitelisted domains.
-- [ ] Self-signed certs generated for localhost automatically.
-- [ ] HTTP→HTTPS redirect works on port 80.
-- [ ] Private keys encrypted at rest.
-- [ ] >90% test coverage.
+- [x] Configuring a domain name automatically obtains a Let's Encrypt certificate.
+- [x] HTTP-01 challenge serves token on port 80 and completes successfully.
+- [x] TLS-ALPN-01 challenge works when only port 443 is available.
+- [x] DNS-01 challenge creates TXT record via Cloudflare API and obtains wildcard cert.
+- [x] Certificates auto-renew 30 days before expiry.
+- [x] Certificate hot-swap happens without connection drops.
+- [x] OCSP stapling works and refreshes automatically.
+- [x] On-demand TLS issues cert on first handshake for whitelisted domains.
+- [x] Self-signed certs generated for localhost automatically.
+- [x] HTTP→HTTPS redirect works on port 80.
+- [x] Private keys encrypted at rest.
+- [x] >90% test coverage.
 
 ## 5. Out of Scope
 

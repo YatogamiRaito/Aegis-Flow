@@ -3,27 +3,56 @@
 //! High-performance PQC-enabled proxy server for Aegis-Flow.
 //! This is the library crate that provides all public APIs.
 
+pub mod acl;
+pub mod access_log;
+pub mod admin_api;
+pub mod auth;
 pub mod autoindex;
 pub mod bootstrap;
 pub mod caching;
 pub mod carbon_router;
+pub mod circuit_breaker;
 pub mod compression;
 pub mod config;
+pub mod conn_limit;
 pub mod discovery;
 pub mod dual_stack_server;
+pub mod geoip;
 pub mod green_wait;
+pub mod headers;
+pub mod health_check;
 pub mod health_server;
 pub mod http3_handler;
-mod http_proxy;
+pub mod http_proxy;
+pub mod jwt;
+pub mod lb;
 pub mod lifecycle;
+pub mod limit_rate;
+pub mod location;
+pub mod map_directive;
+pub mod master;
 pub mod metrics;
 pub mod mime_types;
+pub mod mirror;
 pub mod pqc_server;
+pub mod proxy_cache;
 pub mod quic_server;
 pub mod ranges;
+pub mod rate_limit;
+pub mod rewrite;
 pub mod server;
+pub mod sni;
 pub mod static_files;
+pub mod sticky;
+pub mod stream_proto;
+pub mod sub_filter;
 pub mod tracing_otel;
+pub mod upstream;
+pub mod upstream_client;
+pub mod validator;
+pub mod variables;
+pub mod vhost;
+pub mod waf;
 pub mod zero_copy;
 
 pub use carbon_router::{CarbonRouter, CarbonRouterConfig, RegionScore};

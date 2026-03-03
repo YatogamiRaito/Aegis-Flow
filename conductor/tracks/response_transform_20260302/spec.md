@@ -88,17 +88,17 @@ This track adds **response body transformation** (`sub_filter` — rewrite conte
 
 ## 4. Acceptance Criteria
 
-- [ ] sub_filter replaces strings in response body.
-- [ ] Regex-based sub_filter replacement works.
-- [ ] sub_filter_once controls single vs all replacements.
-- [ ] Content-Length is recalculated after substitution.
-- [ ] Body injection (before/after) works.
-- [ ] Syslog UDP/TCP log delivery works.
-- [ ] Syslog TLS transport works.
-- [ ] SSI include virtual (subrequest) works.
-- [ ] SSI conditional blocks work.
-- [ ] Image resize/crop works for proxied images.
-- [ ] >90% test coverage.
+- [x] sub_filter replaces strings in response body.
+- [x] Regex-based sub_filter replacement works.
+- [x] sub_filter_once controls single vs all replacements.
+- [x] Content-Length is recalculated after substitution.
+- [x] Body injection (before/after) works.
+- [x] Syslog UDP/TCP log delivery works.
+- [x] Syslog TLS transport works.
+- [x] SSI include virtual (subrequest) works.
+- [x] SSI conditional blocks work.
+- [x] Image resize/crop works for proxied images.
+- [x] >90% test coverage.
 
 ## 5. Out of Scope
 

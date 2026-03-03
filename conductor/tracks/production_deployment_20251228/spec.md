@@ -38,11 +38,11 @@ Enhance Kubernetes deployment capabilities with production-grade Helm charts, op
 - Blue-green and canary deployment support
 
 ## Acceptance Criteria
-- [ ] HPA scales based on custom metrics
-- [ ] PDB prevents disruption during upgrades
-- [ ] Network policies block unauthorized traffic
-- [ ] Secrets sourced from external provider
-- [ ] Deployment tested on EKS, GKE, AKS
+- [x] HPA scales based on custom metrics
+- [x] PDB prevents disruption during upgrades
+- [x] Network policies block unauthorized traffic
+- [x] Secrets sourced from external provider
+- [x] Deployment tested on EKS, GKE, AKS
 
 ## Out of Scope
 - Custom Kubernetes operator development

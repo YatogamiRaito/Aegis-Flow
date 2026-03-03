@@ -103,18 +103,18 @@ This track adds a comprehensive **log management system** (nginx-style access/er
 
 ## 4. Acceptance Criteria
 
-- [ ] Access log written in configurable format (combined, json, custom).
-- [ ] Error log with configurable severity levels.
-- [ ] Log rotation works by size and time.
-- [ ] Compressed rotated files.
-- [ ] SIGUSR1 triggers log file rotation.
-- [ ] `aegis list` shows formatted process table.
-- [ ] `aegis monit` shows TUI dashboard with live data.
-- [ ] `aegis logs <app>` streams live logs.
-- [ ] `aegis startup` generates systemd/launchd service files.
-- [ ] `aegis save` and `aegis resurrect` persist and restore processes.
-- [ ] Per-process stdout/stderr capture works.
-- [ ] >90% test coverage.
+- [x] Access log written in configurable format (combined, json, custom).
+- [x] Error log with configurable severity levels.
+- [x] Log rotation works by size and time.
+- [x] Compressed rotated files.
+- [x] SIGUSR1 triggers log file rotation.
+- [x] `aegis list` shows formatted process table.
+- [x] `aegis monit` shows TUI dashboard with live data.
+- [x] `aegis logs <app>` streams live logs.
+- [x] `aegis startup` generates systemd/launchd service files.
+- [x] `aegis save` and `aegis resurrect` persist and restore processes.
+- [x] Per-process stdout/stderr capture works.
+- [x] >90% test coverage.
 
 ## 5. Out of Scope
 

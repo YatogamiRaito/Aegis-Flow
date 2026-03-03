@@ -78,7 +78,6 @@ pub struct ServiceRegistry {
     /// Round-robin counter per service
     rr_counters: Arc<RwLock<HashMap<String, usize>>>,
     /// Health check interval
-    #[allow(dead_code)]
     health_check_interval: Duration,
 }
 

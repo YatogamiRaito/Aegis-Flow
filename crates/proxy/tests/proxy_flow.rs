@@ -24,6 +24,7 @@ async fn test_http_proxy_metrics_endpoint() {
         upstream_addr: "127.0.0.1:9090".to_string(),
         max_concurrent_streams: 100,
         initial_window_size: 65535,
+        ..Default::default()
     };
 
     let proxy = HttpProxy::new(config);
@@ -101,6 +102,7 @@ async fn test_http_proxy_multiple_requests() {
         upstream_addr: "127.0.0.1:9092".to_string(),
         max_concurrent_streams: 100,
         initial_window_size: 65535,
+        ..Default::default()
     };
 
     let proxy = HttpProxy::new(config);

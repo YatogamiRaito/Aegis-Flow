@@ -43,7 +43,6 @@ pub fn init_tracing(_service_name: &str, _endpoint: Option<String>) -> Result<()
 
 /// Initialize OTLP tracer (placeholder for future expansion)
 /// Requires opentelemetry_otlp crate to be added to Cargo.toml
-#[allow(dead_code)]
 fn init_otlp_tracer(_service_name: &str, _endpoint: Option<String>) {
     // Configuration for OTLP would go here when opentelemetry_otlp is added:
     // opentelemetry_otlp::new_pipeline()

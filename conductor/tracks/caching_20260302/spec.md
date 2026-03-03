@@ -94,18 +94,18 @@ key = "$scheme$host$request_uri"
 
 ## 4. Acceptance Criteria
 
-- [ ] Upstream responses are cached in memory and on disk.
-- [ ] Cache key includes scheme, host, and full URI.
-- [ ] `Cache-Control` headers from upstream are respected.
-- [ ] `proxy_cache_valid` overrides TTL per status code.
-- [ ] Cache bypass works for conditioned requests and non-GET methods.
-- [ ] Stale content is served during upstream errors.
-- [ ] Background update refreshes cache while serving stale.
-- [ ] PURGE method invalidates specific cache entries.
-- [ ] Conditional revalidation with If-None-Match/If-Modified-Since works.
-- [ ] X-Cache-Status header is present on all proxied responses.
-- [ ] Prometheus metrics track cache hit rate and size.
-- [ ] >90% test coverage.
+- [x] Upstream responses are cached in memory and on disk.
+- [x] Cache key includes scheme, host, and full URI.
+- [x] `Cache-Control` headers from upstream are respected.
+- [x] `proxy_cache_valid` overrides TTL per status code.
+- [x] Cache bypass works for conditioned requests and non-GET methods.
+- [x] Stale content is served during upstream errors.
+- [x] Background update refreshes cache while serving stale.
+- [x] PURGE method invalidates specific cache entries.
+- [x] Conditional revalidation with If-None-Match/If-Modified-Since works.
+- [x] X-Cache-Status header is present on all proxied responses.
+- [x] Prometheus metrics track cache hit rate and size.
+- [x] >90% test coverage.
 
 ## 5. Out of Scope
 

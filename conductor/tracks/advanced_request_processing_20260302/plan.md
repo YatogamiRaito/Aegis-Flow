@@ -2,83 +2,83 @@
 
 ## Phase 1: Map Directive & Variable Mapping
 
-- [ ] Task: Implement map engine (`crates/proxy/src/map_directive.rs`)
-    - [ ] Write tests for exact string matching (key → value)
-    - [ ] Implement exact match using HashMap
-    - [ ] Write tests for regex matching (~ pattern → value)
-    - [ ] Implement regex match with compiled regex cache
-    - [ ] Write tests for default value when no match
-    - [ ] Implement default fallback
-    - [ ] Write tests for lazy evaluation (only resolve when variable is accessed)
-    - [ ] Implement lazy evaluation using Cow or deferred resolver
+- [x] Task: Implement map engine (`crates/proxy/src/map_directive.rs`)
+    - [x] Write tests for exact string matching (key → value)
+    - [x] Implement exact match using HashMap
+    - [x] Write tests for regex matching (~ pattern → value)
+    - [x] Implement regex match with compiled regex cache
+    - [x] Write tests for default value when no match
+    - [x] Implement default fallback
+    - [x] Write tests for lazy evaluation (only resolve when variable is accessed)
+    - [x] Implement lazy evaluation using Cow or deferred resolver
 
-- [ ] Task: Integrate map variables into variable system
-    - [ ] Write tests for map variable usage in proxy_pass (e.g., `proxy_pass = "$backend"`)
-    - [ ] Implement variable resolution chain: built-in → map → env
-    - [ ] Write tests for multiple map blocks with different source/variable pairs
-    - [ ] Write tests for map config parsing from TOML
+- [x] Task: Integrate map variables into variable system
+    - [x] Write tests for map variable usage in proxy_pass (e.g., `proxy_pass = "$backend"`)
+    - [x] Implement variable resolution chain: built-in → map → env
+    - [x] Write tests for multiple map blocks with different source/variable pairs
+    - [x] Write tests for map config parsing from TOML
 
-- [ ] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md)
 
 ## Phase 2: Split Clients (A/B Testing)
 
-- [ ] Task: Implement split clients (`crates/proxy/src/split_clients.rs`)
-    - [ ] Write tests for percentage-based bucket assignment
-    - [ ] Implement hash-based bucketing (MurmurHash3 of key → bucket by percent ranges)
-    - [ ] Write tests for consistent hashing (same IP → same bucket always)
-    - [ ] Write tests for 100% total validation (buckets must sum to 100%)
-    - [ ] Implement config validation
-    - [ ] Write tests for $variant variable available in downstream directives
-    - [ ] Implement split_clients variable injection
+- [x] Task: Implement split clients (`crates/proxy/src/split_clients.rs`)
+    - [x] Write tests for percentage-based bucket assignment
+    - [x] Implement hash-based bucketing (MurmurHash3 of key → bucket by percent ranges)
+    - [x] Write tests for consistent hashing (same IP → same bucket always)
+    - [x] Write tests for 100% total validation (buckets must sum to 100%)
+    - [x] Implement config validation
+    - [x] Write tests for $variant variable available in downstream directives
+    - [x] Implement split_clients variable injection
 
-- [ ] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
 
 ## Phase 3: Auth Request (Subrequest Authentication)
 
-- [ ] Task: Implement auth subrequest (`crates/proxy/src/auth_request.rs`)
-    - [ ] Write tests for subrequest to external auth endpoint
-    - [ ] Implement HTTP client call to auth service with original request headers
-    - [ ] Write tests for 2xx → allow, 401/403 → deny, 5xx → configurable (allow/deny)
-    - [ ] Implement response code interpretation
-    - [ ] Write tests for header forwarding: Authorization, Cookie, X-Original-URI, X-Original-Method
-    - [ ] Write tests for response header capture (auth_request_set)
-    - [ ] Implement auth response header extraction and injection into upstream request
+- [x] Task: Implement auth subrequest (`crates/proxy/src/auth_request.rs`)
+    - [x] Write tests for subrequest to external auth endpoint
+    - [x] Implement HTTP client call to auth service with original request headers
+    - [x] Write tests for 2xx → allow, 401/403 → deny, 5xx → configurable (allow/deny)
+    - [x] Implement response code interpretation
+    - [x] Write tests for header forwarding: Authorization, Cookie, X-Original-URI, X-Original-Method
+    - [x] Write tests for response header capture (auth_request_set)
+    - [x] Implement auth response header extraction and injection into upstream request
 
-- [ ] Task: Implement auth caching
-    - [ ] Write tests for caching auth responses for N seconds
-    - [ ] Implement TTL-based auth response cache keyed by request signature
-    - [ ] Write tests for satisfy=any (ACL OR auth passes)
-    - [ ] Implement satisfy logic combining ACL and auth_request results
+- [x] Task: Implement auth caching
+    - [x] Write tests for caching auth responses for N seconds
+    - [x] Implement TTL-based auth response cache keyed by request signature
+    - [x] Write tests for satisfy=any (ACL OR auth passes)
+    - [x] Implement satisfy logic combining ACL and auth_request results
 
-- [ ] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md)
 
 ## Phase 4: Traffic Mirroring
 
-- [ ] Task: Implement request mirroring (`crates/proxy/src/mirror.rs`)
-    - [ ] Write tests for full request duplication to mirror backend
-    - [ ] Implement async fire-and-forget request clone to mirror endpoint
-    - [ ] Write tests for mirror response discard (don't affect primary response)
-    - [ ] Write tests for mirror_percentage (only mirror N% of requests)
-    - [ ] Implement percentage-based sampling
-    - [ ] Write tests for mirror_request_body (include/exclude body in mirror)
-    - [ ] Implement body forwarding toggle
-    - [ ] Write tests for zero latency impact on primary request
-    - [ ] Implement tokio::spawn for async mirror (decoupled from primary)
+- [x] Task: Implement request mirroring (`crates/proxy/src/mirror.rs`)
+    - [x] Write tests for full request duplication to mirror backend
+    - [x] Implement async fire-and-forget request clone to mirror endpoint
+    - [x] Write tests for mirror response discard (don't affect primary response)
+    - [x] Write tests for mirror_percentage (only mirror N% of requests)
+    - [x] Implement percentage-based sampling
+    - [x] Write tests for mirror_request_body (include/exclude body in mirror)
+    - [x] Implement body forwarding toggle
+    - [x] Write tests for zero latency impact on primary request
+    - [x] Implement tokio::spawn for async mirror (decoupled from primary)
 
-- [ ] Task: Conductor - User Manual Verification 'Phase 4' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 4' (Protocol in workflow.md)
 
 ## Phase 5: Limit Except & Stub Status
 
-- [ ] Task: Implement limit_except
-    - [ ] Write tests for method-based access control (allow GET, deny POST)
-    - [ ] Implement method filtering with allow/deny actions
-    - [ ] Write tests for integration with location blocks
+- [x] Task: Implement limit_except
+    - [x] Write tests for method-based access control (allow GET, deny POST)
+    - [x] Implement method filtering with allow/deny actions
+    - [x] Write tests for integration with location blocks
 
-- [ ] Task: Implement stub status page
-    - [ ] Write tests for /aegis_status endpoint returning connection metrics
-    - [ ] Implement metrics collection: active connections, accepts, requests, reading, writing, waiting
-    - [ ] Write tests for HTML format output
-    - [ ] Write tests for JSON format output
-    - [ ] Implement dual-format status page
+- [x] Task: Implement stub status page
+    - [x] Write tests for /aegis_status endpoint returning connection metrics
+    - [x] Implement metrics collection: active connections, accepts, requests, reading, writing, waiting
+    - [x] Write tests for HTML format output
+    - [x] Write tests for JSON format output
+    - [x] Implement dual-format status page
 
-- [ ] Task: Conductor - User Manual Verification 'Phase 5' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 5' (Protocol in workflow.md)

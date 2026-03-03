@@ -102,19 +102,19 @@ types = ["text/html", "text/css", "text/plain", "application/json", "application
 
 ## 4. Acceptance Criteria
 
-- [ ] Static file serving from configurable root directory.
-- [ ] Automatic MIME type detection for 200+ file extensions.
-- [ ] `index` directive serves index.html automatically.
-- [ ] `try_files` logic falls through paths correctly.
-- [ ] Directory listing works when autoindex is enabled.
-- [ ] ETag and Last-Modified headers are generated correctly.
-- [ ] 304 Not Modified returned for conditional requests.
-- [ ] Range requests return 206 Partial Content.
-- [ ] Gzip compression works with configurable level and content types.
-- [ ] Brotli compression works with proper priority over Gzip.
-- [ ] Pre-compressed files (.gz, .br) are served when available.
-- [ ] Path traversal attempts return 400/403.
-- [ ] >90% test coverage.
+- [x] Static file serving from configurable root directory.
+- [x] Automatic MIME type detection for 200+ file extensions.
+- [x] `index` directive serves index.html automatically.
+- [x] `try_files` logic falls through paths correctly.
+- [x] Directory listing works when autoindex is enabled.
+- [x] ETag and Last-Modified headers are generated correctly.
+- [x] 304 Not Modified returned for conditional requests.
+- [x] Range requests return 206 Partial Content.
+- [x] Gzip compression works with configurable level and content types.
+- [x] Brotli compression works with proper priority over Gzip.
+- [x] Pre-compressed files (.gz, .br) are served when available.
+- [x] Path traversal attempts return 400/403.
+- [x] >90% test coverage.
 
 ## 5. Out of Scope
 

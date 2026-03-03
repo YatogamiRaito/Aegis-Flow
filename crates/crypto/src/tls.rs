@@ -467,7 +467,6 @@ mod tests {
     }
 
     #[test]
-    #[allow(deprecated)]
     fn test_deprecated_algorithms() {
         // Test deprecated algorithm variants are still constructible
         let _k768 = PqcAlgorithm::Kyber768Only;

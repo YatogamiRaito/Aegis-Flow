@@ -67,6 +67,13 @@ html-escape = "0.2.13"
 http-body = "1.0.1"
 futures-util = "0.3.32"
 libc = "0.2.182"
+regex = "1.12.3"
+ipnetwork = "0.21.1"
+bcrypt = "0.18.0"
+jsonwebtoken = { version = "10.3.0", features = ["rust_crypto"] }
+base64 = "0.22.1"
+axum = "0.8.8"
+sha1 = "0.10.6"
 
 [dev-dependencies]
 criterion.workspace = true

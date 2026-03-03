@@ -144,20 +144,20 @@ fastcgi_index = "index.php"
 
 ## 4. Acceptance Criteria
 
-- [ ] WebSocket upgrade detected and bidirectional frame forwarding works.
-- [ ] `wss://` connections are TLS-terminated and forwarded correctly.
-- [ ] WebSocket ping/pong keepalive frames are handled.
-- [ ] SSE connections are proxied without buffering.
-- [ ] TCP stream proxy forwards raw TCP between client and upstream.
-- [ ] TCP stream supports TLS termination and TLS passthrough (SNI routing).
-- [ ] TCP stream load balancing across multiple backends works.
-- [ ] UDP stream proxy handles request-response datagram flows.
-- [ ] UDP session affinity maps client to consistent upstream.
-- [ ] PROXY Protocol v1 and v2 headers are correctly parsed.
-- [ ] PROXY Protocol sending prepends correct header to upstream connections.
-- [ ] FastCGI proxy communicates with PHP-FPM backends.
-- [ ] gRPC proxy forwards HTTP/2 gRPC traffic with trailers.
-- [ ] >90% test coverage.
+- [x] WebSocket upgrade detected and bidirectional frame forwarding works.
+- [x] `wss://` connections are TLS-terminated and forwarded correctly.
+- [x] WebSocket ping/pong keepalive frames are handled.
+- [x] SSE connections are proxied without buffering.
+- [x] TCP stream proxy forwards raw TCP between client and upstream.
+- [x] TCP stream supports TLS termination and TLS passthrough (SNI routing).
+- [x] TCP stream load balancing across multiple backends works.
+- [x] UDP stream proxy handles request-response datagram flows.
+- [x] UDP session affinity maps client to consistent upstream.
+- [x] PROXY Protocol v1 and v2 headers are correctly parsed.
+- [x] PROXY Protocol sending prepends correct header to upstream connections.
+- [x] FastCGI proxy communicates with PHP-FPM backends.
+- [x] gRPC proxy forwards HTTP/2 gRPC traffic with trailers.
+- [x] >90% test coverage.
 
 ## 5. Out of Scope
 

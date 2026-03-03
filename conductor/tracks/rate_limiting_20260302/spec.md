@@ -105,18 +105,18 @@ client_body_timeout = "30s"
 
 ## 4. Acceptance Criteria
 
-- [ ] Per-IP rate limiting with token bucket works correctly.
-- [ ] Burst and nodelay options function as specified.
-- [ ] 429 Too Many Requests returned with Retry-After header.
-- [ ] Connection limiting enforces max concurrent connections.
-- [ ] Bandwidth limiting throttles response delivery.
-- [ ] IP ACL allow/deny rules with CIDR support work correctly.
-- [ ] HTTP Basic Auth validates against htpasswd files.
-- [ ] JWT token validation with JWKS endpoint works.
-- [ ] WAF blocks SQL injection, XSS, path traversal, command injection.
-- [ ] client_max_body_size rejects oversized requests (413 Payload Too Large).
-- [ ] Request timeouts protect against slow clients.
-- [ ] >90% test coverage.
+- [x] Per-IP rate limiting with token bucket works correctly.
+- [x] Burst and nodelay options function as specified.
+- [x] 429 Too Many Requests returned with Retry-After header.
+- [x] Connection limiting enforces max concurrent connections.
+- [x] Bandwidth limiting throttles response delivery.
+- [x] IP ACL allow/deny rules with CIDR support work correctly.
+- [x] HTTP Basic Auth validates against htpasswd files.
+- [x] JWT token validation with JWKS endpoint works.
+- [x] WAF blocks SQL injection, XSS, path traversal, command injection.
+- [x] client_max_body_size rejects oversized requests (413 Payload Too Large).
+- [x] Request timeouts protect against slow clients.
+- [x] >90% test coverage.
 
 ## 5. Out of Scope
 

@@ -106,16 +106,16 @@ keepalive = 64
 
 ## 4. Acceptance Criteria
 
-- [ ] Upstream groups are configurable with multiple servers.
-- [ ] All 5 load balancing algorithms (round-robin, least-conn, ip-hash, generic-hash, P2C) work correctly.
-- [ ] Sticky sessions persist client-to-backend mapping via cookies.
-- [ ] Active health checks mark backends healthy/unhealthy based on thresholds.
-- [ ] Passive health checks detect consecutive failures and mark backends down.
-- [ ] Circuit breaker transitions through closed → open → half-open → closed.
-- [ ] Connection pooling reuses connections with configurable limits.
-- [ ] Backup servers receive traffic when all primaries are down.
-- [ ] Timeout and buffering settings are enforced.
-- [ ] >90% test coverage.
+- [x] Upstream groups are configurable with multiple servers.
+- [x] All 5 load balancing algorithms (round-robin, least-conn, ip-hash, generic-hash, P2C) work correctly.
+- [x] Sticky sessions persist client-to-backend mapping via cookies.
+- [x] Active health checks mark backends healthy/unhealthy based on thresholds.
+- [x] Passive health checks detect consecutive failures and mark backends down.
+- [x] Circuit breaker transitions through closed → open → half-open → closed.
+- [x] Connection pooling reuses connections with configurable limits.
+- [x] Backup servers receive traffic when all primaries are down.
+- [x] Timeout and buffering settings are enforced.
+- [x] >90% test coverage.
 
 ## 5. Out of Scope
 

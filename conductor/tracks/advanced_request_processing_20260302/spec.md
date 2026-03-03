@@ -95,15 +95,15 @@ This track adds nginx's advanced request processing capabilities: **`map` direct
 
 ## 4. Acceptance Criteria
 
-- [ ] Map directive creates variables from source variables with exact and regex matching.
-- [ ] Split clients distributes requests by percentage with consistent hashing.
-- [ ] Auth request sends subrequest and blocks/allows based on response.
-- [ ] Auth response headers are captured and forwarded to upstream.
-- [ ] Traffic mirroring duplicates requests without affecting primary response.
-- [ ] Mirror percentage controls what fraction of traffic is mirrored.
-- [ ] Limit except restricts methods within a location.
-- [ ] Stub status page shows real-time connection metrics.
-- [ ] >90% test coverage.
+- [x] Map directive creates variables from source variables with exact and regex matching.
+- [x] Split clients distributes requests by percentage with consistent hashing.
+- [x] Auth request sends subrequest and blocks/allows based on response.
+- [x] Auth response headers are captured and forwarded to upstream.
+- [x] Traffic mirroring duplicates requests without affecting primary response.
+- [x] Mirror percentage controls what fraction of traffic is mirrored.
+- [x] Limit except restricts methods within a location.
+- [x] Stub status page shows real-time connection metrics.
+- [x] >90% test coverage.
 
 ## 5. Out of Scope
 

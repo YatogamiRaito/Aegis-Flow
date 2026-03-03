@@ -104,10 +104,9 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-## [~] Track 20: Proxy Caching & Response Optimization (v0.20.0)
+## [x] Track 20: Proxy Caching & Response Optimization (v0.20.0)
 *Link: [./tracks/caching_20260302/](./tracks/caching_20260302/)*
 *Priority: 6 - Two-tier cache, stale serving, purge API*
-*Status: Missing - Missing proxy-level cache.*
 
 ---
 

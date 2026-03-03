@@ -1,8 +1,0 @@
-{
-    "track_id": "observability_dashboards_20251228",
-    "type": "feature",
-    "status": "new",
-    "created_at": "2025-12-28T02:55:00Z",
-    "updated_at": "2025-12-28T02:55:00Z",
-    "description": "Prometheus/Grafana Dashboard Expansion"
-}

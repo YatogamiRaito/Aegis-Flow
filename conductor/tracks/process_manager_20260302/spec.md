@@ -89,18 +89,18 @@ This is the foundational track that transforms Aegis-Flow from a pure proxy into
 
 ## 4. Acceptance Criteria
 
-- [ ] `aegis start <app>` launches a process and the daemon manages it.
-- [ ] `aegis stop <app>` gracefully terminates the process.
-- [ ] `aegis restart <app>` performs stop + start.
-- [ ] `aegis reload <app>` performs zero-downtime reload.
-- [ ] `aegis delete <app>` removes the process from management.
-- [ ] `aegis start ecosystem.toml` launches all defined processes.
-- [ ] Cluster mode with `instances = "max"` auto-detects CPU cores.
-- [ ] Crashed processes are automatically restarted with exponential backoff.
-- [ ] `max_memory_restart` triggers automatic restart when exceeded.
-- [ ] Process table survives daemon restart.
-- [ ] Prometheus metrics include process-level CPU and memory data.
-- [ ] >90% test coverage for the process manager crate.
+- [x] `aegis start <app>` launches a process and the daemon manages it.
+- [x] `aegis stop <app>` gracefully terminates the process.
+- [x] `aegis restart <app>` performs stop + start.
+- [x] `aegis reload <app>` performs zero-downtime reload.
+- [x] `aegis delete <app>` removes the process from management.
+- [x] `aegis start ecosystem.toml` launches all defined processes.
+- [x] Cluster mode with `instances = "max"` auto-detects CPU cores.
+- [x] Crashed processes are automatically restarted with exponential backoff.
+- [x] `max_memory_restart` triggers automatic restart when exceeded.
+- [x] Process table survives daemon restart.
+- [x] Prometheus metrics include process-level CPU and memory data.
+- [x] >90% test coverage for the process manager crate.
 
 ## 5. Out of Scope
 

@@ -129,17 +129,17 @@ apps {
 
 ## 4. Acceptance Criteria
 
-- [ ] Single-line `reverse_proxy` config works.
-- [ ] Domain names auto-trigger HTTPS.
-- [ ] `file_server` serves static files from `root`.
-- [ ] Nested directives with `{ }` blocks work.
-- [ ] Named matchers (`@api`) route correctly.
-- [ ] `aegis adapt` converts Aegisfile to TOML.
-- [ ] `aegis import --from nginx` converts basic nginx.conf.
-- [ ] `aegis fmt` formats Aegisfile consistently.
-- [ ] `aegis validate` catches syntax errors with helpful messages.
-- [ ] Process management blocks integrate with process manager.
-- [ ] >90% test coverage on parser.
+- [x] Single-line `reverse_proxy` config works.
+- [x] Domain names auto-trigger HTTPS.
+- [x] `file_server` serves static files from `root`.
+- [x] Nested directives with `{ }` blocks work.
+- [x] Named matchers (`@api`) route correctly.
+- [x] `aegis adapt` converts Aegisfile to TOML.
+- [x] `aegis import --from nginx` converts basic nginx.conf.
+- [x] `aegis fmt` formats Aegisfile consistently.
+- [x] `aegis validate` catches syntax errors with helpful messages.
+- [x] Process management blocks integrate with process manager.
+- [x] >90% test coverage on parser.
 
 ## 5. Out of Scope
 

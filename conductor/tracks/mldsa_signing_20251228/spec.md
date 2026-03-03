@@ -35,11 +35,11 @@ Complete the post-quantum cryptography migration by implementing ML-DSA (formerl
 - Constant-time implementation (side-channel resistant)
 
 ## Acceptance Criteria
-- [ ] ML-DSA-65 integrated in aegis-crypto
-- [ ] Self-signed certs use ML-DSA by default
-- [ ] Hybrid mode works with Ed25519 fallback
-- [ ] All crypto tests pass
-- [ ] Benchmarks updated with signing performance
+- [x] ML-DSA-65 integrated in aegis-crypto
+- [x] Self-signed certs use ML-DSA by default
+- [x] Hybrid mode works with Ed25519 fallback
+- [x] All crypto tests pass
+- [x] Benchmarks updated with signing performance
 
 ## Out of Scope
 - X.509 certificate parsing with ML-DSA OIDs (pending tooling)
