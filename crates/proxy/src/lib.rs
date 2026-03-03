@@ -3,6 +3,7 @@
 //! High-performance PQC-enabled proxy server for Aegis-Flow.
 //! This is the library crate that provides all public APIs.
 
+pub mod autoindex;
 pub mod bootstrap;
 pub mod caching;
 pub mod carbon_router;

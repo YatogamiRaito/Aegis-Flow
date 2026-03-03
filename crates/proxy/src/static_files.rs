@@ -149,6 +149,7 @@ impl StaticFileServer {
     /// Builds an HTTP response with proper headers for a file, handling Range requests if headers provided
     pub fn serve_file(
         &self, 
+        uri_path: &str,
         path: &Path, 
         req_headers: Option<&hyper::HeaderMap>,
         override_mime: Option<&std::collections::HashMap<String, String>>
@@ -158,7 +159,27 @@ impl StaticFileServer {
         let metadata = std::fs::metadata(path).map_err(StaticFileError::Io)?;
         
         if metadata.is_dir() {
-            return Err(StaticFileError::Forbidden("Cannot serve directory".to_string()));
+            if self.config.autoindex {
+                let as_json = req_headers
+                    .and_then(|h| h.get(hyper::header::ACCEPT))
+                    .and_then(|v| v.to_str().ok())
+                    .map(|v| v.contains("application/json"))
+                    .unwrap_or(false);
+                let (content, mime) = crate::autoindex::generate_directory_listing(path, uri_path, as_json)
+                    .map_err(StaticFileError::Io)?;
+                let body_bytes = content.into_bytes();
+                
+                let response = hyper::Response::builder()
+                    .status(hyper::StatusCode::OK)
+                    .header("Content-Type", mime)
+                    .header("Content-Length", body_bytes.len().to_string())
+                    .header("Last-Modified", metadata.mtime().to_string())
+                    .body(http_body_util::Full::new(bytes::Bytes::from(body_bytes)))
+                    .unwrap();
+                return Ok(response);
+            } else {
+                return Err(StaticFileError::Forbidden("Cannot serve directory".to_string()));
+            }
         }
 
         let mime = crate::mime_types::get_mime_type(path, override_mime);
@@ -436,7 +457,7 @@ mod tests {
         std::fs::write(&file_path, b"Hello World").unwrap();
 
         // No range headers
-        let resp = server.serve_file(&file_path, None, None).unwrap();
+        let resp = server.serve_file("/test", &file_path, None, None).unwrap();
         assert_eq!(resp.status(), hyper::StatusCode::OK);
         assert_eq!(resp.headers().get("Content-Type").unwrap(), "text/plain; charset=utf-8");
         assert_eq!(resp.headers().get("Content-Length").unwrap(), "11");
@@ -453,21 +474,21 @@ mod tests {
 
         let mut headers = hyper::HeaderMap::new();
         headers.insert(hyper::header::RANGE, "bytes=0-4".parse().unwrap()); // first 5
-        let resp = server.serve_file(&file_path, Some(&headers), None).unwrap();
+        let resp = server.serve_file("/test", &file_path, Some(&headers), None).unwrap();
         assert_eq!(resp.status(), hyper::StatusCode::PARTIAL_CONTENT);
         assert_eq!(resp.headers().get("Content-Range").unwrap(), "bytes 0-4/10");
         assert_eq!(resp.headers().get("Content-Length").unwrap(), "5");
         
         let mut headers = hyper::HeaderMap::new();
         headers.insert(hyper::header::RANGE, "bytes=5-".parse().unwrap()); // 5 to end
-        let resp = server.serve_file(&file_path, Some(&headers), None).unwrap();
+        let resp = server.serve_file("/test", &file_path, Some(&headers), None).unwrap();
         assert_eq!(resp.status(), hyper::StatusCode::PARTIAL_CONTENT);
         assert_eq!(resp.headers().get("Content-Range").unwrap(), "bytes 5-9/10");
         assert_eq!(resp.headers().get("Content-Length").unwrap(), "5");
 
         let mut headers = hyper::HeaderMap::new();
         headers.insert(hyper::header::RANGE, "bytes=-3".parse().unwrap()); // last 3
-        let resp = server.serve_file(&file_path, Some(&headers), None).unwrap();
+        let resp = server.serve_file("/test", &file_path, Some(&headers), None).unwrap();
         assert_eq!(resp.status(), hyper::StatusCode::PARTIAL_CONTENT);
         assert_eq!(resp.headers().get("Content-Range").unwrap(), "bytes 7-9/10");
         assert_eq!(resp.headers().get("Content-Length").unwrap(), "3");
@@ -483,7 +504,7 @@ mod tests {
 
         let mut headers = hyper::HeaderMap::new();
         headers.insert(hyper::header::RANGE, "bytes=0-2, 7-9".parse().unwrap());
-        let resp = server.serve_file(&file_path, Some(&headers), None).unwrap();
+        let resp = server.serve_file("/test", &file_path, Some(&headers), None).unwrap();
         
         assert_eq!(resp.status(), hyper::StatusCode::PARTIAL_CONTENT);
         let ct = resp.headers().get("Content-Type").unwrap().to_str().unwrap();
@@ -506,7 +527,7 @@ mod tests {
 
         let mut headers = hyper::HeaderMap::new();
         headers.insert(hyper::header::RANGE, "bytes=10-20".parse().unwrap()); // unsatisfiable
-        let resp = server.serve_file(&file_path, Some(&headers), None).unwrap();
+        let resp = server.serve_file("/test", &file_path, Some(&headers), None).unwrap();
         
         assert_eq!(resp.status(), hyper::StatusCode::RANGE_NOT_SATISFIABLE);
         assert_eq!(resp.headers().get("Content-Range").unwrap(), "bytes */5");
@@ -572,12 +593,58 @@ mod tests {
         let mut override_mime = std::collections::HashMap::new();
         override_mime.insert("html".to_string(), "text/html".to_string());
 
-        let resp = server.serve_file(&file_path, Some(&headers), Some(&override_mime)).unwrap();
+        let resp = server.serve_file("/test", &file_path, Some(&headers), Some(&override_mime)).unwrap();
         
         assert_eq!(resp.status(), hyper::StatusCode::OK);
         assert_eq!(resp.headers().get("Content-Encoding").unwrap(), "gzip");
         // Body length should be different
         let content_len: usize = resp.headers().get("Content-Length").unwrap().to_str().unwrap().parse().unwrap();
         assert!(content_len > 0 && content_len != content.len());
+    }
+
+    #[test]
+    fn test_serve_directory_autoindex_on() {
+        let dir = tempdir().unwrap();
+        let root = dir.path().to_path_buf();
+        let mut config = StaticFileConfig {
+            root: root.clone(),
+            ..Default::default()
+        };
+        config.autoindex = true;
+        let server = StaticFileServer::new(config);
+
+        let subdir = root.join("items");
+        std::fs::create_dir(&subdir).unwrap();
+        std::fs::write(subdir.join("file1.txt"), b"1").unwrap();
+
+        let resp = server.serve_file("/items/", &subdir, None, None).unwrap();
+        assert_eq!(resp.status(), hyper::StatusCode::OK);
+        assert_eq!(resp.headers().get("Content-Type").unwrap(), "text/html; charset=utf-8");
+        
+        use http_body_util::BodyExt;
+        let body_bytes = async { resp.into_body().collect().await.unwrap().to_bytes() };
+        let body_bytes = tokio::runtime::Runtime::new().unwrap().block_on(body_bytes);
+        let body_str = String::from_utf8(body_bytes.to_vec()).unwrap();
+        
+        assert!(body_str.contains("Index of /items/"));
+        assert!(body_str.contains("file1.txt"));
+    }
+
+    #[test]
+    fn test_serve_directory_autoindex_off() {
+        let dir = tempdir().unwrap();
+        let root = dir.path().to_path_buf();
+        let mut config = StaticFileConfig {
+            root: root.clone(),
+            ..Default::default()
+        };
+        config.autoindex = false;
+        let server = StaticFileServer::new(config);
+
+        let subdir = root.join("items");
+        std::fs::create_dir(&subdir).unwrap();
+
+        let err = server.serve_file("/items/", &subdir, None, None);
+        assert!(matches!(err, Err(StaticFileError::Forbidden(_))));
     }
 }
