@@ -6,6 +6,7 @@
 pub mod bootstrap;
 pub mod caching;
 pub mod carbon_router;
+pub mod compression;
 pub mod config;
 pub mod discovery;
 pub mod dual_stack_server;

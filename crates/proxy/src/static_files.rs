@@ -21,6 +21,8 @@ pub struct StaticFileConfig {
     pub autoindex: bool,
     pub follow_symlinks: bool,
     pub hide_dot_files: bool,
+    #[serde(default)]
+    pub compression: crate::compression::CompressionConfig,
 }
 
 impl Default for StaticFileConfig {
@@ -31,6 +33,7 @@ impl Default for StaticFileConfig {
             autoindex: false,
             follow_symlinks: true,
             hide_dot_files: true,
+            compression: Default::default(),
         }
     }
 }
@@ -243,6 +246,24 @@ impl StaticFileServer {
             file.read_exact(&mut body_bytes).map_err(StaticFileError::Io)?;
         }
 
+        let mut content_encoding = None;
+
+        // Apply compression only if not a range request and status is OK
+        if !is_range && status == hyper::StatusCode::OK {
+            let algo = crate::compression::negotiate_encoding(req_headers, &self.config.compression, &content_type, size);
+            if algo != crate::compression::CompressionAlgo::None {
+                if let Some(compressed) = crate::compression::compress_body(&body_bytes, algo, &self.config.compression) {
+                    body_bytes = compressed;
+                    content_length = body_bytes.len() as u64;
+                    content_encoding = Some(match algo {
+                        crate::compression::CompressionAlgo::Gzip => "gzip",
+                        crate::compression::CompressionAlgo::Brotli => "br",
+                        _ => unreachable!(),
+                    });
+                }
+            }
+        }
+
         let mut builder = hyper::Response::builder()
             .status(status)
             .header("Content-Type", content_type)
@@ -252,6 +273,10 @@ impl StaticFileServer {
 
         if let Some(cr) = content_range {
             builder = builder.header("Content-Range", cr);
+        }
+
+        if let Some(ce) = content_encoding {
+            builder = builder.header("Content-Encoding", ce);
         }
 
         let response = builder
@@ -468,5 +493,39 @@ mod tests {
         let try_paths_bad = vec!["$uri".to_string(), "/missing2.html".to_string()];
         let err = server.try_files("/missing.txt", &try_paths_bad);
         assert!(matches!(err, Err(StaticFileError::NotFound(_))));
+    }
+
+    #[test]
+    fn test_serve_file_compressed() {
+        let dir = tempdir().unwrap();
+        let root = dir.path().to_path_buf();
+        let mut config = StaticFileConfig {
+            root: root.clone(),
+            ..Default::default()
+        };
+        // Enable gzip
+        config.compression.enabled = true;
+        config.compression.gzip_level = 6;
+        config.compression.min_size = 5; // allow small bodies for test
+
+        let server = StaticFileServer::new(config);
+        let file_path = root.join("test.html");
+        // Need a compressible mime and string
+        let content = b"compress me compress me compress me compress me";
+        std::fs::write(&file_path, content).unwrap();
+
+        let mut headers = hyper::HeaderMap::new();
+        headers.insert(hyper::header::ACCEPT_ENCODING, "gzip".parse().unwrap());
+        
+        let mut override_mime = std::collections::HashMap::new();
+        override_mime.insert("html".to_string(), "text/html".to_string());
+
+        let resp = server.serve_file(&file_path, Some(&headers), Some(&override_mime)).unwrap();
+        
+        assert_eq!(resp.status(), hyper::StatusCode::OK);
+        assert_eq!(resp.headers().get("Content-Encoding").unwrap(), "gzip");
+        // Body length should be different
+        let content_len: usize = resp.headers().get("Content-Length").unwrap().to_str().unwrap().parse().unwrap();
+        assert!(content_len > 0 && content_len != content.len());
     }
 }
