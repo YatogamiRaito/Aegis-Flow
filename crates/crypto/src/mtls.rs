@@ -80,6 +80,9 @@ pub struct AuthenticatedClient {
     pub channel: Option<SecureChannel>,
     /// Authentication timestamp
     pub authenticated_at: Option<u64>,
+    /// PQC server-side handshake state — holds the ephemeral secret key
+    /// generated during `accept_connection`. Consumed by `complete_handshake`.
+    pub(crate) handshake_state: Option<crate::tls::ServerHandshakeState>,
 }
 
 impl AuthenticatedClient {
@@ -91,6 +94,7 @@ impl AuthenticatedClient {
             state: AuthState::Unauthenticated,
             channel: None,
             authenticated_at: None,
+            handshake_state: None,
         }
     }
 
@@ -112,6 +116,8 @@ pub struct MtlsAuthenticator {
     clients: Arc<RwLock<HashMap<u64, AuthenticatedClient>>>,
     /// Connection counter
     connection_counter: AtomicU64,
+    /// Server Identity Key for PQC Handshake Signatures
+    pub server_identity_key: Option<crate::signing::MlDsa65Signer>,
 }
 
 impl MtlsAuthenticator {
@@ -129,6 +135,7 @@ impl MtlsAuthenticator {
             pqc_handshake: PqcHandshake::new(pqc_config),
             clients: Arc::new(RwLock::new(HashMap::new())),
             connection_counter: AtomicU64::new(1),
+            server_identity_key: None,
         })
     }
 
@@ -167,20 +174,31 @@ impl MtlsAuthenticator {
     }
 
     /// Accept a new connection and start authentication
-    pub fn accept_connection(&self) -> Result<(u64, crate::hybrid_kex::HybridPublicKey)> {
+    pub fn accept_connection(
+        &self,
+    ) -> Result<(
+        u64,
+        crate::hybrid_kex::HybridPublicKey,
+        crate::signing::MlDsaSignature,
+    )> {
         let conn_id = self.connection_counter.fetch_add(1, Ordering::SeqCst);
 
         // Initialize PQC handshake
-        let (server_pk, _state) = self.pqc_handshake.server_init()?;
+        let identity_key = self.server_identity_key.as_ref().ok_or_else(|| {
+            AegisError::Crypto("Server identity key not initialized for PQC MSS".to_string())
+        })?;
+        let (server_pk, signature, server_state) = self.pqc_handshake.server_init(identity_key)?;
 
-        // Create client entry
+        // Create client entry and store the ephemeral server_state so that
+        // `complete_handshake` can decapsulate with the correct secret key.
         let mut client = AuthenticatedClient::new(conn_id);
         client.state = AuthState::HandshakeInProgress;
+        client.handshake_state = Some(server_state);
 
         self.clients.write().insert(conn_id, client);
 
         debug!("Accepted connection {}, starting PQC handshake", conn_id);
-        Ok((conn_id, server_pk))
+        Ok((conn_id, server_pk, signature))
     }
 
     /// Complete the handshake with client's ciphertext and optional certificate
@@ -241,9 +259,14 @@ impl MtlsAuthenticator {
             }
         }
 
-        // Re-init the handshake state for decapsulation
-        // In real implementation, we'd store the server_state
-        let (_, server_state) = self.pqc_handshake.server_init()?;
+        // Consume the handshake state that was stored during `accept_connection`.
+        // Using the original ephemeral secret key is critical — re-generating it
+        // would produce a completely different shared secret and break the KEX.
+        let server_state = client.handshake_state.take().ok_or_else(|| {
+            AegisError::Crypto(
+                "Handshake state missing — accept_connection must be called first".to_string(),
+            )
+        })?;
         let channel = self
             .pqc_handshake
             .server_complete(ciphertext, server_state)?;
@@ -395,6 +418,8 @@ impl CertInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::signing::SigningKeyPair;
+
 
     #[test]
     fn test_default_config() {
@@ -475,9 +500,10 @@ mod tests {
     #[test]
     fn test_accept_connection() {
         let config = MtlsConfig::default();
-        let auth = MtlsAuthenticator::new(config).unwrap();
-
-        let (conn_id, _pk) = auth.accept_connection().unwrap();
+        let mut auth = MtlsAuthenticator::new(config).unwrap();
+        use crate::signing::{MlDsa65Signer, SigningKeyPair};
+        auth.server_identity_key = Some(MlDsa65Signer::generate().unwrap());
+        let (conn_id, _pk, _sig) = auth.accept_connection().unwrap();
         assert!(conn_id > 0);
 
         let state = auth.get_client_state(conn_id).unwrap();
@@ -513,8 +539,10 @@ mod tests {
             require_client_cert: true,
             ..Default::default()
         };
-        let auth = MtlsAuthenticator::new(config).unwrap();
-        let (conn_id, _pk) = auth.accept_connection().unwrap();
+        let mut auth = MtlsAuthenticator::new(config).unwrap();
+        use crate::signing::{MlDsa65Signer, SigningKeyPair};
+        auth.server_identity_key = Some(MlDsa65Signer::generate().unwrap());
+        let (conn_id, _pk, _sig) = auth.accept_connection().unwrap();
 
         let dummy_ct = crate::hybrid_kex::HybridCiphertext {
             x25519_ephemeral: [0u8; 32],
@@ -532,9 +560,11 @@ mod tests {
     #[test]
     fn test_disconnect() {
         let config = MtlsConfig::default();
-        let auth = MtlsAuthenticator::new(config).unwrap();
+        let mut auth = MtlsAuthenticator::new(config).unwrap();
 
-        let (conn_id, _) = auth.accept_connection().unwrap();
+        auth.server_identity_key = Some(crate::signing::MlDsa65Signer::generate().unwrap());
+
+        let (conn_id, _, _) = auth.accept_connection().unwrap();
         assert!(auth.disconnect(conn_id).is_ok());
         assert!(auth.get_client_state(conn_id).is_err());
     }
@@ -601,13 +631,15 @@ mod tests {
     #[test]
     fn test_authenticated_count() {
         let config = MtlsConfig::default();
-        let auth = MtlsAuthenticator::new(config).unwrap();
+        let mut auth = MtlsAuthenticator::new(config).unwrap();
+        use crate::signing::{MlDsa65Signer, SigningKeyPair};
+        auth.server_identity_key = Some(MlDsa65Signer::generate().unwrap());
 
         // Initially zero
         assert_eq!(auth.authenticated_count(), 0);
 
         // Accept a connection (unauthenticated)
-        let (conn_id, _) = auth.accept_connection().unwrap();
+        let (conn_id, _, _) = auth.accept_connection().unwrap();
 
         // Still zero because not authenticated
         assert_eq!(auth.authenticated_count(), 0);
@@ -767,9 +799,11 @@ mod tests {
     #[test]
     fn test_disconnect_success() {
         let config = MtlsConfig::default();
-        let auth = MtlsAuthenticator::new(config).unwrap();
+        let mut auth = MtlsAuthenticator::new(config).unwrap();
 
-        let (conn_id, _) = auth.accept_connection().unwrap();
+        auth.server_identity_key = Some(crate::signing::MlDsa65Signer::generate().unwrap());
+
+        let (conn_id, _, _) = auth.accept_connection().unwrap();
         let result = auth.disconnect(conn_id);
         assert!(result.is_ok());
     }
@@ -777,7 +811,9 @@ mod tests {
     #[test]
     fn test_authenticated_count_with_connections() {
         let config = MtlsConfig::default();
-        let auth = MtlsAuthenticator::new(config).unwrap();
+        let mut auth = MtlsAuthenticator::new(config).unwrap();
+        use crate::signing::{MlDsa65Signer, SigningKeyPair};
+        auth.server_identity_key = Some(MlDsa65Signer::generate().unwrap());
 
         // Accept multiple connections
         let _ = auth.accept_connection();
@@ -797,8 +833,10 @@ mod tests {
             require_client_cert: false,
             ..Default::default()
         };
-        let auth = MtlsAuthenticator::new(config).unwrap();
-        let (conn_id, _) = auth.accept_connection().unwrap();
+        let mut auth = MtlsAuthenticator::new(config).unwrap();
+        use crate::signing::{MlDsa65Signer, SigningKeyPair};
+        auth.server_identity_key = Some(MlDsa65Signer::generate().unwrap());
+        let (conn_id, _, _) = auth.accept_connection().unwrap();
 
         let dummy_ct = crate::hybrid_kex::HybridCiphertext {
             x25519_ephemeral: [0u8; 32],
@@ -939,8 +977,10 @@ mod tests {
         // Use self-signed to setup
         let mut auth = MtlsAuthenticator::new(config).unwrap();
         auth.init_self_signed("test.server").unwrap();
+        use crate::signing::{MlDsa65Signer, SigningKeyPair};
+        auth.server_identity_key = Some(MlDsa65Signer::generate().unwrap());
 
-        let (conn_id, _) = auth.accept_connection().unwrap();
+        let (conn_id, _, _) = auth.accept_connection().unwrap();
 
         let dummy_ct = crate::hybrid_kex::HybridCiphertext {
             x25519_ephemeral: [0u8; 32],
@@ -966,6 +1006,8 @@ mod tests {
         };
         let mut auth = MtlsAuthenticator::new(config).unwrap();
         auth.init_self_signed("server").unwrap();
+        use crate::signing::{MlDsa65Signer, SigningKeyPair};
+        auth.server_identity_key = Some(MlDsa65Signer::generate().unwrap());
 
         // Generate a client cert that is NOT trusted by the server (server only trusts itself/configured CAs)
         // Since we didn't add the client's key to trust store, it should fail verification.
@@ -973,7 +1015,7 @@ mod tests {
             rcgen::generate_simple_self_signed(vec!["client".to_string()]).unwrap();
         let client_der = client_cert_params.cert.der().to_vec();
 
-        let (conn_id, _) = auth.accept_connection().unwrap();
+        let (conn_id, _, _) = auth.accept_connection().unwrap();
 
         let dummy_ct = crate::hybrid_kex::HybridCiphertext {
             x25519_ephemeral: [0u8; 32],
@@ -1046,6 +1088,8 @@ mod tests {
         };
         let mut auth = MtlsAuthenticator::new(config).unwrap();
         auth.init_self_signed("server").unwrap();
+        use crate::signing::{MlDsa65Signer, SigningKeyPair};
+        auth.server_identity_key = Some(MlDsa65Signer::generate().unwrap());
 
         // 1. Generate an EXPIRED client cert manually
         let mut params = rcgen::CertificateParams::default();
@@ -1079,7 +1123,7 @@ mod tests {
             .add_trusted_ca(client_cert_parsed)
             .unwrap();
 
-        let (conn_id, _) = auth.accept_connection().unwrap();
+        let (conn_id, _, _) = auth.accept_connection().unwrap();
 
         let dummy_ct = crate::hybrid_kex::HybridCiphertext {
             x25519_ephemeral: [0u8; 32],
@@ -1103,6 +1147,7 @@ mod tests {
 
     #[test]
     fn test_complete_handshake_optional_cert_valid() {
+        use crate::signing::{MlDsa65Signer, SigningKeyPair};
         let config = MtlsConfig {
             require_client_cert: false, // Optional
             pqc_enabled: true,          // Need enabled for handshake
@@ -1110,29 +1155,31 @@ mod tests {
         };
         let mut auth = MtlsAuthenticator::new(config).unwrap();
         auth.init_self_signed("server").unwrap();
+        let _identity_key = MlDsa65Signer::generate().unwrap();
+        auth.server_identity_key = Some(MlDsa65Signer::generate().unwrap());
 
-        // Generate a valid client cert
         let mut params = rcgen::CertificateParams::default();
         params
             .distinguished_name
             .push(rcgen::DnType::CommonName, "optional-client");
-        // Add SANs if needed, though for this test CN check is what failed
-        // params.subject_alt_names = vec![rcgen::SanType::DnsName("optional-client".to_string())];
-
         let key_pair = rcgen::KeyPair::generate().unwrap();
         let client_cert = params.self_signed(&key_pair).unwrap();
         let client_der = client_cert.der().to_vec();
 
-        let (conn_id, server_pk) = auth.accept_connection().unwrap();
+        let (conn_id, server_pk, signature) = auth.accept_connection().unwrap();
 
-        // Perform client side of handshake to get valid ciphertext
         let client_handshake = PqcHandshake::new(PqcTlsConfig {
             pqc_enabled: true,
             ..Default::default()
         });
-        let (ciphertext, _) = client_handshake.client_complete(&server_pk).unwrap();
+        let (ciphertext, _) = client_handshake
+            .client_complete(
+                &server_pk,
+                auth.server_identity_key.as_ref().unwrap().public_key(),
+                &signature,
+            )
+            .unwrap();
 
-        // Complete handshake with cert (even though not required)
         let result = auth.complete_handshake(conn_id, &ciphertext, Some(&client_der));
         assert!(result.is_ok());
 
@@ -1156,14 +1203,22 @@ mod tests {
         let mut auth = MtlsAuthenticator::new(config).unwrap();
         auth.init_self_signed("server").unwrap();
 
-        let (conn_id, server_pk) = auth.accept_connection().unwrap();
+        use crate::signing::SigningKeyPair;
+        auth.server_identity_key = Some(crate::signing::MlDsa65Signer::generate().unwrap());
+        let (conn_id, server_pk, sig) = auth.accept_connection().unwrap();
 
         // Perform client side of handshake
         let client_handshake = PqcHandshake::new(PqcTlsConfig {
             pqc_enabled: true,
             ..Default::default()
         });
-        let (ciphertext, _) = client_handshake.client_complete(&server_pk).unwrap();
+        let (ciphertext, _) = client_handshake
+            .client_complete(
+                &server_pk,
+                auth.server_identity_key.as_ref().unwrap().public_key(),
+                &sig,
+            )
+            .unwrap();
 
         // Complete handshake WITHOUT cert
         let result = auth.complete_handshake(conn_id, &ciphertext, None);
@@ -1183,6 +1238,8 @@ mod tests {
         };
         let mut auth = MtlsAuthenticator::new(config).unwrap();
         auth.init_self_signed("server").unwrap();
+        use crate::signing::{MlDsa65Signer, SigningKeyPair};
+        auth.server_identity_key = Some(MlDsa65Signer::generate().unwrap());
 
         // 1. Generate an EXPIRED client cert manually
         let mut params = rcgen::CertificateParams::default();
@@ -1214,14 +1271,21 @@ mod tests {
             .add_trusted_ca(client_cert_parsed)
             .unwrap();
 
-        let (conn_id, server_pk) = auth.accept_connection().unwrap();
+        auth.server_identity_key = Some(crate::signing::MlDsa65Signer::generate().unwrap());
+        let (conn_id, server_pk, sig) = auth.accept_connection().unwrap();
 
         // Perform client side - need valid ciphertext
         let client_handshake = PqcHandshake::new(PqcTlsConfig {
             pqc_enabled: true,
             ..Default::default()
         });
-        let (ciphertext, _) = client_handshake.client_complete(&server_pk).unwrap();
+        let (ciphertext, _) = client_handshake
+            .client_complete(
+                &server_pk,
+                auth.server_identity_key.as_ref().unwrap().public_key(),
+                &sig,
+            )
+            .unwrap();
 
         let result = auth.complete_handshake(conn_id, &ciphertext, Some(&client_der));
 
@@ -1308,6 +1372,8 @@ mod tests {
         };
         let mut auth = MtlsAuthenticator::new(config).unwrap();
         auth.init_self_signed("server").unwrap();
+        use crate::signing::{MlDsa65Signer, SigningKeyPair};
+        auth.server_identity_key = Some(MlDsa65Signer::generate().unwrap());
 
         // Generate a valid client cert
         let mut params = rcgen::CertificateParams::default();
@@ -1326,10 +1392,17 @@ mod tests {
             .add_trusted_ca(client_cert_parsed)
             .unwrap();
 
-        let (conn_id, server_pk) = auth.accept_connection().unwrap();
+        auth.server_identity_key = Some(crate::signing::MlDsa65Signer::generate().unwrap());
+        let (conn_id, server_pk, sig) = auth.accept_connection().unwrap();
 
         let client_handshake = PqcHandshake::new(PqcTlsConfig::default());
-        let (ciphertext, _) = client_handshake.client_complete(&server_pk).unwrap();
+        let (ciphertext, _) = client_handshake
+            .client_complete(
+                &server_pk,
+                auth.server_identity_key.as_ref().unwrap().public_key(),
+                &sig,
+            )
+            .unwrap();
 
         let result = auth.complete_handshake(conn_id, &ciphertext, Some(&client_der));
         assert!(result.is_ok());
@@ -1345,6 +1418,8 @@ mod tests {
         };
         let mut auth = MtlsAuthenticator::new(config).unwrap();
         auth.init_self_signed("server").unwrap();
+        use crate::signing::{MlDsa65Signer, SigningKeyPair};
+        auth.server_identity_key = Some(MlDsa65Signer::generate().unwrap());
 
         // 1. Generate VALID CA
         let mut ca_params = rcgen::CertificateParams::default();
@@ -1381,11 +1456,18 @@ mod tests {
             .unwrap();
         let client_der = client_cert.der().to_vec();
 
-        let (conn_id, server_pk) = auth.accept_connection().unwrap();
+        auth.server_identity_key = Some(crate::signing::MlDsa65Signer::generate().unwrap());
+        let (conn_id, server_pk, sig) = auth.accept_connection().unwrap();
 
         // Client handshake (PQC) - we need valid ciphertext
         let client_handshake = PqcHandshake::new(PqcTlsConfig::default());
-        let (ciphertext, _) = client_handshake.client_complete(&server_pk).unwrap();
+        let (ciphertext, _) = client_handshake
+            .client_complete(
+                &server_pk,
+                auth.server_identity_key.as_ref().unwrap().public_key(),
+                &sig,
+            )
+            .unwrap();
 
         // Complete handshake
         let result = auth.complete_handshake(conn_id, &ciphertext, Some(&client_der));
@@ -1395,5 +1477,69 @@ mod tests {
             // Must match the exact error from line 227 "Client certificate expired"
             assert_eq!(msg, "Client certificate expired");
         }
+    }
+
+    /// Track 30: Verify that `complete_handshake` uses the original `ServerHandshakeState`
+    /// stored during `accept_connection`, not a freshly re-generated one.
+    ///
+    /// If the server re-generates an ephemeral keypair in `complete_handshake`, the
+    /// client and server will end up with completely different shared secrets and
+    /// channel encryption will fail.
+    #[test]
+    fn test_mtls_handshake_uses_original_server_state() {
+        use crate::signing::{MlDsa65Signer, SigningKeyPair};
+        use crate::tls::{PqcHandshake, PqcTlsConfig};
+
+        // Set up the server-side authenticator
+        let config = MtlsConfig::default();
+        let mut auth = MtlsAuthenticator::new(config).unwrap();
+        auth.server_identity_key = Some(MlDsa65Signer::generate().unwrap());
+
+        // Step 1: Server accepts connection → returns ephemeral public key
+        let (conn_id, server_pk, sig) = auth.accept_connection().unwrap();
+        assert!(conn_id > 0);
+
+        // Step 2: Client performs its side of the handshake
+        let client_handshake = PqcHandshake::new(PqcTlsConfig::default());
+        let (ciphertext, client_channel) = client_handshake
+            .client_complete(
+                &server_pk,
+                auth.server_identity_key.as_ref().unwrap().public_key(),
+                &sig,
+            )
+            .unwrap();
+
+        // Step 3: Server completes handshake — must use the stored server_state
+        let result = auth.complete_handshake(conn_id, &ciphertext, None);
+        assert!(
+            result.is_ok(),
+            "complete_handshake must succeed: {:?}",
+            result.err()
+        );
+
+        // Step 4: Retrieve the server-side channel and verify bidirectional crypto
+        let clients = auth.clients.read();
+        let client_entry = clients.get(&conn_id).unwrap();
+        assert_eq!(client_entry.state, AuthState::Authenticated);
+
+        let server_channel = client_entry.channel.as_ref().unwrap();
+
+        // Client → Server
+        let plaintext = b"hello from client";
+        let encrypted = client_channel.encrypt(plaintext).unwrap();
+        let decrypted = server_channel.decrypt(&encrypted).unwrap();
+        assert_eq!(
+            decrypted, plaintext,
+            "Server must decrypt client message with the shared key from the correct server_state"
+        );
+
+        // Server → Client
+        let server_plaintext = b"hello from server";
+        let server_encrypted = server_channel.encrypt(server_plaintext).unwrap();
+        let server_decrypted = client_channel.decrypt(&server_encrypted).unwrap();
+        assert_eq!(
+            server_decrypted, server_plaintext,
+            "Client must decrypt server message — channel keys must match"
+        );
     }
 }
