@@ -1,0 +1,8 @@
+{
+  "track_id": "carbon_aware_hardening_20260304",
+  "type": "refinement",
+  "status": "new",
+  "created_at": "2026-03-04T11:03:00Z",
+  "updated_at": "2026-03-04T11:03:00Z",
+  "description": "Carbon-Aware Traffic Routing Hardening — retry/backoff, forecast API, queue persistence, integration test, benchmark"
+}

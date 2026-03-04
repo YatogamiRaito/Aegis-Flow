@@ -1,0 +1,13 @@
+{
+    "track_id": "http3_quic_hardening_20260304",
+    "type": "hardening",
+    "status": "new",
+    "created_at": "2026-03-04T11:15:00+03:00",
+    "updated_at": "2026-03-04T11:15:00+03:00",
+    "description": "HTTP/3 & QUIC Protocol Hardening — audit skoru 5.2/10'dan 10/10'a çıkarma. Real h3 framing, QUIC transport config, 0-RTT, PQC integration, upstream forwarding, security hardening.",
+    "audit_score": "5.2/10",
+    "target_score": "10/10",
+    "parent_track": "http3_quic_20251226",
+    "priority": 1,
+    "phases": 10
+}

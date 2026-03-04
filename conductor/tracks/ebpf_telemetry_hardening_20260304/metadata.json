@@ -1,0 +1,8 @@
+{
+    "track_id": "ebpf_telemetry_hardening_20260304",
+    "name": "eBPF Energy Telemetry Hardening",
+    "description": "Production eBPF implementation with Aya, RingBuf, Global Metrics, and RAPL",
+    "created_at": "2026-03-04T11:30:00Z",
+    "status": "pending",
+    "version": "0.35.0"
+}
