@@ -40,6 +40,10 @@ pub struct HttpProxyConfig {
     pub cache_min_uses: usize,
     /// Default TTL in seconds
     pub cache_ttl_default: u64,
+    /// ACME Manager attached for HTTP-01 and ALPN challenges
+    pub acme_manager: Option<std::sync::Arc<crate::acme::AcmeManager>>,
+    /// TLS Config for native HTTPS termination and on-demand TLS
+    pub tls_server_config: Option<std::sync::Arc<rustls::ServerConfig>>,
 }
 
 impl Default for HttpProxyConfig {
@@ -55,6 +59,8 @@ impl Default for HttpProxyConfig {
             cache_memory_size: 128 * 1024 * 1024, // 128MB
             cache_min_uses: 1,
             cache_ttl_default: 60,
+            acme_manager: None,
+            tls_server_config: None,
         }
     }
 }
@@ -118,30 +124,72 @@ impl HttpProxy {
                 accept_result = listener.accept() => {
                     match accept_result {
                         Ok((stream, peer_addr)) => {
-                            let io = TokioIo::new(stream);
                             let upstream = self.config.upstream_addr.clone();
                             let static_server = self.static_server.clone();
                             let memory_cache = self.memory_cache.clone();
                             let ttl_config = self.ttl_config.clone();
                             let bypass_check = self.bypass_check.clone();
+                            let acme_manager = self.config.acme_manager.clone();
+                            let tls_cfg = self.config.tls_server_config.clone();
 
                             tokio::spawn(async move {
                                 debug!("📥 HTTP/2 connection from {}", peer_addr);
 
+                                let acme_manager_svc = acme_manager.clone();
                                 let service = service_fn(move |req| {
                                     let upstream = upstream.clone();
                                     let static_server = static_server.clone();
                                     let memory_cache = memory_cache.clone();
                                     let ttl_config = ttl_config.clone();
                                     let bypass_check = bypass_check.clone();
-                                    async move { handle_request(req, &upstream, static_server, memory_cache, ttl_config, bypass_check).await }
+                                    let acme_manager = acme_manager_svc.clone();
+                                    async move { handle_request(req, &upstream, static_server, memory_cache, ttl_config, bypass_check, acme_manager).await }
                                 });
 
-                                if let Err(e) = http1::Builder::new()
-                                    .serve_connection(io, service)
-                                    .await
-                                {
-                                    error!("❌ HTTP/1.1 connection error: {}", e);
+                                if let Some(config) = tls_cfg {
+                                    let acceptor = rustls::server::Acceptor::default();
+                                    match tokio_rustls::LazyConfigAcceptor::new(acceptor, stream).await {
+                                        Ok(start_handshake) => {
+                                            let ch = start_handshake.client_hello();
+                                            let server_name = ch.server_name().map(|s| s.to_string());
+                                            
+                                            // On-Demand TLS hook
+                                            if let Some(am) = &acme_manager {
+                                                if let Some(sni) = &server_name {
+                                                    if let Err(e) = am.ensure_cert(sni).await {
+                                                        error!("❌ On-Demand TLS failed for {}: {}", sni, e);
+                                                    }
+                                                }
+                                            }
+                                            
+                                            // Proceed with TLS handshake using the populated cert cache
+                                            match start_handshake.into_stream(config).await {
+                                                Ok(tls_stream) => {
+                                                    let io = TokioIo::new(tls_stream);
+                                                    if let Err(e) = http1::Builder::new()
+                                                        .serve_connection(io, service)
+                                                        .await
+                                                    {
+                                                        error!("❌ HTTP/1.1 TLS connection error: {}", e);
+                                                    }
+                                                }
+                                                Err(e) => {
+                                                    error!("❌ TLS into_stream failed from {}: {}", peer_addr, e);
+                                                }
+                                            }
+                                        }
+                                        Err(e) => {
+                                            error!("❌ TLS LazyConfigAcceptor failed from {}: {}", peer_addr, e);
+                                        }
+                                    }
+                                } else {
+                                    let io = TokioIo::new(stream);
+                                    if let Err(e) = http1::Builder::new()
+                                        .serve_connection(io, service)
+                                        .await
+                                    {
+                                        error!("❌ HTTP/1.1 connection error: {}", e);
+                                    }
                                 }
                             });
                         }
@@ -179,6 +227,7 @@ pub(crate) async fn handle_request<B>(
     memory_cache: Option<std::sync::Arc<crate::proxy_cache::MemoryCache>>,
     ttl_config: std::sync::Arc<crate::proxy_cache::TtlConfig>,
     bypass_check: std::sync::Arc<crate::proxy_cache::BypassCheck>,
+    acme_manager: Option<std::sync::Arc<crate::acme::AcmeManager>>,
 ) -> Result<Response<BoxBody<Bytes, BoxError>>, hyper::Error>
 where
     B: hyper::body::Body + Send + 'static,
@@ -189,6 +238,17 @@ where
     let method = req.method().clone();
     let uri = req.uri().clone();
     let headers = req.headers().clone();
+
+    if let Some(am) = &acme_manager {
+        if let Some(key_auth) = am.check_http_challenge(uri.path()) {
+            info!("Answering ACME HTTP-01 challenge for {:?}", uri.path());
+            return Ok(Response::builder()
+                .status(StatusCode::OK)
+                .header("Content-Type", "application/octet-stream")
+                .body(full(Bytes::from(key_auth)))
+                .unwrap());
+        }
+    }
 
     if crate::websocket::is_websocket_upgrade(&req) {
         return crate::websocket::handle_websocket_upgrade(req, upstream).await;
@@ -745,6 +805,7 @@ mod tests {
             None,
             std::sync::Arc::new(crate::proxy_cache::TtlConfig::new(60)),
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
+            None,
         ).await.unwrap();
 
         assert_eq!(resp.status(), StatusCode::OK);
@@ -767,6 +828,7 @@ mod tests {
             None,
             std::sync::Arc::new(crate::proxy_cache::TtlConfig::new(60)),
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
+            None,
         ).await.unwrap();
         // Unknown paths are forwarded to upstream; when upstream is unreachable, returns BAD_GATEWAY
         assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
@@ -796,6 +858,7 @@ mod tests {
             None,
             std::sync::Arc::new(crate::proxy_cache::TtlConfig::new(60)),
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
+            None,
         ).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
     }
@@ -847,6 +910,7 @@ mod tests {
             None,
             std::sync::Arc::new(crate::proxy_cache::TtlConfig::new(60)),
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
+            None,
         ).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
     }
@@ -867,6 +931,7 @@ mod tests {
             None,
             std::sync::Arc::new(crate::proxy_cache::TtlConfig::new(60)),
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
+            None,
         ).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
@@ -894,6 +959,7 @@ mod tests {
             None,
             std::sync::Arc::new(crate::proxy_cache::TtlConfig::new(60)),
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
+            None,
         ).await.unwrap();
             // OPTIONS returns 200 (CORS preflight), others forward to upstream and fail with BAD_GATEWAY
             if method == Method::OPTIONS {
@@ -922,6 +988,7 @@ mod tests {
             None,
             std::sync::Arc::new(crate::proxy_cache::TtlConfig::new(60)),
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
+            None,
         ).await.unwrap();
         // Forwards to upstream; when unreachable, returns BAD_GATEWAY
         assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
@@ -943,6 +1010,7 @@ mod tests {
             None,
             std::sync::Arc::new(crate::proxy_cache::TtlConfig::new(60)),
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
+            None,
         ).await.unwrap();
         // Forwards to upstream; when unreachable, returns BAD_GATEWAY
         assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
@@ -964,6 +1032,7 @@ mod tests {
             None,
             std::sync::Arc::new(crate::proxy_cache::TtlConfig::new(60)),
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
+            None,
         ).await.unwrap();
         // Forwards to upstream; when unreachable, returns BAD_GATEWAY
         assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
@@ -992,6 +1061,7 @@ mod tests {
             None,
             std::sync::Arc::new(crate::proxy_cache::TtlConfig::new(60)),
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
+            None,
         ).await.unwrap();
         // Forwards to upstream; when unreachable, returns BAD_GATEWAY
         assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
@@ -1045,6 +1115,7 @@ mod tests {
             None,
             std::sync::Arc::new(crate::proxy_cache::TtlConfig::new(60)),
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
+            None,
         ).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         let body_bytes = resp.into_body().collect().await.unwrap().to_bytes();
@@ -1069,6 +1140,7 @@ mod tests {
             None,
             std::sync::Arc::new(crate::proxy_cache::TtlConfig::new(60)),
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
+            None,
         ).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         let body = resp.into_body().collect().await.unwrap().to_bytes();
@@ -1086,6 +1158,7 @@ mod tests {
             None,
             std::sync::Arc::new(crate::proxy_cache::TtlConfig::new(60)),
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
+            None,
         ).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         let body = resp.into_body().collect().await.unwrap().to_bytes();
@@ -1103,6 +1176,7 @@ mod tests {
             None,
             std::sync::Arc::new(crate::proxy_cache::TtlConfig::new(60)),
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
+            None,
         ).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
@@ -1119,6 +1193,7 @@ mod tests {
             None,
             std::sync::Arc::new(crate::proxy_cache::TtlConfig::new(60)),
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
+            None,
         ).await.unwrap();
         // When upstream is unreachable, returns BAD_GATEWAY with error JSON
         assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
@@ -1156,6 +1231,7 @@ mod tests {
             None,
             std::sync::Arc::new(crate::proxy_cache::TtlConfig::new(60)),
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
+            None,
         ).await.unwrap();
 
             // OPTIONS returns 200 (CORS preflight), others forward to upstream and fail with BAD_GATEWAY
@@ -1284,5 +1360,64 @@ mod tests {
         } else {
             panic!("Should have redirected");
         }
+    }
+}
+
+/// Runs a standalone HTTP server on port 80 that serves ACME challenges
+/// and redirects all other traffic to HTTPS.
+pub async fn run_acme_redirect_server(acme_manager: std::sync::Arc<crate::acme::AcmeManager>) -> std::io::Result<()> {
+    let addr: std::net::SocketAddr = "0.0.0.0:80".parse().unwrap();
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    info!("🔀 HTTP->HTTPS Redirect Server listening on {}", addr);
+
+    loop {
+        let (stream, _peer_addr) = match listener.accept().await {
+            Ok(res) => res,
+            Err(e) => {
+                error!("ACME Redirect server accept error: {}", e);
+                continue;
+            }
+        };
+
+        let acme_manager = acme_manager.clone();
+        let service = hyper::service::service_fn(move |req: Request<hyper::body::Incoming>| {
+            let acme_manager = acme_manager.clone();
+            async move {
+                let uri = req.uri();
+                let path = uri.path();
+                
+                // 1. Serve ACME Challenge
+                if path.starts_with("/.well-known/acme-challenge/") {
+                    if let Some(key_auth) = acme_manager.check_http_challenge(path) {
+                        info!("Answering ACME HTTP-01 challenge for {:?}", path);
+                        return Ok::<_, hyper::Error>(Response::builder()
+                            .status(StatusCode::OK)
+                            .header("Content-Type", "application/octet-stream")
+                            .body(full(Bytes::from(key_auth)))
+                            .unwrap());
+                    }
+                }
+
+                // 2. Redirect to HTTPS
+                let host = req.headers().get("host").and_then(|v| v.to_str().ok()).unwrap_or("");
+                let https_url = format!("https://{}{}", host, uri.path_and_query().map(|pq| pq.as_str()).unwrap_or(""));
+                
+                Ok::<_, hyper::Error>(Response::builder()
+                    .status(StatusCode::MOVED_PERMANENTLY)
+                    .header("Location", https_url)
+                    .body(full(Bytes::new()))
+                    .unwrap())
+            }
+        });
+
+        tokio::spawn(async move {
+            let io = hyper_util::rt::TokioIo::new(stream);
+            if let Err(e) = hyper::server::conn::http1::Builder::new()
+                .serve_connection(io, service)
+                .await
+            {
+                debug!("ACME redirect connection error: {}", e);
+            }
+        });
     }
 }

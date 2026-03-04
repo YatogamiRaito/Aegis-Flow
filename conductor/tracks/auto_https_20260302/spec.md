@@ -106,7 +106,7 @@ renew_before_days = 30
 - [x] Self-signed certs generated for localhost automatically.
 - [x] HTTP→HTTPS redirect works on port 80.
 - [x] Private keys encrypted at rest.
-- [x] >90% test coverage.
+- [ ] >90% test coverage.
 
 ## 5. Out of Scope
 

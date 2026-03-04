@@ -60,6 +60,7 @@ pub mod udp_proxy;
 pub mod proxy_protocol;
 pub mod fastcgi;
 pub mod scgi;
+pub mod acme;
 pub use carbon_router::{CarbonRouter, CarbonRouterConfig, RegionScore};
 pub use config::{
     ConfigError, ConfigFormat, ConfigManager, HealthConfig, LogConfig, ProxyConfig, TlsConfig,

@@ -48,6 +48,78 @@ pub struct TlsConfig {
     /// Require client certificates (mTLS)
     #[serde(default)]
     pub require_client_cert: bool,
+    /// Automatic HTTPS configuration (ACME/Let's Encrypt)
+    #[serde(default)]
+    pub auto_https: AutoHttpsConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AutoHttpsConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub email: String,
+    #[serde(default = "default_acme_ca")]
+    pub acme_ca: String,
+    #[serde(default = "default_cert_storage")]
+    pub cert_storage: String,
+    #[serde(default = "default_renew_before")]
+    pub renew_before_days: u32,
+    #[serde(default)]
+    pub encryption_key: Option<String>,
+    #[serde(default)]
+    pub on_demand: OnDemandConfig,
+    #[serde(default)]
+    pub dns_challenge: DnsChallengeConfig,
+}
+
+fn default_acme_ca() -> String {
+    "https://acme-v02.api.letsencrypt.org/directory".to_string()
+}
+
+fn default_cert_storage() -> String {
+    "~/.aegis/certs".to_string()
+}
+
+fn default_renew_before() -> u32 {
+    30
+}
+
+impl Default for AutoHttpsConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            email: String::new(),
+            acme_ca: default_acme_ca(),
+            cert_storage: default_cert_storage(),
+            renew_before_days: default_renew_before(),
+            encryption_key: None,
+            on_demand: OnDemandConfig::default(),
+            dns_challenge: DnsChallengeConfig::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct OnDemandConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub ask: String,
+    #[serde(default = "default_rate_limit")]
+    pub rate_limit: u32,
+}
+
+fn default_rate_limit() -> u32 {
+    10
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct DnsChallengeConfig {
+    #[serde(default)]
+    pub provider: String,
+    #[serde(default)]
+    pub api_token: String,
 }
 
 fn default_true() -> bool {
@@ -68,6 +140,7 @@ impl Default for TlsConfig {
             key_path: default_key_path(),
             ca_path: None,
             require_client_cert: false,
+            auto_https: AutoHttpsConfig::default(),
         }
     }
 }

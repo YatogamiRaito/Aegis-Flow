@@ -73,7 +73,17 @@ bcrypt = "0.18.0"
 jsonwebtoken = { version = "10.3.0", features = ["rust_crypto"] }
 base64 = "0.22.1"
 axum = "0.8.8"
-sha1 = "0.10.6"
+sha1 = { version = "0.10.6", features = ["oid"] }
+instant-acme = "0.8.5"
+rcgen.workspace = true
+rustls-pemfile = "2.2.0"
+x509-parser.workspace = true
+aes-gcm.workspace = true
+x509-ocsp = { version = "0.2.1", features = ["builder"] }
+der = "0.8.0"
+der-parser = "10.0.0"
+spki = "0.7.3"
+x509-cert = "0.2"
 
 [dev-dependencies]
 criterion.workspace = true

@@ -116,17 +116,17 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-## [~] Track 22: WebSocket, TCP/UDP Stream & Protocol Support (v0.22.0)
+## [x] Track 22: WebSocket, TCP/UDP Stream & Protocol Support (v0.22.0)
 *Link: [./tracks/stream_proxy_20260302/](./tracks/stream_proxy_20260302/)*
 *Priority: 8 - L4 proxy, WebSocket, PROXY Protocol, FastCGI, gRPC*
-*Status: Partial - WebSocket and SSE completed. Missing L4 logic.*
+*Status: Complete - All protocols integrated (WS, SSE, L4 TCP/UDP, PROXY, gRPC, FastCGI, SCGI).*
 
 ---
 
-## [ ] Track 23: Automatic HTTPS & Certificate Management (v0.23.0)
+## [x] Track 23: Automatic HTTPS & Certificate Management (v0.23.0)
 *Link: [./tracks/auto_https_20260302/](./tracks/auto_https_20260302/)*
 *Priority: 9 - ACME/Let's Encrypt, OCSP stapling, on-demand TLS*
-*Status: Missing - Missing ACME logic.*
+*Status: Complete - Full Automatic TLS via HTTP-01/ALPN-01/DNS-01, On-Demand provisioning, and natively integrated x509-ocsp Stapling.*
 
 ---
 

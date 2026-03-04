@@ -3,6 +3,7 @@ use rustls::sign::CertifiedKey;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::path::PathBuf;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -24,6 +25,8 @@ pub enum SniError {
 pub struct SniResolver {
     certs: HashMap<String, Arc<CertifiedKey>>,
     default_cert: Option<Arc<CertifiedKey>>,
+    acme_manager: Option<Arc<crate::acme::AcmeManager>>,
+    cert_storage: Option<PathBuf>,
 }
 
 impl SniResolver {
@@ -31,7 +34,14 @@ impl SniResolver {
         Self {
             certs: HashMap::new(),
             default_cert: None,
+            acme_manager: None,
+            cert_storage: None,
         }
+    }
+
+    pub fn set_acme_manager(&mut self, manager: Arc<crate::acme::AcmeManager>, storage: PathBuf) {
+        self.acme_manager = Some(manager);
+        self.cert_storage = Some(storage);
     }
 
     pub fn add_cert(&mut self, hostname: &str, cert: Arc<CertifiedKey>) {
@@ -64,8 +74,60 @@ impl SniResolver {
 impl ResolvesServerCert for SniResolver {
     fn resolve(&self, client_hello: ClientHello) -> Option<Arc<CertifiedKey>> {
         if let Some(sni) = client_hello.server_name() {
+            // Check for TLS-ALPN-01 challenge if ALPN is present
+            if let Some(mut alpn_iter) = client_hello.alpn() {
+                if alpn_iter.any(|protocol| protocol == b"acme-tls/1") {
+                    if let Some(manager) = &self.acme_manager {
+                        if let Some(alpn_cert) = manager.get_alpn_challenge_cert(sni) {
+                            return Some(alpn_cert);
+                        }
+                    }
+                }
+            }
+
             if let Some(cert) = self.get_cert_for_name(sni) {
                 return Some(cert);
+            }
+
+            // Try loading from ACME storage synchronously
+            if let Some(storage) = &self.cert_storage {
+                let domain_dir = storage.join(sni);
+                let cert_path = domain_dir.join("fullchain.pem");
+                let key_path = domain_dir.join("privkey.pem");
+                
+                if cert_path.exists() && key_path.exists() {
+                    if let Ok(cert_bytes) = std::fs::read(&cert_path) {
+                        if let Ok(mut key_bytes) = std::fs::read(&key_path) {
+                            if let Some(enc_key) = self.acme_manager.as_ref().and_then(|m| m.config.encryption_key.as_ref()) {
+                                if let Ok(dec_pem) = crate::acme::crypto_helpers::decrypt_pem(&key_bytes, enc_key) {
+                                    key_bytes = dec_pem.into_bytes();
+                                } else {
+                                    tracing::warn!("Failed to decrypt Private Key for SNI: {}", sni);
+                                }
+                            }
+                            let mut cert_reader = std::io::BufReader::new(cert_bytes.as_slice());
+                            let mut key_reader = std::io::BufReader::new(key_bytes.as_slice());
+                            
+                            let certs: Vec<_> = rustls_pemfile::certs(&mut cert_reader).filter_map(Result::ok).collect();
+                            let mut pkcs8_keys: Vec<_> = rustls_pemfile::pkcs8_private_keys(&mut key_reader).filter_map(Result::ok).collect();
+                            
+                            // Let's Encrypt creates PKCS8 natively often via rcgen, otherwise it might be RSA.
+                            // Assuming PKCS8 for our ECDSA generator.
+                            if !certs.is_empty() && !pkcs8_keys.is_empty() {
+                                let key = pkcs8_keys.remove(0);
+                                if let Ok(crypto_key) = rustls::crypto::ring::sign::any_supported_type(&PrivateKeyDer::Pkcs8(key)) {
+                                    let mut certified_key = CertifiedKey::new(certs, crypto_key);
+                                    let ocsp_path = domain_dir.join("ocsp.der");
+                                    if let Ok(ocsp_bytes) = std::fs::read(&ocsp_path) {
+                                        certified_key.ocsp = Some(ocsp_bytes);
+                                    }
+                                    let certified_key = Arc::new(certified_key);
+                                    return Some(certified_key);
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
         self.default_cert.clone()
