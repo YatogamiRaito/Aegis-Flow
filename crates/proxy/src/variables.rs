@@ -13,11 +13,12 @@ pub struct RequestContext<'a> {
 
 pub struct VariableResolver<'a> {
     ctx: RequestContext<'a>,
+    config: Option<&'a crate::config::ProxyConfig>,
 }
 
 impl<'a> VariableResolver<'a> {
-    pub fn new(ctx: RequestContext<'a>) -> Self {
-        Self { ctx }
+    pub fn new(ctx: RequestContext<'a>, config: Option<&'a crate::config::ProxyConfig>) -> Self {
+        Self { ctx, config }
     }
 
     pub fn resolve(&self, var_name: &str) -> Option<String> {
@@ -46,6 +47,19 @@ impl<'a> VariableResolver<'a> {
                     if let Some(val) = self.ctx.headers.get(&header_name) {
                         if let Ok(val_str) = val.to_str() {
                             return Some(val_str.to_string());
+                        }
+                    }
+                }
+                
+                // Then check split_clients dynamically if a config was passed
+                if let Some(cfg) = self.config {
+                    // Create dummy request for evaluation since we don't hold the original request body
+                    let req = hyper::Request::builder().uri(self.ctx.uri.clone()).body(()).unwrap();
+                    for split in &cfg.split_clients {
+                        // Nginx variables are defined WITH the '$' (e.g. `$variant`), but `var_name` here strips it.
+                        // We check if the trimmed config match equals `var_name`.
+                        if split.variable.trim_start_matches('$') == var_name {
+                            return Some(crate::split_clients::evaluate_split_client(split, &req, self.ctx.remote_addr));
                         }
                     }
                 }
@@ -115,7 +129,7 @@ mod tests {
             scheme: "https",
         };
 
-        let resolver = VariableResolver::new(ctx);
+        let resolver = VariableResolver::new(ctx, None);
 
         assert_eq!(resolver.resolve("uri"), Some("/search".to_string()));
         assert_eq!(resolver.resolve("args"), Some("q=rust".to_string()));

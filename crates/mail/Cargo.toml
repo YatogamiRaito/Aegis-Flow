@@ -1,0 +1,25 @@
+[package]
+name = "aegis-mail"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Mail proxy (SMTP/IMAP/POP3) for Aegis-Flow"
+
+[dependencies]
+tokio = { workspace = true, features = ["net", "io-util", "rt-multi-thread", "macros", "time"] }
+tokio-rustls.workspace = true
+rustls.workspace = true
+rustls-pemfile = "2.2.0"
+bytes.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+base64 = "0.22.1"
+
+[lib]
+name = "aegis_mail"
+path = "src/lib.rs"

@@ -1,5 +1,15 @@
 use regex::Regex;
 use std::collections::HashMap;
+use serde::{Serialize, Deserialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MapConfig {
+    pub source_var: String,
+    pub target_var: String,
+    pub default_value: Option<String>,
+    #[serde(default)]
+    pub mapping: HashMap<String, String>,
+}
 
 #[derive(Debug, Clone)]
 pub enum MapValue {

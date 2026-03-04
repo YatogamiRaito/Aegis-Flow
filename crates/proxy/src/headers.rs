@@ -98,7 +98,7 @@ mod tests {
             request_uri: "/",
             scheme: "http",
         };
-        let resolver = VariableResolver::new(ctx);
+        let resolver = VariableResolver::new(ctx, None);
 
         let mut out_headers = HeaderMap::new();
         apply_proxy_set_header(&mut out_headers, &config, &resolver);
@@ -127,7 +127,7 @@ mod tests {
             request_uri: "/",
             scheme: "https",
         };
-        let resolver = VariableResolver::new(ctx);
+        let resolver = VariableResolver::new(ctx, None);
 
         let mut out_headers = HeaderMap::new();
         apply_add_header(&mut out_headers, &config, &resolver);

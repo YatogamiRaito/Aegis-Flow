@@ -84,6 +84,8 @@ der = "0.8.0"
 der-parser = "10.0.0"
 spki = "0.7.3"
 x509-cert = "0.2"
+murmur3 = "0.5.2"
+hostname = "0.4"
 
 [dev-dependencies]
 criterion.workspace = true

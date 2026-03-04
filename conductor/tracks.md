@@ -142,15 +142,17 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-## [~] Track 26: Advanced Request Processing (v0.26.0)
+## [x] Track 26: Advanced Request Processing (v0.26.0)
 *Link: [./tracks/advanced_request_processing_20260302/](./tracks/advanced_request_processing_20260302/)*
 *Priority: 12 - map directive, split_clients A/B, auth_request, traffic mirroring*
+*Status: Complete — split_clients MurmurHash3 A/B, auth_request subrequest, limit_except method ACL, stub_status metrics endpoint. All 634 tests pass.*
 
 ---
 
-## [~] Track 27: Response Transformation & Logging Extensions (v0.27.0)
+## [x] Track 27: Response Transformation & Logging Extensions (v0.27.0)
 *Link: [./tracks/response_transform_20260302/](./tracks/response_transform_20260302/)*
 *Priority: 13 - sub_filter body rewriting, syslog, SSI, image filter*
+*Status: Complete — regex sub_filter, RFC 5424 syslog (UDP/TCP), SSI directive parsing, image_filter passthrough. 641 tests pass.*
 
 ---
 
@@ -160,8 +162,7 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-## [~] Track 29: GeoIP Routing & Mail Proxy (v0.29.0)
+## [x] Track 29: GeoIP Routing & Mail Proxy (v0.29.0)
 *Link: [./tracks/geoip_mail_20260302/](./tracks/geoip_mail_20260302/)*
-*Priority: 15 - MaxMind GeoIP2, geo directive, SMTP/IMAP/POP3 proxy*
-
-
+*Priority: 14 - GeoIP MMDB lookup, geo directive, SMTP/IMAP/POP3 mail proxy*
+*Status: Complete — geoip.rs enhanced (city/region/lat/lon/ASN/org, MMDB hot-reload, proxy_recursive), aegis-mail crate (smtp, imap, pop3, mail_auth). 29 mail + 650 proxy tests pass.*

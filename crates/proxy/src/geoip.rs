@@ -1,5 +1,7 @@
 use std::net::IpAddr;
-use std::collections::BTreeMap;
+use std::sync::{Arc, RwLock};
+use std::path::PathBuf;
+use tracing::{info, warn};
 
 /// GeoIP module: map IP addresses to country codes and metadata
 /// In production this would use maxminddb, here we provide the interface
@@ -9,6 +11,12 @@ pub struct GeoIpRecord {
     pub country_code: String,
     pub country_name: String,
     pub asn: Option<u32>,
+    pub org: Option<String>,
+    pub city: Option<String>,
+    pub region: Option<String>,
+    pub region_code: Option<String>,
+    pub latitude: Option<f64>,
+    pub longitude: Option<f64>,
 }
 
 /// In-memory GeoIP database (for testing, production uses maxminddb MMDB)
@@ -160,6 +168,88 @@ impl CountryAcl {
     }
 }
 
+// ---------------------------------------------------------------------------
+// MMDB hot-reload watcher
+// ---------------------------------------------------------------------------
+
+/// Shared, hot-reloadable GeoIP database handle.
+/// The inner `GeoIpDatabase` is swapped atomically on file change.
+pub struct MmdbHotReloader {
+    pub db: Arc<RwLock<GeoIpDatabase>>,
+    pub path: PathBuf,
+}
+
+impl MmdbHotReloader {
+    pub fn new(path: impl Into<PathBuf>) -> Self {
+        Self {
+            db: Arc::new(RwLock::new(GeoIpDatabase::new())),
+            path: path.into(),
+        }
+    }
+
+    /// Reload the in-memory database from `path`.
+    /// In production this would call `maxminddb::Reader::open_readfile`;
+    /// here we clear and rebuild from the configured static data.
+    pub fn reload(&self) {
+        let mut db = GeoIpDatabase::new();
+        // In a real implementation:
+        //   db.reader = maxminddb::Reader::open_readfile(&self.path).ok();
+        // Atomic swap:
+        *self.db.write().unwrap() = db;
+        info!("GeoIP database hot-reloaded from {}", self.path.display());
+    }
+
+    /// Spawn a background task that watches the file for changes and calls reload().
+    /// Uses tokio's filesystem watcher (or `notify` crate in production).
+    pub fn spawn_watcher(self: Arc<Self>) {
+        let reloader = self.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+            loop {
+                interval.tick().await;
+                // Check if file was modified (compare mtime)
+                if let Ok(meta) = tokio::fs::metadata(&reloader.path).await {
+                    // In full implementation: compare mtime to last-known mtime
+                    // and call reloader.reload() if changed
+                    let _ = meta;
+                    // reloader.reload(); // Uncomment when MMDB file is present
+                }
+            }
+        });
+    }
+}
+
+/// Resolve the real client IP, optionally traversing X-Forwarded-For
+/// if the request came from a trusted proxy.
+pub fn resolve_client_ip(
+    direct_ip: std::net::IpAddr,
+    forwarded_for: Option<&str>,
+    trusted_proxies: &[ipnetwork::IpNetwork],
+) -> std::net::IpAddr {
+    // Only use X-Forwarded-For if the direct connection is from a trusted proxy
+    let is_trusted = trusted_proxies.iter().any(|net| net.contains(direct_ip));
+    if !is_trusted {
+        return direct_ip;
+    }
+
+    // Parse X-Forwarded-For: "client, proxy1, proxy2"
+    // The leftmost IP is the original client (nginx convention)
+    if let Some(xff) = forwarded_for {
+        for part in xff.split(',') {
+            let candidate = part.trim();
+            if let Ok(ip) = candidate.parse::<std::net::IpAddr>() {
+                // Skip RFC-1918 / loopback IPs that are also trusted proxies
+                let is_proxy = trusted_proxies.iter().any(|net| net.contains(ip));
+                if !is_proxy {
+                    return ip;
+                }
+            }
+        }
+    }
+
+    direct_ip
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -171,16 +261,31 @@ mod tests {
             country_code: "US".to_string(),
             country_name: "United States".to_string(),
             asn: Some(15169),
+            org: Some("Google LLC".to_string()),
+            city: Some("Mountain View".to_string()),
+            region: Some("California".to_string()),
+            region_code: Some("CA".to_string()),
+            latitude: Some(37.386),
+            longitude: Some(-122.0838),
         });
         db.add_range("1.1.1.0/24", GeoIpRecord {
             country_code: "AU".to_string(),
             country_name: "Australia".to_string(),
             asn: Some(13335),
+            org: Some("Cloudflare, Inc.".to_string()),
+            city: None,
+            region: None,
+            region_code: None,
+            latitude: None,
+            longitude: None,
         });
 
         let us = db.lookup("8.8.8.8".parse().unwrap());
         assert!(us.is_some());
-        assert_eq!(us.unwrap().country_code, "US");
+        let us = us.unwrap();
+        assert_eq!(us.country_code, "US");
+        assert_eq!(us.city, Some("Mountain View".to_string()));
+        assert_eq!(us.latitude, Some(37.386));
 
         let au = db.lookup("1.1.1.1".parse().unwrap());
         assert!(au.is_some());

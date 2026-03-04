@@ -33,11 +33,30 @@ impl SubFilter {
         self.types.iter().any(|t| ct == t || t == "*")
     }
 
+    /// Apply the filter. If search starts with `~`, treat as regex pattern.
     pub fn apply(&self, body: &str) -> String {
-        if self.once {
-            body.replacen(&self.search, &self.replace, 1)
+        if let Some(pattern) = self.search.strip_prefix('~') {
+            // Regex mode
+            match Regex::new(pattern) {
+                Ok(re) => {
+                    if self.once {
+                        re.replacen(body, 1, self.replace.as_str()).to_string()
+                    } else {
+                        re.replace_all(body, self.replace.as_str()).to_string()
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!("SubFilter invalid regex '{}': {}", pattern, e);
+                    body.to_string()
+                }
+            }
         } else {
-            body.replace(&self.search, &self.replace)
+            // Literal string mode
+            if self.once {
+                body.replacen(&self.search, &self.replace, 1)
+            } else {
+                body.replace(&self.search, &self.replace)
+            }
         }
     }
 }

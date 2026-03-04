@@ -120,6 +120,9 @@ mod tests {
             try_files: vec![],
             return_directive: None,
             rewrite: vec![],
+            auth_request: None,
+            auth_request_set: std::collections::HashMap::new(),
+            limit_except: Default::default(),
         };
         let block = ServerBlock {
             server_names: vec!["example.com".to_string()],

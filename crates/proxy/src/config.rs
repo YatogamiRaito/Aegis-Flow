@@ -154,6 +154,9 @@ pub struct LogConfig {
     /// Enable JSON format
     #[serde(default)]
     pub json_format: bool,
+    /// Optional syslog destination
+    #[serde(default)]
+    pub syslog: Option<crate::syslog::SyslogConfig>,
 }
 
 fn default_log_level() -> String {
@@ -165,6 +168,7 @@ impl Default for LogConfig {
         Self {
             level: default_log_level(),
             json_format: false,
+            syslog: None,
         }
     }
 }
@@ -260,6 +264,28 @@ fn default_udp_responses() -> usize {
     1
 }
 
+/// Split Clients Bucket element
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SplitClientsBucket {
+    pub percent: f64,
+    pub value: String,
+}
+
+/// Split Clients configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SplitClientsConfig {
+    pub key: String,
+    pub variable: String,
+    pub buckets: Vec<SplitClientsBucket>,
+}
+
+/// Limit Except configuration for Locations
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct LimitExceptConfig {
+    pub methods: Vec<String>,
+    pub deny: String, // "all"
+}
+
 /// Proxy server configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProxyConfig {
@@ -293,6 +319,15 @@ pub struct ProxyConfig {
     /// TCP / UDP Stream Proxies
     #[serde(rename = "stream", default)]
     pub streams: Vec<StreamConfig>,
+    /// Split Clients A/B Routing rules
+    #[serde(rename = "split_clients", default)]
+    pub split_clients: Vec<SplitClientsConfig>,
+    /// Map directive variables
+    #[serde(rename = "map", default)]
+    pub maps: Vec<crate::map_directive::MapConfig>,
+    /// Global location routing rules
+    #[serde(rename = "location", default)]
+    pub locations: Vec<crate::location::LocationBlock>,
 }
 
 fn default_host() -> String {
@@ -318,6 +353,9 @@ impl Default for ProxyConfig {
             logging: LogConfig::default(),
             health: HealthConfig::default(),
             streams: Vec::new(),
+            split_clients: Vec::new(),
+            maps: Vec::new(),
+            locations: Vec::new(),
         }
     }
 }

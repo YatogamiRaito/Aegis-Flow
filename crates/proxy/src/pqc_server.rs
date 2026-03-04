@@ -142,7 +142,8 @@ impl PqcProxyServer {
                                             None,
                                             std::sync::Arc::new(crate::proxy_cache::TtlConfig::new(60)),
                                             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
-                                            None
+                                            None,
+                                            std::sync::Arc::new(Vec::new()),
                                         ).await 
                                     }
                                 });

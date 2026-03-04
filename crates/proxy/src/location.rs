@@ -35,8 +35,14 @@ pub struct LocationBlock {
     pub return_directive: Option<crate::rewrite::ReturnDirective>,
     #[serde(default)]
     pub rewrite: Vec<crate::rewrite::RewriteRule>,
+    pub auth_request: Option<String>,
+    #[serde(default)]
+    pub auth_request_set: std::collections::HashMap<String, String>,
+    #[serde(default)]
+    pub limit_except: crate::config::LimitExceptConfig,
 }
 
+#[derive(Debug)]
 pub struct ParsedLocationBlock {
     pub config: LocationBlock,
     pub regex: Option<Regex>,
@@ -112,7 +118,12 @@ pub fn match_location<'a>(
     if let Some(exact) = exact_match {
         return Some(exact);
     }
-    
+
+    // Guard: if there are no locations, we can't use first() as a fallback
+    if locations.is_empty() {
+        return regex_match;
+    }
+
     // Nginx rule: if the longest prefix match has the "^~" modifier,
     // then regular expressions are not checked.
     // So if preferred_prefix is longer or equal to longest_prefix, use it.
@@ -148,6 +159,9 @@ mod tests {
             try_files: vec![],
             return_directive: None,
             rewrite: vec![],
+            auth_request: None,
+            auth_request_set: std::collections::HashMap::new(),
+            limit_except: crate::config::LimitExceptConfig { methods: vec![], deny: "all".to_string() },
         }).unwrap();
 
         let loc2 = ParsedLocationBlock::parse(LocationBlock {
@@ -158,6 +172,9 @@ mod tests {
             try_files: vec![],
             return_directive: None,
             rewrite: vec![],
+            auth_request: None,
+            auth_request_set: std::collections::HashMap::new(),
+            limit_except: crate::config::LimitExceptConfig { methods: vec![], deny: "all".to_string() },
         }).unwrap();
 
         let loc3 = ParsedLocationBlock::parse(LocationBlock {
@@ -168,6 +185,9 @@ mod tests {
             try_files: vec![],
             return_directive: None,
             rewrite: vec![],
+            auth_request: None,
+            auth_request_set: std::collections::HashMap::new(),
+            limit_except: crate::config::LimitExceptConfig { methods: vec![], deny: "all".to_string() },
         }).unwrap();
 
         let loc4 = ParsedLocationBlock::parse(LocationBlock {
@@ -178,6 +198,9 @@ mod tests {
             try_files: vec![],
             return_directive: None,
             rewrite: vec![],
+            auth_request: None,
+            auth_request_set: std::collections::HashMap::new(),
+            limit_except: crate::config::LimitExceptConfig { methods: vec![], deny: "all".to_string() },
         }).unwrap();
 
         let locs = vec![loc1, loc2, loc3, loc4];

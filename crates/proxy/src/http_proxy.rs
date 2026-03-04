@@ -44,6 +44,8 @@ pub struct HttpProxyConfig {
     pub acme_manager: Option<std::sync::Arc<crate::acme::AcmeManager>>,
     /// TLS Config for native HTTPS termination and on-demand TLS
     pub tls_server_config: Option<std::sync::Arc<rustls::ServerConfig>>,
+    /// Global locations passed from ProxyConfig
+    pub locations: Vec<crate::location::LocationBlock>,
 }
 
 impl Default for HttpProxyConfig {
@@ -61,6 +63,7 @@ impl Default for HttpProxyConfig {
             cache_ttl_default: 60,
             acme_manager: None,
             tls_server_config: None,
+            locations: Vec::new(),
         }
     }
 }
@@ -72,6 +75,7 @@ pub struct HttpProxy {
     memory_cache: Option<std::sync::Arc<crate::proxy_cache::MemoryCache>>,
     ttl_config: std::sync::Arc<crate::proxy_cache::TtlConfig>,
     bypass_check: std::sync::Arc<crate::proxy_cache::BypassCheck>,
+    locations: std::sync::Arc<Vec<crate::location::ParsedLocationBlock>>,
 }
 
 impl HttpProxy {
@@ -87,8 +91,18 @@ impl HttpProxy {
 
         let ttl_config = std::sync::Arc::new(crate::proxy_cache::TtlConfig::new(config.cache_ttl_default));
         let bypass_check = std::sync::Arc::new(crate::proxy_cache::BypassCheck::default());
+        
+        // Parse locations and cache regex structures ahead of time
+        let mut parsed_locations = Vec::new();
+        for loc_cfg in &config.locations {
+            match crate::location::ParsedLocationBlock::parse(loc_cfg.clone()) {
+                Ok(parsed) => parsed_locations.push(parsed),
+                Err(e) => tracing::error!("❌ Failed to parse Location regex '{}': {}", loc_cfg.path, e),
+            }
+        }
+        let locations = std::sync::Arc::new(parsed_locations);
 
-        Self { config, static_server, memory_cache, ttl_config, bypass_check }
+        Self { config, static_server, memory_cache, ttl_config, bypass_check, locations }
     }
 
     /// Run the proxy server
@@ -131,19 +145,22 @@ impl HttpProxy {
                             let bypass_check = self.bypass_check.clone();
                             let acme_manager = self.config.acme_manager.clone();
                             let tls_cfg = self.config.tls_server_config.clone();
+                            let locations = self.locations.clone();
 
                             tokio::spawn(async move {
                                 debug!("📥 HTTP/2 connection from {}", peer_addr);
 
                                 let acme_manager_svc = acme_manager.clone();
+                                let locations_svc = locations.clone();
                                 let service = service_fn(move |req| {
                                     let upstream = upstream.clone();
                                     let static_server = static_server.clone();
                                     let memory_cache = memory_cache.clone();
                                     let ttl_config = ttl_config.clone();
                                     let bypass_check = bypass_check.clone();
-                                    let acme_manager = acme_manager_svc.clone();
-                                    async move { handle_request(req, &upstream, static_server, memory_cache, ttl_config, bypass_check, acme_manager).await }
+                                    let acme_manager_req = acme_manager_svc.clone();
+                                    let locations_req = locations_svc.clone();
+                                    async move { handle_request(req, &upstream, static_server, memory_cache, ttl_config, bypass_check, acme_manager_req, locations_req).await }
                                 });
 
                                 if let Some(config) = tls_cfg {
@@ -228,16 +245,29 @@ pub(crate) async fn handle_request<B>(
     ttl_config: std::sync::Arc<crate::proxy_cache::TtlConfig>,
     bypass_check: std::sync::Arc<crate::proxy_cache::BypassCheck>,
     acme_manager: Option<std::sync::Arc<crate::acme::AcmeManager>>,
+    locations: std::sync::Arc<Vec<crate::location::ParsedLocationBlock>>,
 ) -> Result<Response<BoxBody<Bytes, BoxError>>, hyper::Error>
 where
     B: hyper::body::Body + Send + 'static,
     B::Data: Send,
     B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
 {
-    let start = Instant::now();
+    let start = std::time::Instant::now();
     let method = req.method().clone();
     let uri = req.uri().clone();
     let headers = req.headers().clone();
+
+    // Stub Status request tracking
+    crate::stub_status::get_metrics().requests.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    crate::stub_status::get_metrics().reading.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
+    // Aegis internal Stub Status endpoint routing
+    if uri.path() == "/.well-known/aegis_status" {
+        return Ok(crate::stub_status::generate_stub_status_text().map(|b| b.map_err(|never| match never {}).boxed()));
+    }
+    if uri.path() == "/.well-known/aegis_status/json" {
+        return Ok(crate::stub_status::generate_stub_status_json().map(|b| b.map_err(|never| match never {}).boxed()));
+    }
 
     if let Some(am) = &acme_manager {
         if let Some(key_auth) = am.check_http_challenge(uri.path()) {
@@ -252,6 +282,34 @@ where
 
     if crate::websocket::is_websocket_upgrade(&req) {
         return crate::websocket::handle_websocket_upgrade(req, upstream).await;
+    }
+    
+    // Limit Except / Method Access Control Phase
+    if let Some(matched_location) = crate::location::match_location(&locations, uri.path()) {
+        if let Some(response) = crate::limit_except::check_method(&matched_location.config.limit_except, &req) {
+            let status_code = response.status().as_u16();
+            let duration = start.elapsed().as_secs_f64();
+            metrics::record_request(method.as_str(), uri.path(), status_code, duration);
+            return Ok(response.map(|b| b.map_err(|never| match never {}).boxed()));
+        }
+
+        if let Some(auth_uri) = &matched_location.config.auth_request {
+            match crate::auth_request::check_subrequest(&req, auth_uri, &matched_location.config.auth_request_set).await {
+                crate::auth_request::AuthResult::Allowed(_injected_headers) => {
+                    // Inject mapped downstream headers into the proxy request (optional, usually auth_request_set
+                    // propagates values to backend, but we'll adapt HTTP req headers if needed later)
+                    // Currently we just allow to pass through
+                }
+                crate::auth_request::AuthResult::Denied(resp) | crate::auth_request::AuthResult::Error(resp) => {
+                    let status_code = resp.status().as_u16();
+                    let duration = start.elapsed().as_secs_f64();
+                    metrics::record_request(method.as_str(), uri.path(), status_code, duration);
+                    
+                    let mapped_resp = resp.map(|b: http_body_util::Full<bytes::Bytes>| b.map_err(|never| match never {}).boxed());
+                    return Ok(mapped_resp);
+                }
+            }
+        }
     }
 
     let body_bytes = match req.collect().await {
@@ -806,6 +864,7 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::TtlConfig::new(60)),
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
+            std::sync::Arc::new(vec![]),
         ).await.unwrap();
 
         assert_eq!(resp.status(), StatusCode::OK);
@@ -829,6 +888,7 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::TtlConfig::new(60)),
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
+            std::sync::Arc::new(vec![]),
         ).await.unwrap();
         // Unknown paths are forwarded to upstream; when upstream is unreachable, returns BAD_GATEWAY
         assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
@@ -859,6 +919,7 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::TtlConfig::new(60)),
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
+            std::sync::Arc::new(vec![]),
         ).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
     }
@@ -911,6 +972,7 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::TtlConfig::new(60)),
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
+            std::sync::Arc::new(vec![]),
         ).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
     }
@@ -932,6 +994,7 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::TtlConfig::new(60)),
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
+            std::sync::Arc::new(vec![]),
         ).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
@@ -960,6 +1023,7 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::TtlConfig::new(60)),
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
+            std::sync::Arc::new(vec![]),
         ).await.unwrap();
             // OPTIONS returns 200 (CORS preflight), others forward to upstream and fail with BAD_GATEWAY
             if method == Method::OPTIONS {
@@ -989,6 +1053,7 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::TtlConfig::new(60)),
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
+            std::sync::Arc::new(vec![]),
         ).await.unwrap();
         // Forwards to upstream; when unreachable, returns BAD_GATEWAY
         assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
@@ -1011,6 +1076,7 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::TtlConfig::new(60)),
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
+            std::sync::Arc::new(vec![]),
         ).await.unwrap();
         // Forwards to upstream; when unreachable, returns BAD_GATEWAY
         assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
@@ -1033,6 +1099,7 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::TtlConfig::new(60)),
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
+            std::sync::Arc::new(vec![]),
         ).await.unwrap();
         // Forwards to upstream; when unreachable, returns BAD_GATEWAY
         assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
@@ -1062,6 +1129,7 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::TtlConfig::new(60)),
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
+            std::sync::Arc::new(vec![]),
         ).await.unwrap();
         // Forwards to upstream; when unreachable, returns BAD_GATEWAY
         assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
@@ -1116,6 +1184,7 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::TtlConfig::new(60)),
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
+            std::sync::Arc::new(vec![]),
         ).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         let body_bytes = resp.into_body().collect().await.unwrap().to_bytes();
@@ -1141,6 +1210,7 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::TtlConfig::new(60)),
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
+            std::sync::Arc::new(vec![]),
         ).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         let body = resp.into_body().collect().await.unwrap().to_bytes();
@@ -1159,6 +1229,7 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::TtlConfig::new(60)),
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
+            std::sync::Arc::new(vec![]),
         ).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         let body = resp.into_body().collect().await.unwrap().to_bytes();
@@ -1177,6 +1248,7 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::TtlConfig::new(60)),
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
+            std::sync::Arc::new(vec![]),
         ).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
@@ -1194,6 +1266,7 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::TtlConfig::new(60)),
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
+            std::sync::Arc::new(vec![]),
         ).await.unwrap();
         // When upstream is unreachable, returns BAD_GATEWAY with error JSON
         assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
@@ -1232,6 +1305,7 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::TtlConfig::new(60)),
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
+            std::sync::Arc::new(vec![]),
         ).await.unwrap();
 
             // OPTIONS returns 200 (CORS preflight), others forward to upstream and fail with BAD_GATEWAY

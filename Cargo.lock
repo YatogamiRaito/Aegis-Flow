@@ -120,6 +120,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "aegis-mail"
+version = "0.14.0"
+dependencies = [
+ "anyhow",
+ "base64",
+ "bytes",
+ "reqwest 0.12.28",
+ "rustls",
+ "rustls-pemfile",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-rustls",
+ "tracing",
+]
+
+[[package]]
 name = "aegis-plugins"
 version = "0.14.0"
 dependencies = [
@@ -177,6 +195,7 @@ dependencies = [
  "futures-util",
  "h3",
  "hex",
+ "hostname",
  "html-escape",
  "http-body",
  "http-body-util",
@@ -190,6 +209,7 @@ dependencies = [
  "metrics",
  "metrics-exporter-prometheus",
  "moka",
+ "murmur3",
  "num_cpus",
  "once_cell",
  "parking_lot",
@@ -2433,6 +2453,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "hostname"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "617aaa3557aef3810a6369d0a99fac8a080891b68bd9f9812a1eeda0c0730cbd"
+dependencies = [
+ "cfg-if",
+ "libc",
+ "windows-link",
+]
+
+[[package]]
 name = "html-escape"
 version = "0.2.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3208,6 +3239,12 @@ dependencies = [
  "tagptr",
  "uuid",
 ]
+
+[[package]]
+name = "murmur3"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9252111cf132ba0929b6f8e030cac2a24b507f3a4d6db6fb2896f27b354c714b"
 
 [[package]]
 name = "nix"

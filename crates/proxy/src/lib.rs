@@ -60,7 +60,15 @@ pub mod udp_proxy;
 pub mod proxy_protocol;
 pub mod fastcgi;
 pub mod scgi;
+pub mod auth_request;
+pub mod stub_status;
 pub mod acme;
+pub mod split_clients;
+pub mod limit_except;
+pub mod syslog;
+pub mod image_filter;
+pub mod ssi;
+pub mod xslt;
 pub use carbon_router::{CarbonRouter, CarbonRouterConfig, RegionScore};
 pub use config::{
     ConfigError, ConfigFormat, ConfigManager, HealthConfig, LogConfig, ProxyConfig, TlsConfig,
