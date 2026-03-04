@@ -147,35 +147,38 @@ This file tracks all major tracks for the project. Each track has its own detail
 ---
 
 ## [x] Track 25: Dynamic Configuration API (v0.25.0)
-*Link: [./tracks/dynamic_config_api_20260302/](./tracks/dynamic_config_api_20260302/)*
-*Priority: 11 - REST admin API, runtime config CRUD, versioning & rollback*
+*Link: [./conductor/tracks/dynamic_config_api_20260302/](./conductor/tracks/dynamic_config_api_20260302/)*
+*Priority: 6 - Caddy-like REST API for zero-downtime config changes*
+*Audit Score: 1.5/10 → Hardening track created*
 
 ---
 
 ## [x] Track 26: Advanced Request Processing (v0.26.0)
-*Link: [./tracks/advanced_request_processing_20260302/](./tracks/advanced_request_processing_20260302/)*
-*Priority: 12 - map directive, split_clients A/B, auth_request, traffic mirroring*
-*Status: Complete — split_clients MurmurHash3 A/B, auth_request subrequest, limit_except method ACL, stub_status metrics endpoint. All 634 tests pass.*
+*Link: [./conductor/tracks/advanced_request_processing_20260302/](./conductor/tracks/advanced_request_processing_20260302/)*
+*Priority: 5 - Nginx-like traffic splitting, mirroring, and subrequests*
+*Audit Score: 4.5/10 → Hardening track created*
 
 ---
 
 ## [x] Track 27: Response Transformation & Logging Extensions (v0.27.0)
-*Link: [./tracks/response_transform_20260302/](./tracks/response_transform_20260302/)*
+*Link: [./conductor/tracks/response_transform_20260302/](./conductor/tracks/response_transform_20260302/)*
 *Priority: 13 - sub_filter body rewriting, syslog, SSI, image filter*
-*Status: Complete — regex sub_filter, RFC 5424 syslog (UDP/TCP), SSI directive parsing, image_filter passthrough. 641 tests pass.*
+*Audit Score: 4.0/10 → Hardening track created*
 
 ---
 
 ## [x] Track 28: Multi-Worker Architecture (v0.28.0)
-*Link: [./tracks/multi_worker_20260302/](./tracks/multi_worker_20260302/)*
+*Link: [./conductor/tracks/multi_worker_20260302/](./conductor/tracks/multi_worker_20260302/)*
 *Priority: 14 - Master + N workers, SO_REUSEPORT, hot binary upgrade*
+*Audit Score: 1.5/10 → Hardening track created*
+*Audit Score: 1.5/10 → Hardening track created*
 
 ---
 
 ## [x] Track 29: GeoIP Routing & Mail Proxy (v0.29.0)
-*Link: [./tracks/geoip_mail_20260302/](./tracks/geoip_mail_20260302/)*
+*Link: [./conductor/tracks/geoip_mail_20260302/](./conductor/tracks/geoip_mail_20260302/)*
 *Priority: 14 - GeoIP MMDB lookup, geo directive, SMTP/IMAP/POP3 mail proxy*
-*Status: Complete — geoip.rs enhanced (city/region/lat/lon/ASN/org, MMDB hot-reload, proxy_recursive), aegis-mail crate (smtp, imap, pop3, mail_auth). 29 mail + 650 proxy tests pass.*
+*Audit Score: 4.5/10 → Hardening track created*
 
 ---
 
@@ -316,3 +319,44 @@ This file tracks all major tracks for the project. Each track has its own detail
 *Link: [./conductor/tracks/aegisfile_config_hardening_20260304/](./conductor/tracks/aegisfile_config_hardening_20260304/)*
 *Priority: 4 - Integrate Aegisfile parsing into main lifecycle and CLI*
 *Audit Score: 4.0/10 → Target 10/10*
+
+---
+
+## [ ] Track 50: Dynamic Config API Hardening (v0.50.0)
+*Link: [./conductor/tracks/dynamic_config_api_hardening_20260304/](./conductor/tracks/dynamic_config_api_hardening_20260304/)*
+*Priority: 4 - Zero-downtime live configuration injection via ArcSwap*
+*Audit Score: 1.5/10 → Target 10/10*
+
+---
+
+## [ ] Track 51: Advanced Request Processing Hardening (v0.51.0)
+*Link: [./conductor/tracks/advanced_request_processing_hardening_20260304/](./conductor/tracks/advanced_request_processing_hardening_20260304/)*
+*Priority: 4 - String interpolation / Variable Context evaluation engine*
+*Audit Score: 4.5/10 → Target 10/10*
+
+---
+
+## [ ] Track 52: Response Transformation & Logging Hardening (v0.52.0)
+*Link: [./conductor/tracks/response_transform_hardening_20260304/](./conductor/tracks/response_transform_hardening_20260304/)*
+*Priority: 4 - Response Middleware, body buffering and interception pipeline*
+*Audit Score: 4.0/10 → Target 10/10*
+
+---
+
+## [ ] Track 53: Multi-Worker Architecture Hardening (v0.53.0)
+*Link: [./conductor/tracks/multi_worker_hardening_20260304/](./conductor/tracks/multi_worker_hardening_20260304/)*
+*Priority: 4 - Master-Worker daemon fork, SO_REUSEPORT, SIGHUP reload*
+*Audit Score: 1.5/10 → Target 10/10*
+
+---
+
+## [ ] Track 54: GeoIP Routing & Mail Proxy Hardening (v0.54.0)
+*Link: [./conductor/tracks/geoip_mail_hardening_20260304/](./conductor/tracks/geoip_mail_hardening_20260304/)*
+*Priority: 4 - Mail server port binding, GeoIP HTTP injection*
+*Audit Score: 4.5/10 → Target 10/10*
+
+---
+
+## [ ] Track 55: Real TEE Attestation Integration (v0.55.0)
+*Link: [./conductor/tracks/tee_real_attestation_20260304/](./conductor/tracks/tee_real_attestation_20260304/)*
+*Priority: 1 - Replace mock SGX/TDX/SEV-SNP/TrustZone stubs with real hardware-backed backends via Gramine FS API, VirTEE sev crate, OP-TEE; add HTTP attestation proxy endpoints*

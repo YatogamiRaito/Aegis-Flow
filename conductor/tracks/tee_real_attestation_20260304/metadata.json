@@ -1,0 +1,8 @@
+{
+  "track_id": "tee_real_attestation_20260304",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-03-04T14:51:55Z",
+  "updated_at": "2026-03-04T14:51:55Z",
+  "description": "Replace mock TEE attestation stubs with real hardware-backed backends for Intel SGX/TDX (Gramine FS API), AMD SEV-SNP (VirTEE sev crate), and ARM TrustZone (OP-TEE), gated behind the tee-real Cargo feature flag. Includes HTTP proxy endpoints for quote generation and verification."
+}
