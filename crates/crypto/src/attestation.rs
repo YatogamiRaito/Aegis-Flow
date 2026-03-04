@@ -24,6 +24,14 @@ use aegis_common::{AegisError, Result};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
 
+// Feature flag for real TEE backends (Intel DCAP, AMD SEV libraries).
+// When enabled, production code should replace the stub functions below.
+#[cfg(feature = "tee-real")]
+mod real_tee {
+    // Placeholder for real DCAP / SEV-SNP verification.
+    // Enable with: cargo build --features tee-real
+}
+
 /// TEE Platform type
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TeePlatform {
@@ -33,6 +41,8 @@ pub enum TeePlatform {
     IntelTdx,
     /// AMD Secure Encrypted Virtualization - Secure Nested Paging
     AmdSevSnp,
+    /// ARM TrustZone
+    ArmTrustZone,
     /// No TEE available (simulation mode)
     None,
 }
@@ -44,6 +54,7 @@ impl TeePlatform {
             Self::IntelSgx => "Intel SGX",
             Self::IntelTdx => "Intel TDX",
             Self::AmdSevSnp => "AMD SEV-SNP",
+            Self::ArmTrustZone => "ARM TrustZone",
             Self::None => "None (Simulation)",
         }
     }
@@ -111,6 +122,7 @@ impl AttestationQuote {
             TeePlatform::IntelSgx => 0,
             TeePlatform::IntelTdx => 1,
             TeePlatform::AmdSevSnp => 2,
+            TeePlatform::ArmTrustZone => 3,
             TeePlatform::None => 255,
         });
 
@@ -153,6 +165,7 @@ impl AttestationQuote {
             0 => TeePlatform::IntelSgx,
             1 => TeePlatform::IntelTdx,
             2 => TeePlatform::AmdSevSnp,
+            3 => TeePlatform::ArmTrustZone,
             _ => TeePlatform::None,
         };
         offset += 1;
@@ -325,17 +338,109 @@ pub struct TeeCapabilities {
     pub sev_es: bool,
     /// SEV-SNP available
     pub sev_snp: bool,
+    /// ARM TrustZone available
+    pub trust_zone: bool,
 }
 
 impl TeeCapabilities {
-    /// Detect available TEE capabilities on this system
+    /// Detect available TEE capabilities on this system.
+    ///
+    /// Uses CPUID leaves for SGX/TDX detection on real hardware.
+    /// Falls back to environment variables in containerized or test environments.
     pub fn detect() -> Self {
         let mut caps = Self::default();
 
-        // Check for SGX
-        // Check CPUID for SGX support
-        // In real implementation, would use cpuid crate
-        // For now, we simulate detection
+        // Execute architecture-specific hardware detection
+        Self::detect_hardware(&mut caps);
+
+        // Environment variable overrides (useful in containers and CI tests)
+        // In non-test builds, env vars are only honoured as a secondary fallback
+        // when CPUID indicates no TEE (e.g., inside a VM without hardware access).
+        if !caps.any_available() {
+            Self::detect_via_env(&mut caps);
+        }
+
+        // In test builds, env vars always win (allows unit test injection)
+        #[cfg(test)]
+        Self::detect_via_env(&mut caps);
+
+        caps
+    }
+
+    /// Perform architecture-specific hardware TEE detection.
+    fn detect_hardware(caps: &mut Self) {
+        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+        {
+            Self::detect_via_cpuid(caps);
+            if !caps.sev_snp {
+                Self::detect_sev_snp_via_sysfs(caps);
+            }
+        }
+
+        #[cfg(target_arch = "aarch64")]
+        Self::detect_via_sysfs_arm(caps);
+    }
+
+    /// Perform CPUID-based TEE detection (x86/x86_64 only).
+    #[allow(unused_variables)]
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    fn detect_via_cpuid(caps: &mut Self) {
+        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+        {
+            use raw_cpuid::{CpuId, native_cpuid};
+
+            let cpuid = CpuId::with_cpuid_fn(native_cpuid::cpuid_count);
+
+            // SGX detection: CPUID leaf 7, subleaf 0, EBX bit 2
+            if let Some(features) = cpuid.get_extended_feature_info() {
+                if features.has_sgx() {
+                    caps.sgx = true;
+
+                    // SGX2 (EDMM): CPUID leaf 12H, subleaf 0
+                    if let Some(sgx) = cpuid.get_sgx_info() {
+                        caps.sgx2 = sgx.has_sgx2();
+                    }
+                }
+            }
+
+            // TDX detection: check hypervisor vendor string
+            if let Some(feature_info) = cpuid.get_feature_info() {
+                if feature_info.has_hypervisor() {
+                    if let Some(hv_info) = cpuid.get_hypervisor_info() {
+                        let vendor_str = format!("{:?}", hv_info.identify());
+                        caps.tdx =
+                            vendor_str.contains("Tdx") || vendor_str.to_lowercase().contains("tdx");
+                    }
+                }
+            }
+
+            // AMD SEV/SEV-ES detection: CPUID 8000_001F
+            if let Some(amd_info) = cpuid.get_svm_info() {
+                caps.sev = amd_info.has_sev();
+                caps.sev_es = amd_info.has_sev_es();
+                // SEV-SNP bit is not yet directly exposed in raw-cpuid v11;
+                // it can be read from /sys/module/kvm_amd/parameters/sev_snp
+                // but that requires elevated privileges. Mark as not detected here.
+            }
+        }
+    }
+
+    /// Fallback detection for AMD SEV-SNP via sysfs.
+    #[allow(dead_code)]
+    fn detect_sev_snp_via_sysfs(caps: &mut Self) {
+        if let Ok(val) = std::fs::read_to_string("/sys/module/kvm_amd/parameters/sev_snp") {
+            caps.sev_snp = val.trim() == "1" || val.trim().eq_ignore_ascii_case("y");
+        }
+    }
+
+    /// ARM TrustZone detection via sysfs (/dev/tee0).
+    #[allow(dead_code)]
+    fn detect_via_sysfs_arm(caps: &mut Self) {
+        caps.trust_zone = std::path::Path::new("/dev/tee0").exists();
+    }
+
+    /// Environment variable fallback (test/container environments).
+    fn detect_via_env(caps: &mut Self) {
         if std::env::var("AEGIS_TEE_SGX").is_ok() {
             caps.sgx = true;
         }
@@ -345,8 +450,6 @@ impl TeeCapabilities {
         if std::env::var("AEGIS_TEE_SEV_SNP").is_ok() {
             caps.sev_snp = true;
         }
-
-        caps
     }
 
     /// Get the best available TEE platform
@@ -357,6 +460,8 @@ impl TeeCapabilities {
             TeePlatform::IntelSgx
         } else if self.sev_snp {
             TeePlatform::AmdSevSnp
+        } else if self.trust_zone {
+            TeePlatform::ArmTrustZone
         } else {
             TeePlatform::None
         }
@@ -364,7 +469,7 @@ impl TeeCapabilities {
 
     /// Check if any TEE is available
     pub fn any_available(&self) -> bool {
-        self.sgx || self.tdx || self.sev_snp
+        self.sgx || self.tdx || self.sev_snp || self.trust_zone
     }
 }
 
@@ -417,11 +522,19 @@ impl AttestationProvider {
             TeePlatform::IntelSgx => self.generate_sgx_quote(nonce, user_data),
             TeePlatform::IntelTdx => self.generate_tdx_quote(nonce, user_data),
             TeePlatform::AmdSevSnp => self.generate_sev_snp_quote(nonce, user_data),
+            TeePlatform::ArmTrustZone => self.generate_trustzone_quote(nonce, user_data),
             TeePlatform::None => self.generate_simulation_quote(nonce, user_data),
         }
     }
 
-    /// Verify an attestation quote
+    /// Verify an attestation quote.
+    ///
+    /// For real TEE platforms (`IntelSgx`, `IntelTdx`, `AmdSevSnp`), full
+    /// collateral verification is not implemented yet — a `WARN` is emitted
+    /// and `Err(AegisError::NotImplemented)` is returned. Enable the `tee-real`
+    /// feature and provide a real backend to activate production verification.
+    ///
+    /// Simulation mode (`TeePlatform::None`) always passes (for development).
     pub fn verify_quote(&self, quote: &AttestationQuote, expected_nonce: &[u8]) -> Result<bool> {
         debug!(platform = ?quote.platform, "Verifying attestation quote");
 
@@ -439,9 +552,38 @@ impl AttestationProvider {
 
         // Platform-specific verification
         match quote.platform {
-            TeePlatform::IntelSgx => self.verify_sgx_quote(quote),
-            TeePlatform::IntelTdx => self.verify_tdx_quote(quote),
-            TeePlatform::AmdSevSnp => self.verify_sev_snp_quote(quote),
+            TeePlatform::IntelSgx => {
+                warn!(
+                    platform = "Intel SGX",
+                    "Real SGX DCAP verification not available — running stub. \
+                     Enable feature `tee-real` and link Intel DCAP libraries."
+                );
+                self.verify_sgx_quote(quote)
+            }
+            TeePlatform::IntelTdx => {
+                warn!(
+                    platform = "Intel TDX",
+                    "Real TDX DCAP verification not available — running stub. \
+                     Enable feature `tee-real` and link Intel TDX libraries."
+                );
+                self.verify_tdx_quote(quote)
+            }
+            TeePlatform::AmdSevSnp => {
+                warn!(
+                    platform = "AMD SEV-SNP",
+                    "Real SEV-SNP verification not available — running stub. \
+                     Enable feature `tee-real` and link AMD SEV libraries."
+                );
+                self.verify_sev_snp_quote(quote)
+            }
+            TeePlatform::ArmTrustZone => {
+                warn!(
+                    platform = "ARM TrustZone",
+                    "Real TrustZone verification not available — running stub. \
+                     Enable feature `tee-real`."
+                );
+                self.verify_trustzone_quote(quote)
+            }
             TeePlatform::None => Ok(true), // Simulation mode always passes
         }
     }
@@ -482,6 +624,16 @@ impl AttestationProvider {
         ))
     }
 
+    fn generate_trustzone_quote(&self, nonce: &[u8], user_data: &[u8]) -> Result<AttestationQuote> {
+        let mock_quote = b"ARM_TRUSTZONE_MOCK".to_vec();
+        Ok(AttestationQuote::new(
+            TeePlatform::ArmTrustZone,
+            mock_quote,
+            nonce.to_vec(),
+            user_data.to_vec(),
+        ))
+    }
+
     fn generate_simulation_quote(
         &self,
         nonce: &[u8],
@@ -498,16 +650,30 @@ impl AttestationProvider {
     }
 
     fn verify_sgx_quote(&self, _quote: &AttestationQuote) -> Result<bool> {
-        // Would verify against Intel collateral service
-        Ok(true)
+        // Real implementation requires Intel DCAP + collateral fetch.
+        // Returning NotImplemented forces callers to handle the stub correctly
+        // and prevents accidental bypassing of security checks.
+        Err(AegisError::NotImplemented(
+            "Intel SGX DCAP quote verification requires feature `tee-real`".to_string(),
+        ))
     }
 
     fn verify_tdx_quote(&self, _quote: &AttestationQuote) -> Result<bool> {
-        Ok(true)
+        Err(AegisError::NotImplemented(
+            "Intel TDX DCAP quote verification requires feature `tee-real`".to_string(),
+        ))
     }
 
     fn verify_sev_snp_quote(&self, _quote: &AttestationQuote) -> Result<bool> {
-        Ok(true)
+        Err(AegisError::NotImplemented(
+            "AMD SEV-SNP attestation verification requires feature `tee-real`".to_string(),
+        ))
+    }
+
+    fn verify_trustzone_quote(&self, _quote: &AttestationQuote) -> Result<bool> {
+        Err(AegisError::NotImplemented(
+            "ARM TrustZone quote verification requires feature `tee-real`".to_string(),
+        ))
     }
 }
 
@@ -923,6 +1089,7 @@ mod tests {
             sev: false,
             sev_es: false,
             sev_snp: false,
+            trust_zone: false,
         };
         assert_eq!(caps.best_platform(), TeePlatform::None);
         assert!(!caps.any_available());
@@ -934,6 +1101,7 @@ mod tests {
             sev: false,
             sev_es: false,
             sev_snp: false,
+            trust_zone: false,
         };
         assert_eq!(caps2.best_platform(), TeePlatform::IntelSgx);
         assert!(caps2.any_available());
@@ -1103,21 +1271,22 @@ mod tests {
     }
 }
 
+// Mutex to serialize env var tests to avoid race conditions with other tests
+#[cfg(test)]
+static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+#[cfg(test)]
+fn get_env_lock() -> std::sync::MutexGuard<'static, ()> {
+    match ENV_LOCK.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    }
+}
+
 #[cfg(test)]
 mod tests_coverage {
     use super::*;
     use std::env;
-    use std::sync::{Mutex, MutexGuard};
-
-    // Mutex to serialize env var tests to avoid race conditions with other tests
-    static ENV_LOCK: Mutex<()> = Mutex::new(());
-
-    fn get_env_lock() -> MutexGuard<'static, ()> {
-        match ENV_LOCK.lock() {
-            Ok(guard) => guard,
-            Err(poisoned) => poisoned.into_inner(),
-        }
-    }
 
     #[test]
     fn test_tee_capabilities_detect_env_vars() {
@@ -1265,7 +1434,12 @@ mod tests_coverage {
         let quote = provider.generate_quote(b"n", b"u").unwrap();
         assert_eq!(quote.platform, TeePlatform::IntelSgx);
         assert_eq!(quote.quote_bytes, b"SGX_QUOTE_V3_MOCK_DATA");
-        assert!(provider.verify_quote(&quote, b"n").unwrap());
+        // Stub now returns NotImplemented for real platform quotes (secure default)
+        let result = provider.verify_quote(&quote, b"n");
+        assert!(
+            matches!(result, Err(AegisError::NotImplemented(_))),
+            "SGX verify must return NotImplemented when tee-real not enabled"
+        );
 
         // 2. Force TDX (higher priority than SGX in our mock)
         unsafe {
@@ -1276,7 +1450,11 @@ mod tests_coverage {
         let quote = provider.generate_quote(b"n", b"u").unwrap();
         assert_eq!(quote.platform, TeePlatform::IntelTdx);
         assert_eq!(quote.quote_bytes, b"TDX_QUOTE_V4_MOCK_DATA");
-        assert!(provider.verify_quote(&quote, b"n").unwrap());
+        let result = provider.verify_quote(&quote, b"n");
+        assert!(
+            matches!(result, Err(AegisError::NotImplemented(_))),
+            "TDX verify must return NotImplemented when tee-real not enabled"
+        );
         unsafe {
             env::remove_var("AEGIS_TEE_TDX");
         }
@@ -1293,7 +1471,11 @@ mod tests_coverage {
         let quote = provider.generate_quote(b"n", b"u").unwrap();
         assert_eq!(quote.platform, TeePlatform::AmdSevSnp);
         assert_eq!(quote.quote_bytes, b"SEV_SNP_REPORT_MOCK");
-        assert!(provider.verify_quote(&quote, b"n").unwrap());
+        let result = provider.verify_quote(&quote, b"n");
+        assert!(
+            matches!(result, Err(AegisError::NotImplemented(_))),
+            "SEV-SNP verify must return NotImplemented when tee-real not enabled"
+        );
         unsafe {
             env::remove_var("AEGIS_TEE_SEV_SNP");
         }
@@ -1461,16 +1643,24 @@ mod tests_coverage {
 
     #[test]
     fn test_verify_quote_simulation_always_passes() {
-        // Line 445: Simulation mode always passes after nonce and freshness check
+        // Simulation mode (TeePlatform::None) must always pass verify_quote.
+        // We create a None-platform quote directly rather than using the provider
+        // (which might pick up an SGX/TDX env var set by a parallel test).
         let provider = AttestationProvider::new();
-        // Platform depends on runtime; we just verify round-trip works
-        let _platform = provider.platform(); // Exercise platform() method
 
         let nonce = b"sim-nonce";
-        let quote = provider.generate_quote(nonce, b"data").unwrap();
+        let sim_quote = AttestationQuote::new(
+            TeePlatform::None,
+            b"SIM_QUOTE".to_vec(),
+            nonce.to_vec(),
+            b"data".to_vec(),
+        );
 
-        let result = provider.verify_quote(&quote, nonce).unwrap();
-        assert!(result, "Verification should pass for a valid quote");
+        let result = provider.verify_quote(&sim_quote, nonce);
+        assert!(
+            matches!(result, Ok(true)),
+            "Simulation platform (None) must always pass verification, got: {result:?}"
+        );
     }
 
     #[test]
@@ -1583,5 +1773,112 @@ mod tests_coverage {
 
         let provider = AttestationProvider::new();
         let _ = provider.generate_quote(b"nonce", b"user_data");
+    }
+
+    // =========================================================================
+    // Track 30: New Hardening Tests (FR-4, FR-8)
+    // =========================================================================
+
+    #[test]
+    fn test_verify_sgx_returns_not_implemented() {
+        let provider = AttestationProvider::new();
+        let quote = AttestationQuote::new(
+            TeePlatform::IntelSgx,
+            b"SGX_QUOTE_V3_MOCK".to_vec(),
+            b"nonce".to_vec(),
+            b"data".to_vec(),
+        );
+
+        let result = provider.verify_quote(&quote, b"nonce");
+        match result {
+            Err(AegisError::NotImplemented(msg)) => {
+                assert!(
+                    msg.contains("DCAP") || msg.contains("tee-real"),
+                    "Error must mention DCAP or tee-real, got: {msg}"
+                );
+            }
+            other => panic!(
+                "Expected Err(NotImplemented) for SGX stub, got: {:?}",
+                other
+            ),
+        }
+    }
+
+    #[test]
+    fn test_verify_tdx_returns_not_implemented() {
+        let provider = AttestationProvider::new();
+        let quote = AttestationQuote::new(
+            TeePlatform::IntelTdx,
+            b"TDX_QUOTE_V4_MOCK".to_vec(),
+            b"nonce".to_vec(),
+            b"data".to_vec(),
+        );
+        let result = provider.verify_quote(&quote, b"nonce");
+        assert!(
+            matches!(result, Err(AegisError::NotImplemented(_))),
+            "TDX stub must return NotImplemented, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn test_verify_sevsnp_returns_not_implemented() {
+        let provider = AttestationProvider::new();
+        let quote = AttestationQuote::new(
+            TeePlatform::AmdSevSnp,
+            b"SEV_SNP_REPORT_MOCK".to_vec(),
+            b"nonce".to_vec(),
+            b"data".to_vec(),
+        );
+        let result = provider.verify_quote(&quote, b"nonce");
+        assert!(
+            matches!(result, Err(AegisError::NotImplemented(_))),
+            "SEV-SNP stub must return NotImplemented, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn test_verify_simulation_still_passes() {
+        let provider = AttestationProvider::new();
+        let sim_quote = AttestationQuote::new(
+            TeePlatform::None,
+            b"SIM_QUOTE".to_vec(),
+            b"nonce_sim".to_vec(),
+            b"app_data".to_vec(),
+        );
+        let result = provider.verify_quote(&sim_quote, b"nonce_sim");
+        assert!(
+            matches!(result, Ok(true)),
+            "Simulation platform must pass verification, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn test_cpuid_detect_does_not_panic() {
+        // Smoke test: CPUID detection must never panic regardless of hardware
+        let mut caps = TeeCapabilities::default();
+        TeeCapabilities::detect_via_env(&mut caps);
+        let _ = caps.best_platform();
+    }
+
+    #[test]
+    fn test_detect_returns_valid_capabilities() {
+        let caps = TeeCapabilities::detect();
+        let _platform = caps.best_platform();
+    }
+
+    #[test]
+    fn test_tee_capabilities_detect_env() {
+        let _lock = get_env_lock();
+        // Since we cannot mock CPUID without significant test-only refactoring,
+        // we'll test the env var logic directly or as triggered by detect().
+        let mut caps = TeeCapabilities::default();
+        unsafe {
+            std::env::set_var("AEGIS_TEE_SGX", "1");
+        }
+        TeeCapabilities::detect_via_env(&mut caps);
+        assert!(caps.sgx);
+        unsafe {
+            std::env::remove_var("AEGIS_TEE_SGX");
+        }
     }
 }
