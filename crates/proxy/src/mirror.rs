@@ -64,8 +64,12 @@ impl StubStatus {
         format!(
             "<html><body><pre>Active connections: {}\nserver accepts handled requests\n {} {} {}\nReading: {} Writing: {} Waiting: {}\n</pre></body></html>",
             self.active_connections,
-            self.total_accepts, self.total_accepts, self.total_requests,
-            self.reading, self.writing, self.waiting
+            self.total_accepts,
+            self.total_accepts,
+            self.total_requests,
+            self.reading,
+            self.writing,
+            self.waiting
         )
     }
 

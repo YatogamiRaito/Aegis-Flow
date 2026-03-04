@@ -10,11 +10,11 @@ pub enum LocationError {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum LocationMatchType {
-    Exact,               // =
-    Prefix,              // (none)
-    PreferredPrefix,     // ^~
-    Regex,               // ~
-    RegexCaseInsensitive // ~*
+    Exact,                // =
+    Prefix,               // (none)
+    PreferredPrefix,      // ^~
+    Regex,                // ~
+    RegexCaseInsensitive, // ~*
 }
 
 impl Default for LocationMatchType {
@@ -161,8 +161,12 @@ mod tests {
             rewrite: vec![],
             auth_request: None,
             auth_request_set: std::collections::HashMap::new(),
-            limit_except: crate::config::LimitExceptConfig { methods: vec![], deny: "all".to_string() },
-        }).unwrap();
+            limit_except: crate::config::LimitExceptConfig {
+                methods: vec![],
+                deny: "all".to_string(),
+            },
+        })
+        .unwrap();
 
         let loc2 = ParsedLocationBlock::parse(LocationBlock {
             path: "/api/exact".to_string(),
@@ -174,8 +178,12 @@ mod tests {
             rewrite: vec![],
             auth_request: None,
             auth_request_set: std::collections::HashMap::new(),
-            limit_except: crate::config::LimitExceptConfig { methods: vec![], deny: "all".to_string() },
-        }).unwrap();
+            limit_except: crate::config::LimitExceptConfig {
+                methods: vec![],
+                deny: "all".to_string(),
+            },
+        })
+        .unwrap();
 
         let loc3 = ParsedLocationBlock::parse(LocationBlock {
             path: "^/api/.*\\.jpg$".to_string(),
@@ -187,8 +195,12 @@ mod tests {
             rewrite: vec![],
             auth_request: None,
             auth_request_set: std::collections::HashMap::new(),
-            limit_except: crate::config::LimitExceptConfig { methods: vec![], deny: "all".to_string() },
-        }).unwrap();
+            limit_except: crate::config::LimitExceptConfig {
+                methods: vec![],
+                deny: "all".to_string(),
+            },
+        })
+        .unwrap();
 
         let loc4 = ParsedLocationBlock::parse(LocationBlock {
             path: "/api/static/".to_string(),
@@ -200,8 +212,12 @@ mod tests {
             rewrite: vec![],
             auth_request: None,
             auth_request_set: std::collections::HashMap::new(),
-            limit_except: crate::config::LimitExceptConfig { methods: vec![], deny: "all".to_string() },
-        }).unwrap();
+            limit_except: crate::config::LimitExceptConfig {
+                methods: vec![],
+                deny: "all".to_string(),
+            },
+        })
+        .unwrap();
 
         let locs = vec![loc1, loc2, loc3, loc4];
 

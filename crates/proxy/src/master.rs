@@ -1,6 +1,6 @@
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// Worker process metadata
 #[derive(Debug, Clone)]
@@ -107,9 +107,8 @@ impl CrashTracker {
     pub fn record_crash(&mut self) {
         let now = std::time::Instant::now();
         // Clean old crashes outside window
-        self.crash_times.retain(|t| {
-            now.duration_since(*t).as_secs() < self.window_secs
-        });
+        self.crash_times
+            .retain(|t| now.duration_since(*t).as_secs() < self.window_secs);
         self.crash_times.push(now);
     }
 
@@ -133,10 +132,10 @@ mod tests {
         let mut master = MasterProcess::new(4, 1000);
         assert_eq!(master.worker_count(), 0);
         assert!(master.needs_more_workers());
-        
+
         master.register_worker(1001, Some(0));
         master.register_worker(1002, Some(1));
-        
+
         assert_eq!(master.worker_count(), 2);
         assert!(master.needs_more_workers());
     }
@@ -145,7 +144,7 @@ mod tests {
     fn test_master_remove_worker() {
         let mut master = MasterProcess::new(4, 1000);
         master.register_worker(1001, Some(0));
-        
+
         let removed = master.remove_worker(1001);
         assert!(removed.is_some());
         assert_eq!(removed.unwrap().pid, 1001);
@@ -155,11 +154,11 @@ mod tests {
     #[test]
     fn test_connection_counter() {
         let counter = ConnectionCounter::new(2);
-        
+
         assert!(counter.try_acquire()); // 1
         assert!(counter.try_acquire()); // 2
         assert!(!counter.try_acquire()); // 3 - over limit
-        
+
         counter.release(); // back to 1
         assert!(counter.try_acquire()); // back to 2
     }
@@ -167,13 +166,13 @@ mod tests {
     #[test]
     fn test_crash_tracker() {
         let mut tracker = CrashTracker::new(3, 60);
-        
+
         assert!(!tracker.should_stop_respawning());
-        
+
         tracker.record_crash();
         tracker.record_crash();
         assert!(!tracker.should_stop_respawning());
-        
+
         tracker.record_crash();
         assert!(tracker.should_stop_respawning());
     }

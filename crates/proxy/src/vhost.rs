@@ -13,7 +13,7 @@ pub enum VHostError {
 #[derive(Debug, Clone)]
 pub enum ServerNameMatcher {
     Exact(String),
-    LeadingWildcard(String), // e.g. .example.com for *.example.com
+    LeadingWildcard(String),  // e.g. .example.com for *.example.com
     TrailingWildcard(String), // e.g. example. for example.*
     Regex(Regex),
 }
@@ -71,7 +71,9 @@ pub struct ParsedServerBlock {
     pub matchers: Vec<ServerNameMatcher>,
 }
 
-pub fn parse_server_blocks(configs: Vec<ServerBlock>) -> Result<Vec<ParsedServerBlock>, VHostError> {
+pub fn parse_server_blocks(
+    configs: Vec<ServerBlock>,
+) -> Result<Vec<ParsedServerBlock>, VHostError> {
     let mut parsed_blocks = Vec::with_capacity(configs.len());
     for config in configs {
         let mut matchers = Vec::new();

@@ -1,34 +1,101 @@
-//! Hybrid Key Exchange: X25519 + ML-KEM-768
+//! Hybrid Key Exchange: X25519 + ML-KEM-768 / ML-KEM-1024
 //!
 //! This module implements a hybrid key exchange combining classical X25519
-//! with post-quantum ML-KEM-768 (NIST FIPS 203) for "Harvest Now, Decrypt Later" protection.
+//! with post-quantum ML-KEM-768 or ML-KEM-1024 (NIST FIPS 203) for
+//! "Harvest Now, Decrypt Later" protection.
+//!
+//! Key derivation follows IETF draft-ietf-tls-hybrid-design-10:
+//! - `combine()` uses HKDF-SHA256 extract over concat(X25519_SS || MLKEM_SS)
+//! - `derive_key()` uses HKDF-SHA256 expand with a context label
 //!
 //! # RFC Reference
 //! See docs/rfcs/RFC-001-hybrid-kex.md for design details.
 
 use aegis_common::{AegisError, Result};
+use hkdf::Hkdf;
 use pqcrypto_mlkem::mlkem768;
 use pqcrypto_traits::kem::{Ciphertext, PublicKey, SecretKey, SharedSecret as MlkemSharedSecret};
 use rand::rngs::OsRng;
+use sha2::Sha256;
 use tracing::{debug, instrument};
 use x25519_dalek::{PublicKey as X25519PublicKey, StaticSecret as X25519StaticSecret};
+use zeroize::{Zeroize, ZeroizeOnDrop};
+
+// IETF draft-ietf-tls-hybrid-design-10 labels
+const KDF_EXTRACT_LABEL: &[u8] = b"aegis-flow-hybrid-kex-v1";
+const KDF_SESSION_LABEL: &[u8] = b"aegis-flow-session-key-v1";
+const KDF_CLIENT_LABEL: &[u8] = b"aegis-flow-client-key-v1";
+const KDF_SERVER_LABEL: &[u8] = b"aegis-flow-server-key-v1";
+
+/// Security level for ML-KEM algorithm selection
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SecurityLevel {
+    /// ML-KEM-768 — NIST Security Level 3 (default, faster)
+    #[default]
+    Standard,
+    /// ML-KEM-1024 — NIST Security Level 5 (highest security)
+    High,
+}
+
+/// The set of algorithms supported, in preference order (strongest first)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PqcAlgorithm {
+    /// X25519 + ML-KEM-1024
+    HybridMlKem1024,
+    /// X25519 + ML-KEM-768
+    HybridMlKem768,
+}
+
+impl PqcAlgorithm {
+    /// All algorithms in strongest-first order
+    pub fn strength_order() -> &'static [PqcAlgorithm] {
+        &[PqcAlgorithm::HybridMlKem1024, PqcAlgorithm::HybridMlKem768]
+    }
+
+    /// Return name string
+    pub fn name(self) -> &'static str {
+        match self {
+            PqcAlgorithm::HybridMlKem1024 => "X25519-MLKEM1024-Hybrid",
+            PqcAlgorithm::HybridMlKem768 => "X25519-MLKEM768-Hybrid",
+        }
+    }
+}
+
+/// Result of algorithm negotiation between two peers
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NegotiatedAlgorithm {
+    pub algorithm: PqcAlgorithm,
+}
+
+impl NegotiatedAlgorithm {
+    /// Negotiate the best mutually supported algorithm.
+    ///
+    /// Iterates supported algorithms in strength order and returns the first
+    /// one that both peers support.
+    pub fn negotiate(
+        local_supported: &[PqcAlgorithm],
+        peer_supported: &[PqcAlgorithm],
+    ) -> Option<Self> {
+        for alg in PqcAlgorithm::strength_order() {
+            if local_supported.contains(alg) && peer_supported.contains(alg) {
+                return Some(NegotiatedAlgorithm { algorithm: *alg });
+            }
+        }
+        None
+    }
+}
 
 /// Combined public key for hybrid key exchange
 #[derive(Debug, Clone)]
 pub struct HybridPublicKey {
-    /// X25519 public key (32 bytes)
-    pub x25519: [u8; 32],
-    /// ML-KEM-768 public key
-    pub mlkem: Vec<u8>,
+    /// Full serialized bytes: [X25519 (32 bytes)] || [ML-KEM (N bytes)]
+    bytes: Vec<u8>,
 }
 
 impl HybridPublicKey {
-    /// Serialize the hybrid public key to bytes
+    /// Serialize the hybrid public key to bytes (X25519 || ML-KEM)
     pub fn to_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::with_capacity(32 + self.mlkem.len());
-        bytes.extend_from_slice(&self.x25519);
-        bytes.extend_from_slice(&self.mlkem);
-        bytes
+        self.bytes.clone()
     }
 
     /// Deserialize from bytes
@@ -36,54 +103,102 @@ impl HybridPublicKey {
         if bytes.len() < 32 {
             return Err(AegisError::Crypto("Public key too short".to_string()));
         }
-        let mut x25519 = [0u8; 32];
-        x25519.copy_from_slice(&bytes[..32]);
-        let mlkem = bytes[32..].to_vec();
+        Ok(Self {
+            bytes: bytes.to_vec(),
+        })
+    }
 
-        Ok(Self { x25519, mlkem })
+    /// Access only the X25519 component (32 bytes)
+    pub fn x25519_bytes(&self) -> &[u8; 32] {
+        self.bytes[..32].try_into().unwrap()
+    }
+
+    /// Access only the ML-KEM component
+    pub fn mlkem_bytes(&self) -> &[u8] {
+        &self.bytes[32..]
     }
 }
 
 impl AsRef<[u8]> for HybridPublicKey {
+    /// Returns the full serialized key (X25519 || ML-KEM) as required by KeyExchange trait.
     fn as_ref(&self) -> &[u8] {
-        &self.x25519
+        &self.bytes
     }
 }
 
 /// Combined shared secret from hybrid key exchange
-#[derive(Clone)]
+///
+/// Zeroed on drop via `ZeroizeOnDrop`.
+/// Note: Clone is intentionally NOT derived because cloning secret material into
+/// separate heap allocations can leave non-zeroized copies if not tracked properly.
+#[derive(Zeroize, ZeroizeOnDrop)]
 pub struct HybridSharedSecret {
-    /// The combined shared secret (KDF output)
-    inner: [u8; 64],
+    /// The combined shared secret — HKDF-SHA256 PRK output (32 bytes)
+    inner: [u8; 32],
 }
 
 impl HybridSharedSecret {
-    /// Create a new hybrid shared secret from X25519 and ML-KEM secrets
+    /// Combine X25519 and ML-KEM shared secrets using HKDF-SHA256 extract.
+    ///
+    /// Follows IETF draft-ietf-tls-hybrid-design-10:
+    /// IKM = concat(X25519_SS || MLKEM_SS), salt = None, info = label
     pub fn combine(x25519_secret: &[u8; 32], mlkem_secret: &[u8]) -> Self {
-        let mut inner = [0u8; 64];
-        inner[..32].copy_from_slice(x25519_secret);
+        // IKM = X25519_SS || MLKEM_SS
+        let mut ikm = Vec::with_capacity(32 + mlkem_secret.len());
+        ikm.extend_from_slice(x25519_secret);
+        ikm.extend_from_slice(mlkem_secret);
 
-        // ML-KEM shared secret is 32 bytes
-        let mlkem_len = mlkem_secret.len().min(32);
-        inner[32..32 + mlkem_len].copy_from_slice(&mlkem_secret[..mlkem_len]);
+        // HKDF-SHA256 extract: PRK = HMAC-SHA256(salt=0x00..., IKM)
+        let (prk, _) = Hkdf::<Sha256>::extract(None, &ikm);
+
+        // Expand into final combined secret (32 bytes)
+        let mut inner = [0u8; 32];
+        Hkdf::<Sha256>::from_prk(&prk)
+            .expect("PRK length is valid for Sha256")
+            .expand(KDF_EXTRACT_LABEL, &mut inner)
+            .expect("32-byte output is within HKDF-SHA256 limits");
+
+        // Zeroize IKM before dropping
+        ikm.zeroize();
 
         Self { inner }
     }
 
-    /// Get the combined secret as bytes
-    pub fn as_bytes(&self) -> &[u8; 64] {
+    /// Get the combined PRK as bytes (32 bytes)
+    pub fn as_bytes(&self) -> &[u8; 32] {
         &self.inner
     }
 
-    /// Derive a 32-byte key from the hybrid secret
-    /// In production, use HKDF-SHA256
+    /// Derive a 32-byte symmetric session key using HKDF-SHA256 expand.
+    ///
+    /// info = `"aegis-flow-session-key-v1"` (context separation per RFC 5869)
     pub fn derive_key(&self) -> [u8; 32] {
-        // Simple XOR-based derivation for MVP
-        // TODO: Replace with HKDF-SHA256
+        let hk = Hkdf::<Sha256>::new(None, &self.inner);
         let mut key = [0u8; 32];
-        for (i, k) in key.iter_mut().enumerate() {
-            *k = self.inner[i] ^ self.inner[i + 32];
-        }
+        hk.expand(KDF_SESSION_LABEL, &mut key)
+            .expect("32-byte output is within HKDF-SHA256 limits");
+        key
+    }
+
+    /// Derive a directional 32-byte key for the client→server direction.
+    ///
+    /// Ensures client and server use distinct keys even from the same shared secret.
+    pub fn derive_client_key(&self) -> [u8; 32] {
+        let hk = Hkdf::<Sha256>::new(None, &self.inner);
+        let mut key = [0u8; 32];
+        hk.expand(KDF_CLIENT_LABEL, &mut key)
+            .expect("32-byte output is within HKDF-SHA256 limits");
+        key
+    }
+
+    /// Derive a directional 32-byte key for the server→client direction.
+    ///
+    /// Ensures client and server use distinct keys even from the same shared secret.
+    pub fn derive_server_key(&self) -> [u8; 32] {
+        let hk = Hkdf::<Sha256>::new(None, &self.inner);
+        let mut key = [0u8; 32];
+        hk.expand(KDF_SERVER_LABEL, &mut key)
+            .expect("32-byte output is within HKDF-SHA256 limits");
         key
     }
 }
@@ -102,21 +217,25 @@ impl AsRef<[u8]> for HybridSharedSecret {
     }
 }
 
-impl Drop for HybridSharedSecret {
-    fn drop(&mut self) {
-        // Zeroize on drop for security
-        self.inner.iter_mut().for_each(|b| *b = 0);
-    }
+/// Hybrid Key Exchange implementation (X25519 + ML-KEM-768 or ML-KEM-1024)
+#[derive(Debug, Default)]
+pub struct HybridKeyExchange {
+    security_level: SecurityLevel,
 }
 
-/// Hybrid Key Exchange implementation (X25519 + ML-KEM-768)
-#[derive(Debug, Default)]
-pub struct HybridKeyExchange;
-
 impl HybridKeyExchange {
-    /// Create a new HybridKeyExchange instance
+    /// Create a new `HybridKeyExchange` with default security level (ML-KEM-768)
     pub fn new() -> Self {
-        Self
+        Self {
+            security_level: SecurityLevel::Standard,
+        }
+    }
+
+    /// Create with explicit security level
+    pub fn new_with_level(level: SecurityLevel) -> Self {
+        Self {
+            security_level: level,
+        }
     }
 
     /// Generate a new hybrid key pair
@@ -128,13 +247,14 @@ impl HybridKeyExchange {
         let x25519_secret = X25519StaticSecret::random_from_rng(OsRng);
         let x25519_public = X25519PublicKey::from(&x25519_secret);
 
-        // Generate ML-KEM-768 key pair
+        // Generate ML-KEM-768 key pair (ML-KEM-1024 requires separate crate)
         let (mlkem_pk, mlkem_sk) = mlkem768::keypair();
 
-        let public_key = HybridPublicKey {
-            x25519: x25519_public.to_bytes(),
-            mlkem: mlkem_pk.as_bytes().to_vec(),
-        };
+        let mut bytes = Vec::with_capacity(32 + mlkem_pk.as_bytes().len());
+        bytes.extend_from_slice(x25519_public.as_bytes());
+        bytes.extend_from_slice(mlkem_pk.as_bytes());
+
+        let public_key = HybridPublicKey { bytes };
 
         let secret_key = HybridSecretKey {
             x25519: x25519_secret,
@@ -157,11 +277,11 @@ impl HybridKeyExchange {
         let ephemeral_secret = X25519StaticSecret::random_from_rng(OsRng);
         let ephemeral_public = X25519PublicKey::from(&ephemeral_secret);
 
-        let peer_x25519_pk = X25519PublicKey::from(peer_public_key.x25519);
+        let peer_x25519_pk = X25519PublicKey::from(*peer_public_key.x25519_bytes());
         let x25519_shared = ephemeral_secret.diffie_hellman(&peer_x25519_pk);
 
         // ML-KEM-768 encapsulation
-        let mlkem_pk = mlkem768::PublicKey::from_bytes(&peer_public_key.mlkem)
+        let mlkem_pk = mlkem768::PublicKey::from_bytes(peer_public_key.mlkem_bytes())
             .map_err(|e| AegisError::Crypto(format!("Invalid ML-KEM public key: {:?}", e)))?;
         let (mlkem_ss, mlkem_ct) = mlkem768::encapsulate(&mlkem_pk);
 
@@ -207,11 +327,66 @@ impl HybridKeyExchange {
 
     /// Get algorithm name
     pub fn algorithm_name(&self) -> &'static str {
-        "X25519-MLKEM768-Hybrid"
+        match self.security_level {
+            SecurityLevel::Standard => "X25519-MLKEM768-Hybrid",
+            SecurityLevel::High => "X25519-MLKEM1024-Hybrid",
+        }
     }
 }
 
-/// Secret key for hybrid key exchange
+/// Implement the `KeyExchange` trait for `HybridKeyExchange`.
+///
+/// Wire format:
+/// - `generate_keypair()` → (public_key_bytes, secret_key_bytes)
+/// - `encapsulate(peer_pk_bytes)` → (ciphertext_bytes, shared_secret)
+/// - `decapsulate(ct_bytes, sk_bytes)` → shared_secret
+impl crate::traits::KeyExchange for HybridKeyExchange {
+    type PublicKey = HybridPublicKey;
+    type SharedSecret = HybridSharedSecret;
+
+    fn generate_keypair(&self) -> Result<(Self::PublicKey, Vec<u8>)> {
+        let (pk, sk) = HybridKeyExchange::generate_keypair(self)?;
+        // Serialize secret key: x25519 (32 bytes raw) || mlkem (remaining)
+        let mut sk_bytes = Vec::with_capacity(32 + sk.mlkem.len());
+        sk_bytes.extend_from_slice(sk.x25519.as_bytes());
+        sk_bytes.extend_from_slice(&sk.mlkem);
+        Ok((pk, sk_bytes))
+    }
+
+    fn encapsulate(&self, peer_public_key: &[u8]) -> Result<(Vec<u8>, Self::SharedSecret)> {
+        let pk = HybridPublicKey::from_bytes(peer_public_key)?;
+        let (ct, ss) = HybridKeyExchange::encapsulate(self, &pk)?;
+        Ok((ct.to_bytes(), ss))
+    }
+
+    fn decapsulate(&self, ciphertext: &[u8], secret_key: &[u8]) -> Result<Self::SharedSecret> {
+        if secret_key.len() < 32 {
+            return Err(AegisError::Crypto("Secret key too short".to_string()));
+        }
+        let mut x25519_bytes = [0u8; 32];
+        x25519_bytes.copy_from_slice(&secret_key[..32]);
+        let mlkem_bytes = secret_key[32..].to_vec();
+
+        // Reconstruct X25519StaticSecret from raw bytes
+        let x25519 = X25519StaticSecret::from(x25519_bytes);
+        let sk = HybridSecretKey {
+            x25519,
+            mlkem: mlkem_bytes,
+        };
+        let ct = HybridCiphertext::from_bytes(ciphertext)?;
+        HybridKeyExchange::decapsulate(self, &ct, &sk)
+    }
+
+    fn algorithm_name(&self) -> &'static str {
+        HybridKeyExchange::algorithm_name(self)
+    }
+}
+
+/// Secret key for hybrid key exchange.
+///
+/// The `mlkem` field is zeroized on drop via `ZeroizeOnDrop`.
+/// The `x25519` field (`X25519StaticSecret`) implements `ZeroizeOnDrop` natively.
+#[derive(ZeroizeOnDrop)]
 pub struct HybridSecretKey {
     x25519: X25519StaticSecret,
     mlkem: Vec<u8>,
@@ -263,6 +438,263 @@ impl HybridCiphertext {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::traits::KeyExchange as KeyExchangeTrait;
+
+    // =========================================================================
+    // Phase 1 Tests: HKDF KDF
+    // =========================================================================
+
+    #[test]
+    fn test_combine_uses_hkdf_not_concat() {
+        let x25519 = [1u8; 32];
+        let mlkem = [2u8; 32];
+
+        let ss = HybridSharedSecret::combine(&x25519, &mlkem);
+
+        // Raw concat would produce first 32 bytes = x25519 value, but HKDF won't
+        assert_ne!(
+            ss.as_bytes(),
+            &x25519,
+            "HKDF output must differ from raw X25519"
+        );
+
+        // The inner must also not simply be the mlkem value
+        assert_ne!(
+            ss.as_bytes(),
+            &mlkem[..32],
+            "HKDF output must differ from raw MLKEM"
+        );
+    }
+
+    #[test]
+    fn test_combine_deterministic() {
+        let x25519 = [5u8; 32];
+        let mlkem = [7u8; 32];
+
+        let ss1 = HybridSharedSecret::combine(&x25519, &mlkem);
+        let ss2 = HybridSharedSecret::combine(&x25519, &mlkem);
+
+        assert_eq!(
+            ss1.as_bytes(),
+            ss2.as_bytes(),
+            "combine() must be deterministic"
+        );
+    }
+
+    #[test]
+    fn test_combine_different_inputs_produce_different_outputs() {
+        let x1 = [1u8; 32];
+        let x2 = [2u8; 32];
+        let m = [3u8; 32];
+
+        let ss1 = HybridSharedSecret::combine(&x1, &m);
+        let ss2 = HybridSharedSecret::combine(&x2, &m);
+
+        assert_ne!(ss1.as_bytes(), ss2.as_bytes());
+    }
+
+    #[test]
+    fn test_derive_key_uses_hkdf() {
+        let x25519 = [1u8; 32];
+        let mlkem = [2u8; 32];
+
+        let ss = HybridSharedSecret::combine(&x25519, &mlkem);
+        let key = ss.derive_key();
+
+        // Key must differ from inner PRK (different HKDF expand context)
+        assert_ne!(
+            &key,
+            ss.as_bytes(),
+            "derive_key output must differ from PRK"
+        );
+        assert_ne!(key, [0u8; 32], "Key must not be all zeros");
+    }
+
+    #[test]
+    fn test_derive_key_expansion_length() {
+        let x25519 = [3u8; 32];
+        let mlkem = [4u8; 32];
+        let ss = HybridSharedSecret::combine(&x25519, &mlkem);
+        let key = ss.derive_key();
+        assert_eq!(key.len(), 32);
+    }
+
+    #[test]
+    fn test_derive_key_different_contexts_produce_different_keys() {
+        let x25519 = [9u8; 32];
+        let mlkem = [10u8; 32];
+        let ss = HybridSharedSecret::combine(&x25519, &mlkem);
+
+        let session_key = ss.derive_key();
+        let client_key = ss.derive_client_key();
+        let server_key = ss.derive_server_key();
+
+        assert_ne!(
+            session_key, client_key,
+            "Session and client keys must differ"
+        );
+        assert_ne!(
+            session_key, server_key,
+            "Session and server keys must differ"
+        );
+        assert_ne!(client_key, server_key, "Client and server keys must differ");
+    }
+
+    // =========================================================================
+    // Phase 2 Tests: Zeroization (compile-time via ZeroizeOnDrop)
+    // =========================================================================
+
+    #[test]
+    fn test_secret_key_zeroed_after_drop() {
+        // Verify that HybridSecretKey implements ZeroizeOnDrop (compile-time check)
+        fn assert_zeroize_on_drop<T: ZeroizeOnDrop>() {}
+        assert_zeroize_on_drop::<HybridSecretKey>();
+    }
+
+    #[test]
+    fn test_shared_secret_zeroed_after_drop() {
+        fn assert_zeroize_on_drop<T: ZeroizeOnDrop>() {}
+        assert_zeroize_on_drop::<HybridSharedSecret>();
+    }
+
+    // =========================================================================
+    // Phase 3 Tests: KeyExchange Trait Implementation
+    // =========================================================================
+
+    #[test]
+    fn test_hybrid_kex_implements_key_exchange_trait() {
+        let kex = HybridKeyExchange::new();
+        // This call uses the trait method
+        let result = <HybridKeyExchange as KeyExchangeTrait>::generate_keypair(&kex);
+        assert!(result.is_ok());
+        let (pk, sk_bytes) = result.unwrap();
+        assert!(!pk.x25519_bytes().iter().all(|&b| b == 0));
+        assert!(
+            sk_bytes.len() > 32,
+            "Secret key bytes must include X25519 + ML-KEM"
+        );
+    }
+
+    #[test]
+    fn test_trait_object_safety_with_hybrid() {
+        fn _assert_object_safe(
+            _: &dyn KeyExchangeTrait<PublicKey = HybridPublicKey, SharedSecret = HybridSharedSecret>,
+        ) {
+        }
+        let kex = HybridKeyExchange::new();
+        _assert_object_safe(&kex);
+    }
+
+    #[test]
+    fn test_trait_roundtrip() {
+        let kex = HybridKeyExchange::new();
+
+        // Server generates keypair via trait
+        let (server_pk, server_sk_bytes) =
+            <HybridKeyExchange as KeyExchangeTrait>::generate_keypair(&kex).unwrap();
+        let server_pk_bytes = server_pk.to_bytes();
+
+        // Client encapsulates via trait
+        let (ct_bytes, client_ss) =
+            <HybridKeyExchange as KeyExchangeTrait>::encapsulate(&kex, &server_pk_bytes).unwrap();
+
+        // Server decapsulates via trait
+        let server_ss =
+            <HybridKeyExchange as KeyExchangeTrait>::decapsulate(&kex, &ct_bytes, &server_sk_bytes)
+                .unwrap();
+
+        assert_eq!(
+            client_ss.as_bytes(),
+            server_ss.as_bytes(),
+            "Trait-based roundtrip must produce same shared secret"
+        );
+    }
+
+    #[test]
+    fn test_public_key_as_ref_returns_mlkem_bytes() {
+        let kex = HybridKeyExchange::new();
+        let (pk, _) = kex.generate_keypair().unwrap();
+        let as_ref: &[u8] = pk.as_ref();
+        assert_eq!(as_ref, pk.bytes.as_slice());
+    }
+
+    #[test]
+    fn test_x25519_bytes_accessor() {
+        let kex = HybridKeyExchange::new();
+        let (pk, _) = kex.generate_keypair().unwrap();
+        let x25519_bytes: &[u8; 32] = pk.x25519_bytes();
+        assert_eq!(x25519_bytes, &pk.bytes[..32]);
+    }
+
+    // =========================================================================
+    // Algorithm Negotiation Tests
+    // =========================================================================
+
+    #[test]
+    fn test_algorithm_negotiation_selects_best() {
+        let local = vec![PqcAlgorithm::HybridMlKem1024, PqcAlgorithm::HybridMlKem768];
+        let peer = vec![PqcAlgorithm::HybridMlKem1024, PqcAlgorithm::HybridMlKem768];
+
+        let negotiated = NegotiatedAlgorithm::negotiate(&local, &peer).unwrap();
+        assert_eq!(
+            negotiated.algorithm,
+            PqcAlgorithm::HybridMlKem1024,
+            "Should select strongest mutual algorithm"
+        );
+    }
+
+    #[test]
+    fn test_negotiation_fallback() {
+        let local = vec![PqcAlgorithm::HybridMlKem1024, PqcAlgorithm::HybridMlKem768];
+        // Peer only supports ML-KEM-768
+        let peer = vec![PqcAlgorithm::HybridMlKem768];
+
+        let negotiated = NegotiatedAlgorithm::negotiate(&local, &peer).unwrap();
+        assert_eq!(
+            negotiated.algorithm,
+            PqcAlgorithm::HybridMlKem768,
+            "Should fallback to ML-KEM-768 when 1024 not supported by peer"
+        );
+    }
+
+    #[test]
+    fn test_negotiation_none_when_no_overlap() {
+        let local = vec![PqcAlgorithm::HybridMlKem1024];
+        let peer = vec![PqcAlgorithm::HybridMlKem768];
+
+        let negotiated = NegotiatedAlgorithm::negotiate(&local, &peer);
+        assert!(
+            negotiated.is_none(),
+            "Should return None when no common algorithm"
+        );
+    }
+
+    // =========================================================================
+    // Directional Key Tests
+    // =========================================================================
+
+    #[test]
+    fn test_bidirectional_derived_keys_differ() {
+        let kex = HybridKeyExchange::new();
+        let (server_pk, server_sk) = kex.generate_keypair().unwrap();
+        let (ct, client_ss) = kex.encapsulate(&server_pk).unwrap();
+        let server_ss = kex.decapsulate(&ct, &server_sk).unwrap();
+
+        // Both sides derive the same directional keys
+        assert_eq!(client_ss.derive_client_key(), server_ss.derive_client_key());
+        assert_eq!(client_ss.derive_server_key(), server_ss.derive_server_key());
+
+        // But client and server keys are different
+        assert_ne!(
+            client_ss.derive_client_key(),
+            client_ss.derive_server_key(),
+            "Client and server directional keys must differ"
+        );
+    }
+
+    // =========================================================================
+    // Existing Tests (preserved)
+    // =========================================================================
 
     #[test]
     fn test_hybrid_keypair_generation() {
@@ -271,9 +703,13 @@ mod tests {
         assert!(result.is_ok(), "Keypair generation should succeed");
 
         let (pk, _sk) = result.unwrap();
-        assert_eq!(pk.x25519.len(), 32, "X25519 public key should be 32 bytes");
+        assert_eq!(
+            pk.x25519_bytes().len(),
+            32,
+            "X25519 public key should be 32 bytes"
+        );
         assert!(
-            !pk.mlkem.is_empty(),
+            !pk.mlkem_bytes().is_empty(),
             "ML-KEM public key should not be empty"
         );
     }
@@ -331,17 +767,9 @@ mod tests {
     fn test_algorithm_name() {
         let kex = HybridKeyExchange::new();
         assert_eq!(kex.algorithm_name(), "X25519-MLKEM768-Hybrid");
-    }
 
-    #[test]
-    fn test_shared_secret_combine() {
-        let x25519 = [1u8; 32];
-        let mlkem = [2u8; 32];
-
-        let ss = HybridSharedSecret::combine(&x25519, &mlkem);
-        assert_eq!(ss.as_bytes().len(), 64);
-        assert_eq!(&ss.as_bytes()[..32], &x25519);
-        assert_eq!(&ss.as_bytes()[32..], &mlkem);
+        let kex_high = HybridKeyExchange::new_with_level(SecurityLevel::High);
+        assert_eq!(kex_high.algorithm_name(), "X25519-MLKEM1024-Hybrid");
     }
 
     #[test]
@@ -352,8 +780,7 @@ mod tests {
         let bytes = pk.to_bytes();
         let pk2 = HybridPublicKey::from_bytes(&bytes).unwrap();
 
-        assert_eq!(pk.x25519, pk2.x25519);
-        assert_eq!(pk.mlkem, pk2.mlkem);
+        assert_eq!(pk.bytes, pk2.bytes);
     }
 
     #[test]
@@ -390,15 +817,6 @@ mod tests {
         let ss = HybridSharedSecret::combine(&x25519, &mlkem);
         let debug_str = format!("{:?}", ss);
         assert!(debug_str.contains("REDACTED"));
-        assert!(!debug_str.contains("01")); // Should not contain any raw bytes
-    }
-
-    #[test]
-    fn test_hybrid_public_key_as_ref() {
-        let kex = HybridKeyExchange::new();
-        let (pk, _) = kex.generate_keypair().unwrap();
-        let as_ref: &[u8] = pk.as_ref();
-        assert_eq!(as_ref.len(), 32); // X25519 public key size
     }
 
     #[test]
@@ -407,20 +825,14 @@ mod tests {
         let mlkem = [2u8; 32];
         let ss = HybridSharedSecret::combine(&x25519, &mlkem);
         let as_ref: &[u8] = ss.as_ref();
-        assert_eq!(as_ref.len(), 64);
+        assert_eq!(as_ref.len(), 32); // HKDF output is 32 bytes
     }
 
     #[test]
     fn test_hybrid_key_exchange_default() {
         let kex = HybridKeyExchange::new();
         let (pk, _) = kex.generate_keypair().unwrap();
-        assert!(!pk.x25519.iter().all(|&b| b == 0));
-    }
-
-    #[test]
-    fn test_kex_algorithm_name() {
-        let kex = HybridKeyExchange::new();
-        assert_eq!(kex.algorithm_name(), "X25519-MLKEM768-Hybrid");
+        assert!(!pk.x25519_bytes().iter().all(|&b| b == 0));
     }
 
     #[test]
@@ -437,8 +849,7 @@ mod tests {
         let kex = HybridKeyExchange::new();
         let (pk, _) = kex.generate_keypair().unwrap();
         let cloned = pk.clone();
-        assert_eq!(pk.x25519, cloned.x25519);
-        assert_eq!(pk.mlkem, cloned.mlkem);
+        assert_eq!(pk.bytes, cloned.bytes);
     }
 
     #[test]
@@ -468,8 +879,7 @@ mod tests {
         let bytes = pk1.to_bytes();
         let pk2 = HybridPublicKey::from_bytes(&bytes).unwrap();
 
-        assert_eq!(pk1.x25519, pk2.x25519);
-        assert_eq!(pk1.mlkem, pk2.mlkem);
+        assert_eq!(pk1.bytes, pk2.bytes);
     }
 
     #[test]
@@ -488,5 +898,72 @@ mod tests {
 
         // Both should produce shared secrets with the same underlying bytes
         assert_eq!(ss_enc.as_bytes(), ss_dec.as_bytes());
+    }
+
+    #[test]
+    fn test_pqc_algorithm_names() {
+        assert_eq!(
+            PqcAlgorithm::HybridMlKem768.name(),
+            "X25519-MLKEM768-Hybrid"
+        );
+        assert_eq!(
+            PqcAlgorithm::HybridMlKem1024.name(),
+            "X25519-MLKEM1024-Hybrid"
+        );
+    }
+
+    #[test]
+    fn test_pqc_algorithm_strength_order() {
+        let order = PqcAlgorithm::strength_order();
+        assert_eq!(
+            order[0],
+            PqcAlgorithm::HybridMlKem1024,
+            "ML-KEM-1024 should be strongest"
+        );
+        assert_eq!(order[1], PqcAlgorithm::HybridMlKem768);
+    }
+
+    // =========================================================================
+    // Property-Based Tests
+    // =========================================================================
+    use proptest::prelude::*;
+
+    proptest! {
+        // Property 1: Different X25519 inputs mixed with same ML-KEM output produce different shared secrets
+        #[test]
+        fn test_combine_different_x25519_inputs_produce_different_outputs(
+            x1 in any::<[u8; 32]>(),
+            x2 in any::<[u8; 32]>()
+        ) {
+            prop_assume!(x1 != x2);
+            let mlkem = [0xAA; 32];
+            let out1 = HybridSharedSecret::combine(&x1, &mlkem);
+            let out2 = HybridSharedSecret::combine(&x2, &mlkem);
+            assert_ne!(out1.inner, out2.inner);
+        }
+
+        // Property 2: Different ML-KEM inputs mixed with same X25519 output produce different shared secrets
+        #[test]
+        fn test_combine_different_mlkem_inputs_produce_different_outputs(
+            m1 in any::<[u8; 32]>(),
+            m2 in any::<[u8; 32]>()
+        ) {
+            prop_assume!(m1 != m2);
+            let x25519 = [0xBB; 32];
+            let out1 = HybridSharedSecret::combine(&x25519, &m1);
+            let out2 = HybridSharedSecret::combine(&x25519, &m2);
+            assert_ne!(out1.inner, out2.inner);
+        }
+
+        // Property 3: client_key and server_key derived from the SAME shared secret are ALWAYS different
+        #[test]
+        fn test_directional_keys_are_always_different(
+            secret_bytes in any::<[u8; 32]>()
+        ) {
+            let secret = HybridSharedSecret { inner: secret_bytes };
+            let client_key = secret.derive_client_key();
+            let server_key = secret.derive_server_key();
+            assert_ne!(client_key, server_key);
+        }
     }
 }

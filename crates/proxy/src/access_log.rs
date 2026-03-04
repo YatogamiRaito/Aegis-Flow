@@ -1,6 +1,6 @@
+use chrono::{DateTime, Utc};
 use std::fmt::Write as FmtWrite;
 use std::time::SystemTime;
-use chrono::{DateTime, Utc};
 
 // ---------------------------------------------------------------------------
 // Log format tokens
@@ -55,17 +55,17 @@ pub fn parse_log_format(format: &str) -> Vec<LogToken> {
                 }
             }
             tokens.push(match var.as_str() {
-                "remote_addr"             => LogToken::RemoteAddr,
-                "time_local"              => LogToken::TimeLocal,
-                "request"                 => LogToken::Request,
-                "status"                  => LogToken::Status,
-                "body_bytes_sent"         => LogToken::BodyBytesSent,
-                "http_referer"            => LogToken::Referer,
-                "http_user_agent"         => LogToken::UserAgent,
-                "request_time"            => LogToken::RequestTime,
-                "upstream_response_time"  => LogToken::UpstreamResponseTime,
-                "host"                    => LogToken::Host,
-                other                     => LogToken::Unknown(other.to_string()),
+                "remote_addr" => LogToken::RemoteAddr,
+                "time_local" => LogToken::TimeLocal,
+                "request" => LogToken::Request,
+                "status" => LogToken::Status,
+                "body_bytes_sent" => LogToken::BodyBytesSent,
+                "http_referer" => LogToken::Referer,
+                "http_user_agent" => LogToken::UserAgent,
+                "request_time" => LogToken::RequestTime,
+                "upstream_response_time" => LogToken::UpstreamResponseTime,
+                "host" => LogToken::Host,
+                other => LogToken::Unknown(other.to_string()),
             });
         } else {
             literal.push(c);
@@ -132,7 +132,8 @@ impl AccessLogRecord {
             "request_time_ms": self.request_time_ms,
             "upstream_response_time_ms": self.upstream_response_time_ms,
             "host": self.host,
-        }).to_string()
+        })
+        .to_string()
     }
 
     pub fn render_custom(&self, tokens: &[LogToken]) -> String {
@@ -140,20 +141,21 @@ impl AccessLogRecord {
         let mut out = String::new();
         for token in tokens {
             let part = match token {
-                LogToken::Literal(s)           => s.clone(),
-                LogToken::RemoteAddr           => self.remote_addr.clone(),
-                LogToken::TimeLocal            => dt.format("[%d/%b/%Y:%H:%M:%S +0000]").to_string(),
-                LogToken::Request              => format!("{} {} {}", self.method, self.uri, self.proto),
-                LogToken::Status               => self.status.to_string(),
-                LogToken::BodyBytesSent        => self.body_bytes_sent.to_string(),
-                LogToken::Referer              => self.referer.clone().unwrap_or_else(|| "-".to_string()),
-                LogToken::UserAgent            => self.user_agent.clone().unwrap_or_else(|| "-".to_string()),
-                LogToken::RequestTime          => format!("{:.3}", self.request_time_ms as f64 / 1000.0),
-                LogToken::UpstreamResponseTime => self.upstream_response_time_ms
+                LogToken::Literal(s) => s.clone(),
+                LogToken::RemoteAddr => self.remote_addr.clone(),
+                LogToken::TimeLocal => dt.format("[%d/%b/%Y:%H:%M:%S +0000]").to_string(),
+                LogToken::Request => format!("{} {} {}", self.method, self.uri, self.proto),
+                LogToken::Status => self.status.to_string(),
+                LogToken::BodyBytesSent => self.body_bytes_sent.to_string(),
+                LogToken::Referer => self.referer.clone().unwrap_or_else(|| "-".to_string()),
+                LogToken::UserAgent => self.user_agent.clone().unwrap_or_else(|| "-".to_string()),
+                LogToken::RequestTime => format!("{:.3}", self.request_time_ms as f64 / 1000.0),
+                LogToken::UpstreamResponseTime => self
+                    .upstream_response_time_ms
                     .map(|ms| format!("{:.3}", ms as f64 / 1000.0))
                     .unwrap_or_else(|| "-".to_string()),
-                LogToken::Host                 => self.host.clone(),
-                LogToken::Unknown(v)           => format!("${v}"),
+                LogToken::Host => self.host.clone(),
+                LogToken::Unknown(v) => format!("${v}"),
             };
             out.push_str(&part);
         }
@@ -181,11 +183,19 @@ pub struct RotationConfig {
 
 impl RotationConfig {
     pub fn daily(max_files: usize, compress: bool) -> Self {
-        Self { trigger: RotationTrigger::Daily, max_files, compress }
+        Self {
+            trigger: RotationTrigger::Daily,
+            max_files,
+            compress,
+        }
     }
 
     pub fn on_size(bytes: u64, max_files: usize, compress: bool) -> Self {
-        Self { trigger: RotationTrigger::OnSizeBytes(bytes), max_files, compress }
+        Self {
+            trigger: RotationTrigger::OnSizeBytes(bytes),
+            max_files,
+            compress,
+        }
     }
 
     /// Compute the rotated filename for sequence number n.
@@ -264,9 +274,18 @@ pub fn generate_launchd_plist(app_name: &str, program_args: &[&str]) -> String {
 }
 
 pub fn detect_platform() -> &'static str {
-    #[cfg(target_os = "macos")] { "macos" }
-    #[cfg(target_os = "linux")] { "linux" }
-    #[cfg(not(any(target_os = "macos", target_os = "linux")))] { "unknown" }
+    #[cfg(target_os = "macos")]
+    {
+        "macos"
+    }
+    #[cfg(target_os = "linux")]
+    {
+        "linux"
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    {
+        "unknown"
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -286,13 +305,22 @@ pub struct ProcessRow {
 
 pub fn render_process_table(rows: &[ProcessRow]) -> String {
     let mut out = String::new();
-    let _ = writeln!(out, "{:<4} {:<20} {:<8} {:<10} {:<8} {:<6} {:<8}",
-        "ID", "Name", "PID", "Status", "Restart", "CPU%", "Mem(MB)");
+    let _ = writeln!(
+        out,
+        "{:<4} {:<20} {:<8} {:<10} {:<8} {:<6} {:<8}",
+        "ID", "Name", "PID", "Status", "Restart", "CPU%", "Mem(MB)"
+    );
     let _ = writeln!(out, "{}", "-".repeat(70));
     for row in rows {
-        let pid = row.pid.map(|p| p.to_string()).unwrap_or_else(|| "-".to_string());
-        let _ = writeln!(out, "{:<4} {:<20} {:<8} {:<10} {:<8} {:<6.1} {:<8.1}",
-            row.id, row.name, pid, row.status, row.restarts, row.cpu_pct, row.mem_mb);
+        let pid = row
+            .pid
+            .map(|p| p.to_string())
+            .unwrap_or_else(|| "-".to_string());
+        let _ = writeln!(
+            out,
+            "{:<4} {:<20} {:<8} {:<10} {:<8} {:<6.1} {:<8.1}",
+            row.id, row.name, pid, row.status, row.restarts, row.cpu_pct, row.mem_mb
+        );
     }
     out
 }
@@ -349,7 +377,8 @@ mod tests {
     // --- Custom format ---
     #[test]
     fn test_custom_format_parse() {
-        let tokens = parse_log_format("$remote_addr [$time_local] \"$request\" $status $body_bytes_sent");
+        let tokens =
+            parse_log_format("$remote_addr [$time_local] \"$request\" $status $body_bytes_sent");
         assert!(tokens.contains(&LogToken::RemoteAddr));
         assert!(tokens.contains(&LogToken::Status));
         assert!(tokens.contains(&LogToken::Request));
@@ -379,14 +408,21 @@ mod tests {
 
     #[test]
     fn test_rotated_filename() {
-        assert_eq!(RotationConfig::rotated_name("access.log", 1), "access.log.1");
-        assert_eq!(RotationConfig::rotated_name("access.log", 3), "access.log.3");
+        assert_eq!(
+            RotationConfig::rotated_name("access.log", 1),
+            "access.log.1"
+        );
+        assert_eq!(
+            RotationConfig::rotated_name("access.log", 3),
+            "access.log.3"
+        );
     }
 
     // --- Systemd unit ---
     #[test]
     fn test_systemd_unit_generation() {
-        let unit = generate_systemd_unit("myapp", "/usr/bin/myapp --config /etc/myapp.toml", "root");
+        let unit =
+            generate_systemd_unit("myapp", "/usr/bin/myapp --config /etc/myapp.toml", "root");
         assert!(unit.contains("[Unit]"));
         assert!(unit.contains("ExecStart=/usr/bin/myapp"));
         assert!(unit.contains("Restart=always"));
@@ -396,7 +432,8 @@ mod tests {
     // --- Launchd plist ---
     #[test]
     fn test_launchd_plist_generation() {
-        let plist = generate_launchd_plist("myapp", &["/usr/bin/myapp", "--config", "/etc/myapp.toml"]);
+        let plist =
+            generate_launchd_plist("myapp", &["/usr/bin/myapp", "--config", "/etc/myapp.toml"]);
         assert!(plist.contains("com.aegis-flow.myapp"));
         assert!(plist.contains("KeepAlive"));
         assert!(plist.contains("RunAtLoad"));
@@ -414,8 +451,24 @@ mod tests {
     #[test]
     fn test_process_table_render() {
         let rows = vec![
-            ProcessRow { id: 0, name: "api".to_string(), pid: Some(1234), status: "online".to_string(), restarts: 0, cpu_pct: 0.5, mem_mb: 64.0 },
-            ProcessRow { id: 1, name: "worker".to_string(), pid: None, status: "stopped".to_string(), restarts: 3, cpu_pct: 0.0, mem_mb: 0.0 },
+            ProcessRow {
+                id: 0,
+                name: "api".to_string(),
+                pid: Some(1234),
+                status: "online".to_string(),
+                restarts: 0,
+                cpu_pct: 0.5,
+                mem_mb: 64.0,
+            },
+            ProcessRow {
+                id: 1,
+                name: "worker".to_string(),
+                pid: None,
+                status: "stopped".to_string(),
+                restarts: 3,
+                cpu_pct: 0.0,
+                mem_mb: 0.0,
+            },
         ];
         let table = render_process_table(&rows);
         assert!(table.contains("api"));

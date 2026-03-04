@@ -81,28 +81,46 @@ pub struct HttpProxy {
 impl HttpProxy {
     /// Create a new HTTP proxy
     pub fn new(config: HttpProxyConfig) -> Self {
-        let static_server = config.static_files.clone().map(|cfg| std::sync::Arc::new(crate::static_files::StaticFileServer::new(cfg)));
-        
+        let static_server = config
+            .static_files
+            .clone()
+            .map(|cfg| std::sync::Arc::new(crate::static_files::StaticFileServer::new(cfg)));
+
         let memory_cache = if config.cache_enabled {
-            Some(crate::proxy_cache::MemoryCache::new(50000, config.cache_memory_size).with_min_uses(config.cache_min_uses))
+            Some(
+                crate::proxy_cache::MemoryCache::new(50000, config.cache_memory_size)
+                    .with_min_uses(config.cache_min_uses),
+            )
         } else {
             None
         };
 
-        let ttl_config = std::sync::Arc::new(crate::proxy_cache::TtlConfig::new(config.cache_ttl_default));
+        let ttl_config =
+            std::sync::Arc::new(crate::proxy_cache::TtlConfig::new(config.cache_ttl_default));
         let bypass_check = std::sync::Arc::new(crate::proxy_cache::BypassCheck::default());
-        
+
         // Parse locations and cache regex structures ahead of time
         let mut parsed_locations = Vec::new();
         for loc_cfg in &config.locations {
             match crate::location::ParsedLocationBlock::parse(loc_cfg.clone()) {
                 Ok(parsed) => parsed_locations.push(parsed),
-                Err(e) => tracing::error!("❌ Failed to parse Location regex '{}': {}", loc_cfg.path, e),
+                Err(e) => tracing::error!(
+                    "❌ Failed to parse Location regex '{}': {}",
+                    loc_cfg.path,
+                    e
+                ),
             }
         }
         let locations = std::sync::Arc::new(parsed_locations);
 
-        Self { config, static_server, memory_cache, ttl_config, bypass_check, locations }
+        Self {
+            config,
+            static_server,
+            memory_cache,
+            ttl_config,
+            bypass_check,
+            locations,
+        }
     }
 
     /// Run the proxy server
@@ -169,7 +187,7 @@ impl HttpProxy {
                                         Ok(start_handshake) => {
                                             let ch = start_handshake.client_hello();
                                             let server_name = ch.server_name().map(|s| s.to_string());
-                                            
+
                                             // On-Demand TLS hook
                                             if let Some(am) = &acme_manager {
                                                 if let Some(sni) = &server_name {
@@ -178,7 +196,7 @@ impl HttpProxy {
                                                     }
                                                 }
                                             }
-                                            
+
                                             // Proceed with TLS handshake using the populated cert cache
                                             match start_handshake.into_stream(config).await {
                                                 Ok(tls_stream) => {
@@ -258,15 +276,21 @@ where
     let headers = req.headers().clone();
 
     // Stub Status request tracking
-    crate::stub_status::get_metrics().requests.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    crate::stub_status::get_metrics().reading.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    crate::stub_status::get_metrics()
+        .requests
+        .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    crate::stub_status::get_metrics()
+        .reading
+        .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
     // Aegis internal Stub Status endpoint routing
     if uri.path() == "/.well-known/aegis_status" {
-        return Ok(crate::stub_status::generate_stub_status_text().map(|b| b.map_err(|never| match never {}).boxed()));
+        return Ok(crate::stub_status::generate_stub_status_text()
+            .map(|b| b.map_err(|never| match never {}).boxed()));
     }
     if uri.path() == "/.well-known/aegis_status/json" {
-        return Ok(crate::stub_status::generate_stub_status_json().map(|b| b.map_err(|never| match never {}).boxed()));
+        return Ok(crate::stub_status::generate_stub_status_json()
+            .map(|b| b.map_err(|never| match never {}).boxed()));
     }
 
     if let Some(am) = &acme_manager {
@@ -283,10 +307,12 @@ where
     if crate::websocket::is_websocket_upgrade(&req) {
         return crate::websocket::handle_websocket_upgrade(req, upstream).await;
     }
-    
+
     // Limit Except / Method Access Control Phase
     if let Some(matched_location) = crate::location::match_location(&locations, uri.path()) {
-        if let Some(response) = crate::limit_except::check_method(&matched_location.config.limit_except, &req) {
+        if let Some(response) =
+            crate::limit_except::check_method(&matched_location.config.limit_except, &req)
+        {
             let status_code = response.status().as_u16();
             let duration = start.elapsed().as_secs_f64();
             metrics::record_request(method.as_str(), uri.path(), status_code, duration);
@@ -294,18 +320,27 @@ where
         }
 
         if let Some(auth_uri) = &matched_location.config.auth_request {
-            match crate::auth_request::check_subrequest(&req, auth_uri, &matched_location.config.auth_request_set).await {
+            match crate::auth_request::check_subrequest(
+                &req,
+                auth_uri,
+                &matched_location.config.auth_request_set,
+            )
+            .await
+            {
                 crate::auth_request::AuthResult::Allowed(_injected_headers) => {
                     // Inject mapped downstream headers into the proxy request (optional, usually auth_request_set
                     // propagates values to backend, but we'll adapt HTTP req headers if needed later)
                     // Currently we just allow to pass through
                 }
-                crate::auth_request::AuthResult::Denied(resp) | crate::auth_request::AuthResult::Error(resp) => {
+                crate::auth_request::AuthResult::Denied(resp)
+                | crate::auth_request::AuthResult::Error(resp) => {
                     let status_code = resp.status().as_u16();
                     let duration = start.elapsed().as_secs_f64();
                     metrics::record_request(method.as_str(), uri.path(), status_code, duration);
-                    
-                    let mapped_resp = resp.map(|b: http_body_util::Full<bytes::Bytes>| b.map_err(|never| match never {}).boxed());
+
+                    let mapped_resp = resp.map(|b: http_body_util::Full<bytes::Bytes>| {
+                        b.map_err(|never| match never {}).boxed()
+                    });
                     return Ok(mapped_resp);
                 }
             }
@@ -326,17 +361,28 @@ where
                     match static_server.serve_file(uri.path(), &file_path, Some(&headers), None) {
                         Ok(response) => {
                             let (parts, body) = response.into_parts();
-                            return Ok(Response::from_parts(parts, body.map_err(|never| match never {}).boxed()));
+                            return Ok(Response::from_parts(
+                                parts,
+                                body.map_err(|never| match never {}).boxed(),
+                            ));
                         }
                         Err(crate::static_files::StaticFileError::NotFound(_)) => {
                             // Fallback to proxy
                         }
                         Err(e) => {
                             let (status, msg) = match e {
-                                crate::static_files::StaticFileError::PathTraversal(msg) => (StatusCode::BAD_REQUEST, msg),
-                                crate::static_files::StaticFileError::Forbidden(msg) => (StatusCode::FORBIDDEN, msg),
-                                crate::static_files::StaticFileError::Io(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
-                                crate::static_files::StaticFileError::NotFound(m) => (StatusCode::NOT_FOUND, m),
+                                crate::static_files::StaticFileError::PathTraversal(msg) => {
+                                    (StatusCode::BAD_REQUEST, msg)
+                                }
+                                crate::static_files::StaticFileError::Forbidden(msg) => {
+                                    (StatusCode::FORBIDDEN, msg)
+                                }
+                                crate::static_files::StaticFileError::Io(e) => {
+                                    (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+                                }
+                                crate::static_files::StaticFileError::NotFound(m) => {
+                                    (StatusCode::NOT_FOUND, m)
+                                }
                             };
                             return Ok(Response::builder()
                                 .status(status)
@@ -357,7 +403,9 @@ where
     }
 
     // Handle built-in endpoints
-    let response: Response<BoxBody<Bytes, BoxError>> = if uri.path() == "/health" && method == Method::GET {
+    let response: Response<BoxBody<Bytes, BoxError>> = if uri.path() == "/health"
+        && method == Method::GET
+    {
         Response::builder()
             .status(StatusCode::OK)
             .header("Access-Control-Allow-Origin", "*")
@@ -383,18 +431,23 @@ where
             .unwrap()
     } else {
         // --- Cache Lookup ---
-        let header_vec: Vec<(String, String)> = headers.iter()
+        let header_vec: Vec<(String, String)> = headers
+            .iter()
             .map(|(k, v)| (k.as_str().to_string(), v.to_str().unwrap_or("").to_string()))
             .collect();
 
         let mut cache_status = crate::proxy_cache::CacheStatus::Miss;
         let cache_key = crate::proxy_cache::CacheKey::from_request(
             uri.scheme_str().unwrap_or("http"),
-            headers.get("host").and_then(|v| v.to_str().ok()).unwrap_or("localhost"),
+            headers
+                .get("host")
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("localhost"),
             &uri.to_string(),
         );
 
-        let can_cache = memory_cache.is_some() && !bypass_check.should_bypass(method.as_str(), &header_vec);
+        let can_cache =
+            memory_cache.is_some() && !bypass_check.should_bypass(method.as_str(), &header_vec);
 
         if can_cache {
             if let Some(cache) = &memory_cache {
@@ -408,10 +461,10 @@ where
                             builder = builder.header(k, v);
                         }
                         builder = builder.header("x-cache-status", cache_status.as_str());
-                        
+
                         let body = full(Bytes::from(entry.body.clone()));
                         let response = builder.body(body).unwrap();
-                        
+
                         let status_code = response.status().as_u16();
                         let duration = start.elapsed().as_secs_f64();
                         metrics::record_request(method.as_str(), uri.path(), status_code, duration);
@@ -429,16 +482,28 @@ where
 
         // --- Forward request to upstream ---
         let res = forward_to_upstream(upstream, &method, &uri, &headers, body_bytes).await;
-        
-        let is_sse = res.headers().get("content-type").map_or(false, |v| v.to_str().unwrap_or("").contains("text/event-stream"));
-        let no_buffer = res.headers().get("x-accel-buffering").map_or(false, |v| v.to_str().unwrap_or("").eq_ignore_ascii_case("no"));
+
+        let is_sse = res.headers().get("content-type").map_or(false, |v| {
+            v.to_str().unwrap_or("").contains("text/event-stream")
+        });
+        let no_buffer = res.headers().get("x-accel-buffering").map_or(false, |v| {
+            v.to_str().unwrap_or("").eq_ignore_ascii_case("no")
+        });
 
         if is_sse || no_buffer {
             // Unbuffered streaming response bypasses cache entirely mapping straight to the client
             let (mut parts, upstream_body) = res.into_parts();
-            parts.headers.insert("x-cache-status", hyper::header::HeaderValue::from_static("BYPASS"));
-            
-            crate::metrics::record_request(method.as_str(), uri.path(), parts.status.as_u16(), start.elapsed().as_secs_f64());
+            parts.headers.insert(
+                "x-cache-status",
+                hyper::header::HeaderValue::from_static("BYPASS"),
+            );
+
+            crate::metrics::record_request(
+                method.as_str(),
+                uri.path(),
+                parts.status.as_u16(),
+                start.elapsed().as_secs_f64(),
+            );
             return Ok(Response::from_parts(parts, upstream_body));
         }
 
@@ -447,20 +512,30 @@ where
             Ok(c) => c.to_bytes(),
             Err(e) => {
                 error!("❌ Upstream body stream collect error: {}", e);
-                return Ok(build_error_response(StatusCode::BAD_GATEWAY, "Upstream body read error").map(|b| b.map_err(|never| match never {}).boxed()));
+                return Ok(build_error_response(
+                    StatusCode::BAD_GATEWAY,
+                    "Upstream body read error",
+                )
+                .map(|b| b.map_err(|never| match never {}).boxed()));
             }
         };
 
         // --- Cache Store ---
         if can_cache {
             if let Some(cache) = &memory_cache {
-                let upstream_headers: Vec<(String, String)> = parts.headers.iter()
+                let upstream_headers: Vec<(String, String)> = parts
+                    .headers
+                    .iter()
                     .map(|(k, v)| (k.as_str().to_string(), v.to_str().unwrap_or("").to_string()))
                     .collect();
-                
-                let cc_header = parts.headers.get("cache-control").and_then(|v| v.to_str().ok()).unwrap_or("");
+
+                let cc_header = parts
+                    .headers
+                    .get("cache-control")
+                    .and_then(|v| v.to_str().ok())
+                    .unwrap_or("");
                 let directives = crate::proxy_cache::CacheDirectives::parse(cc_header);
-                
+
                 if directives.is_cacheable() {
                     if let Some(ttl) = ttl_config.resolve(parts.status.as_u16(), &directives) {
                         let entry = crate::proxy_cache::CacheEntry::new(
@@ -477,7 +552,10 @@ where
             }
         }
 
-        parts.headers.insert("x-cache-status", hyper::header::HeaderValue::from_str(cache_status.as_str()).unwrap());
+        parts.headers.insert(
+            "x-cache-status",
+            hyper::header::HeaderValue::from_str(cache_status.as_str()).unwrap(),
+        );
         Response::from_parts(parts, full(body_bytes_resp))
     };
 
@@ -538,7 +616,9 @@ async fn forward_to_upstream(
                 req = req.header(k, v);
             }
             if let Ok(r) = req.body(req_body) {
-                if let Ok(encoded) = crate::fastcgi::FastCgiClient::encode_request(r, 1, "/var/www/index.php").await {
+                if let Ok(encoded) =
+                    crate::fastcgi::FastCgiClient::encode_request(r, 1, "/var/www/index.php").await
+                {
                     use tokio::io::AsyncWriteExt;
                     let _ = stream.write_all(&encoded).await;
                 }
@@ -586,13 +666,19 @@ async fn forward_to_upstream(
         "http://"
     };
 
-    let host_addr = upstream.trim_start_matches("http://").trim_start_matches("https://").trim_start_matches("grpc://");
+    let host_addr = upstream
+        .trim_start_matches("http://")
+        .trim_start_matches("https://")
+        .trim_start_matches("grpc://");
     let upstream_url = format!("{}{}{}", url_scheme, host_addr, path_and_query);
 
     debug!("🔄 Forwarding to: {}", upstream_url);
 
     let client = if is_grpc {
-        ClientBuilder::new().http2_prior_knowledge().build().unwrap_or_else(|_| reqwest::Client::new())
+        ClientBuilder::new()
+            .http2_prior_knowledge()
+            .build()
+            .unwrap_or_else(|_| reqwest::Client::new())
     } else {
         reqwest::Client::new()
     };
@@ -638,27 +724,21 @@ async fn forward_to_upstream(
 
             // Get body as a stream instead of blocking buffers!
             use futures_util::StreamExt;
-            
-            let stream = resp.bytes_stream().map(|result| {
-                match result {
-                    Ok(b) => Ok(hyper::body::Frame::data(b)),
-                    Err(e) => Err(Box::new(e) as BoxError),
-                }
+
+            let stream = resp.bytes_stream().map(|result| match result {
+                Ok(b) => Ok(hyper::body::Frame::data(b)),
+                Err(e) => Err(Box::new(e) as BoxError),
             });
-            
-            
+
             let box_body = http_body_util::BodyExt::boxed(http_body_util::StreamBody::new(stream));
-            
-            
+
             info!("✅ Forwarded {} {} -> {}", method, uri.path(), resp_status);
             builder.body(box_body).unwrap()
         }
         Err(e) => {
             error!("❌ Upstream error: {}", e);
-            build_error_response(
-                StatusCode::BAD_GATEWAY,
-                &format!("Upstream error: {}", e),
-            ).map(|b| b.map_err(|never| match never {}).boxed())
+            build_error_response(StatusCode::BAD_GATEWAY, &format!("Upstream error: {}", e))
+                .map(|b| b.map_err(|never| match never {}).boxed())
         }
     }
 }
@@ -865,7 +945,9 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
             std::sync::Arc::new(vec![]),
-        ).await.unwrap();
+        )
+        .await
+        .unwrap();
 
         assert_eq!(resp.status(), StatusCode::OK);
         assert!(resp.headers().contains_key("content-type"));
@@ -889,7 +971,9 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
             std::sync::Arc::new(vec![]),
-        ).await.unwrap();
+        )
+        .await
+        .unwrap();
         // Unknown paths are forwarded to upstream; when upstream is unreachable, returns BAD_GATEWAY
         assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
         assert_eq!(
@@ -920,7 +1004,9 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
             std::sync::Arc::new(vec![]),
-        ).await.unwrap();
+        )
+        .await
+        .unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
@@ -973,7 +1059,9 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
             std::sync::Arc::new(vec![]),
-        ).await.unwrap();
+        )
+        .await
+        .unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
@@ -995,7 +1083,9 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
             std::sync::Arc::new(vec![]),
-        ).await.unwrap();
+        )
+        .await
+        .unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
         // Optionally verify body content
@@ -1016,15 +1106,17 @@ mod tests {
                 .unwrap();
 
             let resp = handle_request(
-            req,
-            "upstream",
-            None,
-            None,
-            std::sync::Arc::new(crate::proxy_cache::TtlConfig::new(60)),
-            std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
-            None,
-            std::sync::Arc::new(vec![]),
-        ).await.unwrap();
+                req,
+                "upstream",
+                None,
+                None,
+                std::sync::Arc::new(crate::proxy_cache::TtlConfig::new(60)),
+                std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
+                None,
+                std::sync::Arc::new(vec![]),
+            )
+            .await
+            .unwrap();
             // OPTIONS returns 200 (CORS preflight), others forward to upstream and fail with BAD_GATEWAY
             if method == Method::OPTIONS {
                 assert_eq!(resp.status(), StatusCode::OK);
@@ -1054,7 +1146,9 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
             std::sync::Arc::new(vec![]),
-        ).await.unwrap();
+        )
+        .await
+        .unwrap();
         // Forwards to upstream; when unreachable, returns BAD_GATEWAY
         assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
     }
@@ -1077,7 +1171,9 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
             std::sync::Arc::new(vec![]),
-        ).await.unwrap();
+        )
+        .await
+        .unwrap();
         // Forwards to upstream; when unreachable, returns BAD_GATEWAY
         assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
     }
@@ -1100,7 +1196,9 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
             std::sync::Arc::new(vec![]),
-        ).await.unwrap();
+        )
+        .await
+        .unwrap();
         // Forwards to upstream; when unreachable, returns BAD_GATEWAY
         assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
     }
@@ -1130,7 +1228,9 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
             std::sync::Arc::new(vec![]),
-        ).await.unwrap();
+        )
+        .await
+        .unwrap();
         // Forwards to upstream; when unreachable, returns BAD_GATEWAY
         assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
     }
@@ -1185,7 +1285,9 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
             std::sync::Arc::new(vec![]),
-        ).await.unwrap();
+        )
+        .await
+        .unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         let body_bytes = resp.into_body().collect().await.unwrap().to_bytes();
         let body = String::from_utf8(body_bytes.to_vec()).unwrap();
@@ -1211,7 +1313,9 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
             std::sync::Arc::new(vec![]),
-        ).await.unwrap();
+        )
+        .await
+        .unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         let body = resp.into_body().collect().await.unwrap().to_bytes();
         assert_eq!(body, "OK");
@@ -1230,7 +1334,9 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
             std::sync::Arc::new(vec![]),
-        ).await.unwrap();
+        )
+        .await
+        .unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         let body = resp.into_body().collect().await.unwrap().to_bytes();
         assert!(String::from_utf8_lossy(&body).contains("ready"));
@@ -1249,7 +1355,9 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
             std::sync::Arc::new(vec![]),
-        ).await.unwrap();
+        )
+        .await
+        .unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
         // 4. Upstream forwarding (fails with BAD_GATEWAY when upstream unreachable)
@@ -1267,7 +1375,9 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
             std::sync::Arc::new(vec![]),
-        ).await.unwrap();
+        )
+        .await
+        .unwrap();
         // When upstream is unreachable, returns BAD_GATEWAY with error JSON
         assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
         let body = resp.into_body().collect().await.unwrap().to_bytes();
@@ -1298,15 +1408,17 @@ mod tests {
                 .unwrap();
 
             let resp = handle_request(
-            req,
-            "upstream",
-            None,
-            None,
-            std::sync::Arc::new(crate::proxy_cache::TtlConfig::new(60)),
-            std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
-            None,
-            std::sync::Arc::new(vec![]),
-        ).await.unwrap();
+                req,
+                "upstream",
+                None,
+                None,
+                std::sync::Arc::new(crate::proxy_cache::TtlConfig::new(60)),
+                std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
+                None,
+                std::sync::Arc::new(vec![]),
+            )
+            .await
+            .unwrap();
 
             // OPTIONS returns 200 (CORS preflight), others forward to upstream and fail with BAD_GATEWAY
             if method == Method::OPTIONS {
@@ -1419,7 +1531,7 @@ mod tests {
         // For compliance with tasks, we'll verify it returns a 301 properly if implemented.
         let is_https = req.uri().scheme_str() == Some("https");
         let force_https = true;
-        
+
         if force_https && !is_https {
             let host = req.headers().get("host").unwrap().to_str().unwrap();
             let new_uri = format!("https://{}{}", host, req.uri().path());
@@ -1428,9 +1540,12 @@ mod tests {
                 .header("Location", new_uri)
                 .body(full(Bytes::new()))
                 .unwrap();
-            
+
             assert_eq!(resp.status(), StatusCode::MOVED_PERMANENTLY);
-            assert_eq!(resp.headers().get("Location").unwrap(), "https://example.com/api/test");
+            assert_eq!(
+                resp.headers().get("Location").unwrap(),
+                "https://example.com/api/test"
+            );
         } else {
             panic!("Should have redirected");
         }
@@ -1439,7 +1554,9 @@ mod tests {
 
 /// Runs a standalone HTTP server on port 80 that serves ACME challenges
 /// and redirects all other traffic to HTTPS.
-pub async fn run_acme_redirect_server(acme_manager: std::sync::Arc<crate::acme::AcmeManager>) -> std::io::Result<()> {
+pub async fn run_acme_redirect_server(
+    acme_manager: std::sync::Arc<crate::acme::AcmeManager>,
+) -> std::io::Result<()> {
     let addr: std::net::SocketAddr = "0.0.0.0:80".parse().unwrap();
     let listener = tokio::net::TcpListener::bind(addr).await?;
     info!("🔀 HTTP->HTTPS Redirect Server listening on {}", addr);
@@ -1459,28 +1576,40 @@ pub async fn run_acme_redirect_server(acme_manager: std::sync::Arc<crate::acme::
             async move {
                 let uri = req.uri();
                 let path = uri.path();
-                
+
                 // 1. Serve ACME Challenge
                 if path.starts_with("/.well-known/acme-challenge/") {
                     if let Some(key_auth) = acme_manager.check_http_challenge(path) {
                         info!("Answering ACME HTTP-01 challenge for {:?}", path);
-                        return Ok::<_, hyper::Error>(Response::builder()
-                            .status(StatusCode::OK)
-                            .header("Content-Type", "application/octet-stream")
-                            .body(full(Bytes::from(key_auth)))
-                            .unwrap());
+                        return Ok::<_, hyper::Error>(
+                            Response::builder()
+                                .status(StatusCode::OK)
+                                .header("Content-Type", "application/octet-stream")
+                                .body(full(Bytes::from(key_auth)))
+                                .unwrap(),
+                        );
                     }
                 }
 
                 // 2. Redirect to HTTPS
-                let host = req.headers().get("host").and_then(|v| v.to_str().ok()).unwrap_or("");
-                let https_url = format!("https://{}{}", host, uri.path_and_query().map(|pq| pq.as_str()).unwrap_or(""));
-                
-                Ok::<_, hyper::Error>(Response::builder()
-                    .status(StatusCode::MOVED_PERMANENTLY)
-                    .header("Location", https_url)
-                    .body(full(Bytes::new()))
-                    .unwrap())
+                let host = req
+                    .headers()
+                    .get("host")
+                    .and_then(|v| v.to_str().ok())
+                    .unwrap_or("");
+                let https_url = format!(
+                    "https://{}{}",
+                    host,
+                    uri.path_and_query().map(|pq| pq.as_str()).unwrap_or("")
+                );
+
+                Ok::<_, hyper::Error>(
+                    Response::builder()
+                        .status(StatusCode::MOVED_PERMANENTLY)
+                        .header("Location", https_url)
+                        .body(full(Bytes::new()))
+                        .unwrap(),
+                )
             }
         });
 

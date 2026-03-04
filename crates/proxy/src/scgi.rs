@@ -2,8 +2,8 @@
 
 use anyhow::Result;
 use bytes::{BufMut, Bytes, BytesMut};
-use hyper::Request;
 use http_body_util::BodyExt;
+use hyper::Request;
 use std::collections::HashMap;
 
 pub struct ScgiClient;
@@ -20,12 +20,12 @@ impl ScgiClient {
 
         // 1. Mandatory SCGI variable
         headers.insert("SCGI".to_string(), "1".to_string());
-        
+
         // 2. Add standard CGI/HTTP metadata
         let method = req.method().as_str().to_string();
         headers.insert("REQUEST_METHOD".to_string(), method);
         headers.insert("REQUEST_URI".to_string(), req.uri().path().to_string());
-        
+
         if let Some(query) = req.uri().query() {
             headers.insert("QUERY_STRING".to_string(), query.to_string());
         }
@@ -37,7 +37,7 @@ impl ScgiClient {
                 headers.insert(key, v.to_string());
             }
         }
-        
+
         // Ensure CONTENT_LENGTH exists (SCGI requires it)
         if !headers.contains_key("HTTP_CONTENT_LENGTH") && !headers.contains_key("CONTENT_LENGTH") {
             headers.insert("CONTENT_LENGTH".to_string(), "0".to_string());
@@ -46,14 +46,17 @@ impl ScgiClient {
         // 3. Serialize headers into a netstring payload
         // Format: `NAME\0VALUE\0`
         let mut header_payload = BytesMut::new();
-        
+
         // SCGI must appear first according to spec
         header_payload.put_slice(b"SCGI\0");
         header_payload.put_slice(b"1\0");
         headers.remove("SCGI");
 
         // CONTENT_LENGTH must appear second according to spec
-        let content_length = headers.remove("CONTENT_LENGTH").or_else(|| headers.remove("HTTP_CONTENT_LENGTH")).unwrap_or_else(|| "0".to_string());
+        let content_length = headers
+            .remove("CONTENT_LENGTH")
+            .or_else(|| headers.remove("HTTP_CONTENT_LENGTH"))
+            .unwrap_or_else(|| "0".to_string());
         header_payload.put_slice(b"CONTENT_LENGTH\0");
         header_payload.put_slice(content_length.as_bytes());
         header_payload.put_u8(0);
@@ -68,7 +71,7 @@ impl ScgiClient {
         // 4. Construct the final SCGI netstring
         let mut buf = BytesMut::new();
         let length_str = format!("{}:", header_payload.len());
-        
+
         buf.put_slice(length_str.as_bytes());
         buf.put(header_payload.freeze());
         buf.put_u8(b',');

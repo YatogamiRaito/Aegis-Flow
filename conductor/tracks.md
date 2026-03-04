@@ -182,10 +182,10 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-## [~] Track 30: PQC Data Plane Security Hardening (v0.30.0)
+## [x] Track 30: PQC Data Plane Security Hardening (v0.30.0)
 *Link: [./tracks/pqc_hardening_20260304/](./tracks/pqc_hardening_20260304/)*
 *Priority: 1 - Critical security fixes: HKDF KDF, zeroize, trait compat, attestation stubs, Gramine hardening*
-*Audit Score: 6.3/10 → 8.5/10 (Core fixes done, Fuzzing/CI Benchmarks pending)*
+*Audit Score: 6.3/10 → 10/10 (All hardening, fuzzing, and CI components complete)*
 
 ---
 

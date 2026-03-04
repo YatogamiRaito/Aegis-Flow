@@ -81,16 +81,34 @@ mod tests {
 
     #[test]
     fn test_common_extensions() {
-        assert_eq!(get_mime_type(Path::new("index.html"), None), "text/html; charset=utf-8");
-        assert_eq!(get_mime_type(Path::new("style.css"), None), "text/css; charset=utf-8");
-        assert_eq!(get_mime_type(Path::new("app.js"), None), "application/javascript; charset=utf-8");
-        assert_eq!(get_mime_type(Path::new("data.json"), None), "application/json; charset=utf-8");
+        assert_eq!(
+            get_mime_type(Path::new("index.html"), None),
+            "text/html; charset=utf-8"
+        );
+        assert_eq!(
+            get_mime_type(Path::new("style.css"), None),
+            "text/css; charset=utf-8"
+        );
+        assert_eq!(
+            get_mime_type(Path::new("app.js"), None),
+            "application/javascript; charset=utf-8"
+        );
+        assert_eq!(
+            get_mime_type(Path::new("data.json"), None),
+            "application/json; charset=utf-8"
+        );
         assert_eq!(get_mime_type(Path::new("image.png"), None), "image/png");
         assert_eq!(get_mime_type(Path::new("video.mp4"), None), "video/mp4");
         // Unknown extension
-        assert_eq!(get_mime_type(Path::new("unknown.foo"), None), "application/octet-stream");
+        assert_eq!(
+            get_mime_type(Path::new("unknown.foo"), None),
+            "application/octet-stream"
+        );
         // No extension
-        assert_eq!(get_mime_type(Path::new("filewithout"), None), "application/octet-stream");
+        assert_eq!(
+            get_mime_type(Path::new("filewithout"), None),
+            "application/octet-stream"
+        );
     }
 
     #[test]

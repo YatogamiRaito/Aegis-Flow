@@ -2,10 +2,10 @@
 /// Supports UDP, TCP, and TCP+TLS transport
 use bytes::Bytes;
 use std::net::SocketAddr;
-use tokio::net::UdpSocket;
-use tokio::net::TcpStream;
 use tokio::io::AsyncWriteExt;
-use tracing::{error, debug};
+use tokio::net::TcpStream;
+use tokio::net::UdpSocket;
+use tracing::{debug, error};
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -56,11 +56,25 @@ impl Default for SyslogConfig {
 /// Map facility name to numeric code per RFC 5424
 fn facility_code(facility: &str) -> u8 {
     match facility {
-        "kern" => 0, "user" => 1, "mail" => 2, "daemon" => 3,
-        "auth" => 4, "syslog" => 5, "lpr" => 6, "news" => 7,
-        "uucp" => 8, "cron" => 9, "authpriv" => 10,
-        "local0" => 16, "local1" => 17, "local2" => 18, "local3" => 19,
-        "local4" => 20, "local5" => 21, "local6" => 22, "local7" => 23,
+        "kern" => 0,
+        "user" => 1,
+        "mail" => 2,
+        "daemon" => 3,
+        "auth" => 4,
+        "syslog" => 5,
+        "lpr" => 6,
+        "news" => 7,
+        "uucp" => 8,
+        "cron" => 9,
+        "authpriv" => 10,
+        "local0" => 16,
+        "local1" => 17,
+        "local2" => 18,
+        "local3" => 19,
+        "local4" => 20,
+        "local5" => 21,
+        "local6" => 22,
+        "local7" => 23,
         _ => 23, // default to local7
     }
 }
@@ -79,16 +93,14 @@ pub enum Severity {
 }
 
 /// Format an RFC 5424 syslog message
-pub fn format_syslog_message(
-    config: &SyslogConfig,
-    severity: Severity,
-    message: &str,
-) -> String {
+pub fn format_syslog_message(config: &SyslogConfig, severity: Severity, message: &str) -> String {
     let facility = facility_code(&config.facility);
     let priority = (facility * 8) + severity as u8;
-    
+
     // RFC 5424: <PRIORITY>VERSION TIMESTAMP HOSTNAME APP-NAME PROCID MSGID SD MSG
-    let timestamp = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string();
+    let timestamp = chrono::Utc::now()
+        .format("%Y-%m-%dT%H:%M:%S%.3fZ")
+        .to_string();
     let hostname = hostname::get()
         .map(|h| h.to_string_lossy().to_string())
         .unwrap_or_else(|_| "-".to_string());
@@ -102,16 +114,14 @@ pub fn format_syslog_message(
 /// Send a syslog message via UDP (best-effort, fire-and-forget)
 pub async fn send_udp_syslog(server: &str, message: &str) {
     match server.parse::<SocketAddr>() {
-        Ok(addr) => {
-            match UdpSocket::bind("0.0.0.0:0").await {
-                Ok(socket) => {
-                    if let Err(e) = socket.send_to(message.as_bytes(), addr).await {
-                        error!("Syslog UDP send failed: {}", e);
-                    }
+        Ok(addr) => match UdpSocket::bind("0.0.0.0:0").await {
+            Ok(socket) => {
+                if let Err(e) = socket.send_to(message.as_bytes(), addr).await {
+                    error!("Syslog UDP send failed: {}", e);
                 }
-                Err(e) => error!("Syslog UDP bind failed: {}", e),
             }
-        }
+            Err(e) => error!("Syslog UDP bind failed: {}", e),
+        },
         Err(_) => {
             // Server might be a hostname:port, resolve it
             match tokio::net::lookup_host(server).await {

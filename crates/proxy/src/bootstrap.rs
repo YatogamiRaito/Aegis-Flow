@@ -5,8 +5,8 @@
 
 use crate::{
     PqcProxyServer, ProxyConfig,
-    http_proxy::{HttpProxy, HttpProxyConfig},
     config::StreamProtocol,
+    http_proxy::{HttpProxy, HttpProxyConfig},
     stream_proxy::StreamProxyServer,
     udp_proxy::UdpProxyServer,
 };
@@ -119,30 +119,37 @@ where
 
             if config.tls.auto_https.enabled {
                 info!("🌱 Auto-HTTPS (ACME) enabled");
-                let manager = std::sync::Arc::new(crate::acme::AcmeManager::new(config.tls.auto_https.clone()));
+                let manager = std::sync::Arc::new(crate::acme::AcmeManager::new(
+                    config.tls.auto_https.clone(),
+                ));
                 acme_manager = Some(manager.clone());
 
                 let mut resolver = crate::sni::SniResolver::new();
                 resolver.set_acme_manager(
                     manager.clone(),
-                    crate::acme::AcmeManager::expand_home(std::path::PathBuf::from(&config.tls.auto_https.cert_storage)),
+                    crate::acme::AcmeManager::expand_home(std::path::PathBuf::from(
+                        &config.tls.auto_https.cert_storage,
+                    )),
                 );
 
                 let mut tls_config = rustls::ServerConfig::builder()
                     .with_no_client_auth()
                     .with_cert_resolver(std::sync::Arc::new(resolver));
-                
+
                 // Add `acme-tls/1` for TLS-ALPN-01 challenges alongside HTTP protocols
-                tls_config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec(), b"acme-tls/1".to_vec()];
+                tls_config.alpn_protocols =
+                    vec![b"h2".to_vec(), b"http/1.1".to_vec(), b"acme-tls/1".to_vec()];
                 tls_server_config = Some(std::sync::Arc::new(tls_config));
-                
+
                 let redirect_manager = manager.clone();
                 tokio::spawn(async move {
-                    if let Err(e) = crate::http_proxy::run_acme_redirect_server(redirect_manager).await {
+                    if let Err(e) =
+                        crate::http_proxy::run_acme_redirect_server(redirect_manager).await
+                    {
                         tracing::error!("ACME Redirect Server failed: {}", e);
                     }
                 });
-                
+
                 manager.clone().start_background_renewal();
             }
 

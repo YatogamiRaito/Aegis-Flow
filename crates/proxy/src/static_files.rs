@@ -1,5 +1,5 @@
-use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -61,7 +61,7 @@ impl StaticFileServer {
     /// Resolves returning absolute normalized path avoiding directory traversal.
     pub fn resolve_path(&self, uri_path: &str) -> Result<PathBuf, StaticFileError> {
         let uri_path = uri_path.trim_start_matches('/');
-        
+
         // Prevent obvious directory traversal attempts
         if uri_path.contains("../") || uri_path.contains("..\\") {
             return Err(StaticFileError::PathTraversal(uri_path.to_string()));
@@ -69,7 +69,7 @@ impl StaticFileServer {
 
         // Basic normalization
         let joined = self.config.root.join(uri_path);
-        
+
         // Attempt canonicalize to completely resolve symlinks and '..'s
         // Because canonicalize fails if path doesn't exist, we must handle carefully.
         let resolved = match joined.canonicalize() {
@@ -83,19 +83,24 @@ impl StaticFileServer {
             }
         };
 
-        let root_canonical = self.config.root.canonicalize().map_err(|_| {
-            StaticFileError::NotFound("Root directory does not exist".to_string())
-        })?;
+        let root_canonical =
+            self.config.root.canonicalize().map_err(|_| {
+                StaticFileError::NotFound("Root directory does not exist".to_string())
+            })?;
 
         // After all resolutions, path must still start with root
         if !resolved.starts_with(&root_canonical) {
-            return Err(StaticFileError::PathTraversal("Path escapes root".to_string()));
+            return Err(StaticFileError::PathTraversal(
+                "Path escapes root".to_string(),
+            ));
         }
-        
+
         // Check for dotfiles exclusion
         if self.config.hide_dot_files && Self::contains_dotfile(Path::new(uri_path)) {
-             return Err(StaticFileError::Forbidden("Hidden file access denied".to_string()));
-         }
+            return Err(StaticFileError::Forbidden(
+                "Hidden file access denied".to_string(),
+            ));
+        }
 
         Ok(resolved)
     }
@@ -111,7 +116,7 @@ impl StaticFileServer {
         }
         false
     }
-    
+
     /// Resolve an index file if the path is a directory
     pub fn resolve_index(&self, dir_path: &Path) -> Option<PathBuf> {
         if !dir_path.is_dir() {
@@ -129,14 +134,18 @@ impl StaticFileServer {
     }
 
     /// Try multiple paths in order, fallback to uri_path if None matched
-    pub fn try_files(&self, uri_path: &str, try_paths: &[String]) -> Result<PathBuf, StaticFileError> {
+    pub fn try_files(
+        &self,
+        uri_path: &str,
+        try_paths: &[String],
+    ) -> Result<PathBuf, StaticFileError> {
         for path_expr in try_paths {
             // Replace $uri with actual uri
             let candidate_uri = path_expr.replace("$uri", uri_path);
-            
+
             // If it ends with /, it could be a directory matching index
             let is_dir_check = candidate_uri.ends_with('/');
-            
+
             match self.resolve_path(&candidate_uri) {
                 Ok(resolved) => {
                     if resolved.is_file() && !is_dir_check {
@@ -159,16 +168,16 @@ impl StaticFileServer {
     /// Builds an HTTP response with proper headers for a file
     /// Builds an HTTP response with proper headers for a file, handling Range requests if headers provided
     pub fn serve_file(
-        &self, 
+        &self,
         uri_path: &str,
-        path: &Path, 
+        path: &Path,
         req_headers: Option<&hyper::HeaderMap>,
-        override_mime: Option<&std::collections::HashMap<String, String>>
+        override_mime: Option<&std::collections::HashMap<String, String>>,
     ) -> Result<hyper::Response<http_body_util::Full<bytes::Bytes>>, StaticFileError> {
         use std::os::unix::fs::MetadataExt;
-        
+
         let metadata = std::fs::metadata(path).map_err(StaticFileError::Io)?;
-        
+
         if metadata.is_dir() {
             if self.config.autoindex {
                 let as_json = req_headers
@@ -176,10 +185,11 @@ impl StaticFileServer {
                     .and_then(|v| v.to_str().ok())
                     .map(|v| v.contains("application/json"))
                     .unwrap_or(false);
-                let (content, mime) = crate::autoindex::generate_directory_listing(path, uri_path, as_json)
-                    .map_err(StaticFileError::Io)?;
+                let (content, mime) =
+                    crate::autoindex::generate_directory_listing(path, uri_path, as_json)
+                        .map_err(StaticFileError::Io)?;
                 let body_bytes = content.into_bytes();
-                
+
                 let response = hyper::Response::builder()
                     .status(hyper::StatusCode::OK)
                     .header("Content-Type", mime)
@@ -189,7 +199,9 @@ impl StaticFileServer {
                     .unwrap();
                 return Ok(response);
             } else {
-                return Err(StaticFileError::Forbidden("Cannot serve directory".to_string()));
+                return Err(StaticFileError::Forbidden(
+                    "Cannot serve directory".to_string(),
+                ));
             }
         }
 
@@ -211,7 +223,7 @@ impl StaticFileServer {
                 if let Ok(range_str) = range_val.to_str() {
                     if let Some(parsed_ranges) = crate::ranges::HttpRange::parse(range_str) {
                         is_range = true;
-                        
+
                         let mut resolved_ranges = Vec::new();
                         for r in parsed_ranges {
                             if let Some(resolved) = r.resolve(size) {
@@ -236,11 +248,12 @@ impl StaticFileServer {
                             use std::io::{Read, Seek, SeekFrom};
                             let (start, end) = resolved_ranges[0];
                             let length = end - start + 1;
-                            
-                            file.seek(SeekFrom::Start(start)).map_err(StaticFileError::Io)?;
+
+                            file.seek(SeekFrom::Start(start))
+                                .map_err(StaticFileError::Io)?;
                             let mut buf = vec![0; length as usize];
                             file.read_exact(&mut buf).map_err(StaticFileError::Io)?;
-                            
+
                             body_bytes = buf;
                             content_length = length;
                             content_range = Some(format!("bytes {}-{}/{}", start, end, size));
@@ -249,19 +262,20 @@ impl StaticFileServer {
                             use std::io::{Read, Seek, SeekFrom};
                             let boundary = crate::ranges::generate_boundary();
                             content_type = format!("multipart/byteranges; boundary={}", boundary);
-                            
+
                             for (start, end) in resolved_ranges {
                                 let mut part = format!("\r\n--{}\r\nContent-Type: {}\r\nContent-Range: bytes {}-{}/{}\r\n\r\n", 
                                     boundary, mime, start, end, size).into_bytes();
                                 body_bytes.append(&mut part);
-                                
+
                                 let length = end - start + 1;
-                                file.seek(SeekFrom::Start(start)).map_err(StaticFileError::Io)?;
+                                file.seek(SeekFrom::Start(start))
+                                    .map_err(StaticFileError::Io)?;
                                 let mut buf = vec![0; length as usize];
                                 file.read_exact(&mut buf).map_err(StaticFileError::Io)?;
                                 body_bytes.append(&mut buf);
                             }
-                            
+
                             let mut end_boundary = format!("\r\n--{}--\r\n", boundary).into_bytes();
                             body_bytes.append(&mut end_boundary);
                             content_length = body_bytes.len() as u64;
@@ -275,20 +289,31 @@ impl StaticFileServer {
             use std::io::Read;
             // Read whole file
             body_bytes = vec![0; size as usize];
-            file.read_exact(&mut body_bytes).map_err(StaticFileError::Io)?;
+            file.read_exact(&mut body_bytes)
+                .map_err(StaticFileError::Io)?;
         }
 
         let mut content_encoding = None;
 
         // Try pre-compressed static files first if enabled
-        let algo_accepted = crate::compression::negotiate_encoding(req_headers, &self.config.compression, &content_type, size);
-        
+        let algo_accepted = crate::compression::negotiate_encoding(
+            req_headers,
+            &self.config.compression,
+            &content_type,
+            size,
+        );
+
         let mut served_precompressed = false;
-        
+
         if !is_range && status == hyper::StatusCode::OK {
             // Check for pre-compressed Brotli
-            if self.config.compression.static_brotli && algo_accepted == crate::compression::CompressionAlgo::Brotli {
-                let br_path = path.with_extension(format!("{}.br", path.extension().unwrap_or_default().to_string_lossy()));
+            if self.config.compression.static_brotli
+                && algo_accepted == crate::compression::CompressionAlgo::Brotli
+            {
+                let br_path = path.with_extension(format!(
+                    "{}.br",
+                    path.extension().unwrap_or_default().to_string_lossy()
+                ));
                 if br_path.is_file() {
                     if let Ok(mut br_file) = std::fs::File::open(&br_path) {
                         use std::io::Read;
@@ -302,17 +327,29 @@ impl StaticFileServer {
                     }
                 }
             }
-            
+
             // Check for pre-compressed Gzip
-            if !served_precompressed && self.config.compression.static_gzip && (algo_accepted == crate::compression::CompressionAlgo::Gzip || algo_accepted == crate::compression::CompressionAlgo::Brotli) {
+            if !served_precompressed
+                && self.config.compression.static_gzip
+                && (algo_accepted == crate::compression::CompressionAlgo::Gzip
+                    || algo_accepted == crate::compression::CompressionAlgo::Brotli)
+            {
                 // If they asked for brotli but static br doesn't exist, we try gzip if gzip accepted too
                 // For simplicity, we just check if gzip is acceptable (negotiate returns best, but we'll accept gzip if it was requested)
-                let gzip_requested = req_headers.map(|h| {
-                    h.get(hyper::header::ACCEPT_ENCODING).and_then(|v| v.to_str().ok()).unwrap_or("").contains("gzip")
-                }).unwrap_or(false);
+                let gzip_requested = req_headers
+                    .map(|h| {
+                        h.get(hyper::header::ACCEPT_ENCODING)
+                            .and_then(|v| v.to_str().ok())
+                            .unwrap_or("")
+                            .contains("gzip")
+                    })
+                    .unwrap_or(false);
 
                 if (algo_accepted == crate::compression::CompressionAlgo::Gzip) || gzip_requested {
-                    let gz_path = path.with_extension(format!("{}.gz", path.extension().unwrap_or_default().to_string_lossy()));
+                    let gz_path = path.with_extension(format!(
+                        "{}.gz",
+                        path.extension().unwrap_or_default().to_string_lossy()
+                    ));
                     if gz_path.is_file() {
                         if let Ok(mut gz_file) = std::fs::File::open(&gz_path) {
                             use std::io::Read;
@@ -331,7 +368,11 @@ impl StaticFileServer {
             // Apply dynamic compression only if not a range request, status is OK, and we didn't serve a pre-compressed file
             if !served_precompressed {
                 if algo_accepted != crate::compression::CompressionAlgo::None {
-                    if let Some(compressed) = crate::compression::compress_body(&body_bytes, algo_accepted, &self.config.compression) {
+                    if let Some(compressed) = crate::compression::compress_body(
+                        &body_bytes,
+                        algo_accepted,
+                        &self.config.compression,
+                    ) {
                         body_bytes = compressed;
                         content_length = body_bytes.len() as u64;
                         content_encoding = Some(match algo_accepted {
@@ -374,14 +415,14 @@ impl StaticFileServer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
     use std::fs::File;
+    use tempfile::tempdir;
 
     #[test]
     fn test_path_traversal_prevention() {
         let dir = tempdir().unwrap();
         let root = dir.path().to_path_buf();
-        
+
         let config = StaticFileConfig {
             root: root.clone(),
             ..Default::default()
@@ -402,8 +443,8 @@ mod tests {
         let outside_file = root.parent().unwrap().join("outside.txt");
         File::create(&outside_file).ok(); // Might fail due to perms, but test logic holds
         if outside_file.exists() {
-             let sneak_err = server.resolve_path("../outside.txt");
-             assert!(matches!(sneak_err, Err(StaticFileError::PathTraversal(_))));
+            let sneak_err = server.resolve_path("../outside.txt");
+            assert!(matches!(sneak_err, Err(StaticFileError::PathTraversal(_))));
         }
     }
 
@@ -411,9 +452,9 @@ mod tests {
     fn test_index_resolution() {
         let dir = tempdir().unwrap();
         let root = dir.path().to_path_buf();
-        
+
         File::create(root.join("index.html")).unwrap();
-        
+
         let config = StaticFileConfig {
             root: root.clone(),
             ..Default::default()
@@ -422,7 +463,7 @@ mod tests {
 
         let resolved_index = server.resolve_index(&root).unwrap();
         assert_eq!(resolved_index, root.join("index.html"));
-        
+
         // No index
         let empty_dir = tempdir().unwrap();
         assert!(server.resolve_index(empty_dir.path()).is_none());
@@ -470,7 +511,10 @@ mod tests {
         // No range headers
         let resp = server.serve_file("/test", &file_path, None, None).unwrap();
         assert_eq!(resp.status(), hyper::StatusCode::OK);
-        assert_eq!(resp.headers().get("Content-Type").unwrap(), "text/plain; charset=utf-8");
+        assert_eq!(
+            resp.headers().get("Content-Type").unwrap(),
+            "text/plain; charset=utf-8"
+        );
         assert_eq!(resp.headers().get("Content-Length").unwrap(), "11");
         assert_eq!(resp.headers().get("Accept-Ranges").unwrap(), "bytes");
     }
@@ -479,27 +523,36 @@ mod tests {
     fn test_serve_file_range() {
         let dir = tempdir().unwrap();
         let root = dir.path().to_path_buf();
-        let server = StaticFileServer::new(StaticFileConfig { root: root.clone(), ..Default::default() });
+        let server = StaticFileServer::new(StaticFileConfig {
+            root: root.clone(),
+            ..Default::default()
+        });
         let file_path = root.join("test.txt");
         std::fs::write(&file_path, b"0123456789").unwrap();
 
         let mut headers = hyper::HeaderMap::new();
         headers.insert(hyper::header::RANGE, "bytes=0-4".parse().unwrap()); // first 5
-        let resp = server.serve_file("/test", &file_path, Some(&headers), None).unwrap();
+        let resp = server
+            .serve_file("/test", &file_path, Some(&headers), None)
+            .unwrap();
         assert_eq!(resp.status(), hyper::StatusCode::PARTIAL_CONTENT);
         assert_eq!(resp.headers().get("Content-Range").unwrap(), "bytes 0-4/10");
         assert_eq!(resp.headers().get("Content-Length").unwrap(), "5");
-        
+
         let mut headers = hyper::HeaderMap::new();
         headers.insert(hyper::header::RANGE, "bytes=5-".parse().unwrap()); // 5 to end
-        let resp = server.serve_file("/test", &file_path, Some(&headers), None).unwrap();
+        let resp = server
+            .serve_file("/test", &file_path, Some(&headers), None)
+            .unwrap();
         assert_eq!(resp.status(), hyper::StatusCode::PARTIAL_CONTENT);
         assert_eq!(resp.headers().get("Content-Range").unwrap(), "bytes 5-9/10");
         assert_eq!(resp.headers().get("Content-Length").unwrap(), "5");
 
         let mut headers = hyper::HeaderMap::new();
         headers.insert(hyper::header::RANGE, "bytes=-3".parse().unwrap()); // last 3
-        let resp = server.serve_file("/test", &file_path, Some(&headers), None).unwrap();
+        let resp = server
+            .serve_file("/test", &file_path, Some(&headers), None)
+            .unwrap();
         assert_eq!(resp.status(), hyper::StatusCode::PARTIAL_CONTENT);
         assert_eq!(resp.headers().get("Content-Range").unwrap(), "bytes 7-9/10");
         assert_eq!(resp.headers().get("Content-Length").unwrap(), "3");
@@ -509,18 +562,28 @@ mod tests {
     async fn test_serve_file_multipart_range() {
         let dir = tempdir().unwrap();
         let root = dir.path().to_path_buf();
-        let server = StaticFileServer::new(StaticFileConfig { root: root.clone(), ..Default::default() });
+        let server = StaticFileServer::new(StaticFileConfig {
+            root: root.clone(),
+            ..Default::default()
+        });
         let file_path = root.join("test.txt");
         std::fs::write(&file_path, b"0123456789").unwrap();
 
         let mut headers = hyper::HeaderMap::new();
         headers.insert(hyper::header::RANGE, "bytes=0-2, 7-9".parse().unwrap());
-        let resp = server.serve_file("/test", &file_path, Some(&headers), None).unwrap();
-        
+        let resp = server
+            .serve_file("/test", &file_path, Some(&headers), None)
+            .unwrap();
+
         assert_eq!(resp.status(), hyper::StatusCode::PARTIAL_CONTENT);
-        let ct = resp.headers().get("Content-Type").unwrap().to_str().unwrap();
+        let ct = resp
+            .headers()
+            .get("Content-Type")
+            .unwrap()
+            .to_str()
+            .unwrap();
         assert!(ct.starts_with("multipart/byteranges; boundary="));
-        
+
         use http_body_util::BodyExt;
         let body = resp.into_body().collect().await.unwrap().to_bytes();
         let body_str = String::from_utf8(body.to_vec()).unwrap();
@@ -532,14 +595,19 @@ mod tests {
     fn test_serve_file_invalid_range() {
         let dir = tempdir().unwrap();
         let root = dir.path().to_path_buf();
-        let server = StaticFileServer::new(StaticFileConfig { root: root.clone(), ..Default::default() });
+        let server = StaticFileServer::new(StaticFileConfig {
+            root: root.clone(),
+            ..Default::default()
+        });
         let file_path = root.join("test.txt");
         std::fs::write(&file_path, b"01234").unwrap();
 
         let mut headers = hyper::HeaderMap::new();
         headers.insert(hyper::header::RANGE, "bytes=10-20".parse().unwrap()); // unsatisfiable
-        let resp = server.serve_file("/test", &file_path, Some(&headers), None).unwrap();
-        
+        let resp = server
+            .serve_file("/test", &file_path, Some(&headers), None)
+            .unwrap();
+
         assert_eq!(resp.status(), hyper::StatusCode::RANGE_NOT_SATISFIABLE);
         assert_eq!(resp.headers().get("Content-Range").unwrap(), "bytes */5");
     }
@@ -560,13 +628,13 @@ mod tests {
         let try_paths = vec![
             "$uri".to_string(),
             "$uri/".to_string(),
-            "/fallback.html".to_string()
+            "/fallback.html".to_string(),
         ];
 
         // 1. Missing file falls back to fallback
         let resolved = server.try_files("/missing.txt", &try_paths).unwrap();
         assert_eq!(resolved, fb_path.canonicalize().unwrap());
-        
+
         // 2. Existing file is returned early
         let existing = root.join("existing.txt");
         std::fs::write(&existing, b"Exist").unwrap();
@@ -600,16 +668,25 @@ mod tests {
 
         let mut headers = hyper::HeaderMap::new();
         headers.insert(hyper::header::ACCEPT_ENCODING, "gzip".parse().unwrap());
-        
+
         let mut override_mime = std::collections::HashMap::new();
         override_mime.insert("html".to_string(), "text/html".to_string());
 
-        let resp = server.serve_file("/test", &file_path, Some(&headers), Some(&override_mime)).unwrap();
-        
+        let resp = server
+            .serve_file("/test", &file_path, Some(&headers), Some(&override_mime))
+            .unwrap();
+
         assert_eq!(resp.status(), hyper::StatusCode::OK);
         assert_eq!(resp.headers().get("Content-Encoding").unwrap(), "gzip");
         // Body length should be different
-        let content_len: usize = resp.headers().get("Content-Length").unwrap().to_str().unwrap().parse().unwrap();
+        let content_len: usize = resp
+            .headers()
+            .get("Content-Length")
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .parse()
+            .unwrap();
         assert!(content_len > 0 && content_len != content.len());
     }
 
@@ -630,13 +707,16 @@ mod tests {
 
         let resp = server.serve_file("/items/", &subdir, None, None).unwrap();
         assert_eq!(resp.status(), hyper::StatusCode::OK);
-        assert_eq!(resp.headers().get("Content-Type").unwrap(), "text/html; charset=utf-8");
-        
+        assert_eq!(
+            resp.headers().get("Content-Type").unwrap(),
+            "text/html; charset=utf-8"
+        );
+
         use http_body_util::BodyExt;
         let body_bytes = async { resp.into_body().collect().await.unwrap().to_bytes() };
         let body_bytes = tokio::runtime::Runtime::new().unwrap().block_on(body_bytes);
         let body_str = String::from_utf8(body_bytes.to_vec()).unwrap();
-        
+
         assert!(body_str.contains("Index of /items/"));
         assert!(body_str.contains("file1.txt"));
     }

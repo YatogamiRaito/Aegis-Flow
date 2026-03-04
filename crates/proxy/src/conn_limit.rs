@@ -1,8 +1,8 @@
-use std::sync::atomic::{AtomicU64, Ordering};
+use hyper::{Response, StatusCode};
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::sync::Mutex;
-use hyper::{Response, StatusCode};
 
 pub struct ConnLimitZone {
     pub name: String,
@@ -60,14 +60,15 @@ impl ConnManager {
 
     pub async fn try_acquire(&self, key: &str) -> Option<ConnGuard> {
         let mut conns = self.connections.lock().await;
-        let conn_ref = conns.entry(key.to_string()).or_insert_with(|| {
-            Arc::new(ActiveConnections::new())
-        }).clone();
-        
-        // This is a bit racey in highly concurrent inserts, 
+        let conn_ref = conns
+            .entry(key.to_string())
+            .or_insert_with(|| Arc::new(ActiveConnections::new()))
+            .clone();
+
+        // This is a bit racey in highly concurrent inserts,
         // but works practically well for most non-strict edge cases.
         // It's strictly incremented inside the guard logic.
-        
+
         let current = conn_ref.increment();
         if current > self.zone.max_connections {
             // Already exceeded, revert
@@ -82,8 +83,9 @@ impl ConnManager {
     }
 }
 
-pub fn create_503_response<B>() -> Response<B> 
-where B: From<String>
+pub fn create_503_response<B>() -> Response<B>
+where
+    B: From<String>,
 {
     let body = B::from("Service Unavailable: Connection Limit Exceeded".to_string());
     let mut resp = Response::new(body);
@@ -99,10 +101,10 @@ mod tests {
     fn test_active_connections() {
         let conn = ActiveConnections::new();
         assert_eq!(conn.current(), 0);
-        
+
         assert_eq!(conn.increment(), 1);
         assert_eq!(conn.increment(), 2);
-        
+
         conn.decrement();
         assert_eq!(conn.current(), 1);
     }
@@ -117,16 +119,16 @@ mod tests {
 
         let manager = ConnManager::new(zone);
         let key = "192.168.1.1";
-        
+
         let guard1 = manager.try_acquire(key).await.unwrap();
         let guard2 = manager.try_acquire(key).await.unwrap();
-        
+
         // 3rd attempt should fail
         assert!(manager.try_acquire(key).await.is_none());
 
         // Drop guard1, slots should free
         drop(guard1);
-        
+
         let guard3 = manager.try_acquire(key).await;
         assert!(guard3.is_some());
     }

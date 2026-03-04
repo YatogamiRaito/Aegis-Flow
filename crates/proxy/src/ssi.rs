@@ -1,11 +1,10 @@
 /// Server Side Includes (SSI) execution engine
 /// Processes <!--# directive --> tags within HTML responses.
 /// Parsing logic is in sub_filter.rs; this module handles execution.
-
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use tokio::fs;
-use tracing::{warn, debug};
+use tracing::{debug, warn};
 
 pub const MAX_INCLUDE_DEPTH: usize = 10;
 
@@ -85,7 +84,7 @@ pub fn resolve_ssi_var(var_ref: &str, ctx: &SsiContext) -> String {
 /// Unlike the parser (in sub_filter.rs which only extracts directives),
 /// this function actually evaluates and substitutes them inline.
 pub async fn process_ssi(html: &str, ctx: &SsiContext, base_dir: Option<&Path>) -> String {
-    use crate::sub_filter::{parse_ssi_directives, SsiDirective};
+    use crate::sub_filter::{SsiDirective, parse_ssi_directives};
 
     if ctx.depth >= MAX_INCLUDE_DEPTH {
         warn!("SSI max include depth ({}) exceeded", MAX_INCLUDE_DEPTH);

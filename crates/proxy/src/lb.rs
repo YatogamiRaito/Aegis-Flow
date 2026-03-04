@@ -68,9 +68,9 @@ impl LoadBalancer {
                 if total_weight == 0 {
                     return None;
                 }
-                
+
                 let idx = self.rr_counter.fetch_add(1, Ordering::Relaxed) as u32 % total_weight;
-                
+
                 let mut current_weight = 0;
                 for s in available {
                     current_weight += s.config.weight;
@@ -85,7 +85,9 @@ impl LoadBalancer {
                 available.into_iter().min_by(|a, b| {
                     let conn_a = a.active_connections.load(Ordering::Relaxed);
                     let conn_b = b.active_connections.load(Ordering::Relaxed);
-                    conn_a.cmp(&conn_b).then_with(|| b.config.weight.cmp(&a.config.weight))
+                    conn_a
+                        .cmp(&conn_b)
+                        .then_with(|| b.config.weight.cmp(&a.config.weight))
                 })
             }
             LoadBalanceStrategy::IpHash => {
@@ -94,11 +96,13 @@ impl LoadBalancer {
                 let mut hasher = DefaultHasher::new();
                 key.hash(&mut hasher);
                 let hash_val = hasher.finish();
-                
+
                 // Simplified hash ring: directly mod total weight for steady distribution
                 let total_weight: u32 = available.iter().map(|s| s.config.weight).sum();
-                if total_weight == 0 { return None; }
-                
+                if total_weight == 0 {
+                    return None;
+                }
+
                 let idx = (hash_val % (total_weight as u64)) as u32;
                 let mut current_weight = 0;
                 for s in available {
@@ -121,22 +125,18 @@ impl LoadBalancer {
                 if available.len() == 1 {
                     return Some(available[0]);
                 }
-                
+
                 // Extract P2C key or use rr_counter for pseudo-random
                 let rand1 = self.rr_counter.fetch_add(1, Ordering::Relaxed) % available.len();
                 let rand2 = self.rr_counter.fetch_add(1, Ordering::Relaxed) % available.len();
-                
+
                 let s1 = available[rand1];
                 let s2 = available[rand2];
-                
+
                 let conn1 = s1.active_connections.load(Ordering::Relaxed);
                 let conn2 = s2.active_connections.load(Ordering::Relaxed);
-                
-                if conn1 <= conn2 {
-                    Some(s1)
-                } else {
-                    Some(s2)
-                }
+
+                if conn1 <= conn2 { Some(s1) } else { Some(s2) }
             }
         }
     }
@@ -164,14 +164,14 @@ mod tests {
         ];
 
         let lb = LoadBalancer::new(LoadBalanceStrategy::RoundRobin, servers);
-        
+
         // weights are 3 and 1, total 4.
         // indices 0,1,2 will go to s1, index 3 goes to s2
         assert_eq!(lb.select_server(None).unwrap().config.addr, "s1"); // 0
         assert_eq!(lb.select_server(None).unwrap().config.addr, "s1"); // 1
         assert_eq!(lb.select_server(None).unwrap().config.addr, "s1"); // 2
         assert_eq!(lb.select_server(None).unwrap().config.addr, "s2"); // 3
-        
+
         assert_eq!(lb.select_server(None).unwrap().config.addr, "s1"); // 4
     }
 
@@ -183,7 +183,9 @@ mod tests {
         ];
 
         let mut lb = LoadBalancer::new(LoadBalanceStrategy::LeastConnections, servers);
-        lb.servers[0].active_connections.store(10, Ordering::Relaxed);
+        lb.servers[0]
+            .active_connections
+            .store(10, Ordering::Relaxed);
         lb.servers[1].active_connections.store(5, Ordering::Relaxed);
 
         assert_eq!(lb.select_server(None).unwrap().config.addr, "s2");
@@ -204,9 +206,19 @@ mod tests {
         ];
 
         let lb = LoadBalancer::new(LoadBalanceStrategy::IpHash, servers);
-        let s1 = lb.select_server(Some("192.168.1.100")).unwrap().config.addr.clone();
-        let s2 = lb.select_server(Some("192.168.1.100")).unwrap().config.addr.clone();
-        
+        let s1 = lb
+            .select_server(Some("192.168.1.100"))
+            .unwrap()
+            .config
+            .addr
+            .clone();
+        let s2 = lb
+            .select_server(Some("192.168.1.100"))
+            .unwrap()
+            .config
+            .addr
+            .clone();
+
         assert_eq!(s1, s2); // Always same routing
     }
 
@@ -220,10 +232,14 @@ mod tests {
 
         let lb = LoadBalancer::new(LoadBalanceStrategy::PowerOfTwoChoices, servers);
         // Force s1 and s2 to have high connections
-        lb.servers[0].active_connections.store(100, Ordering::Relaxed);
-        lb.servers[1].active_connections.store(100, Ordering::Relaxed);
+        lb.servers[0]
+            .active_connections
+            .store(100, Ordering::Relaxed);
+        lb.servers[1]
+            .active_connections
+            .store(100, Ordering::Relaxed);
         lb.servers[2].active_connections.store(0, Ordering::Relaxed);
-        
+
         // P2C should favor s3 when it's selected
         let mut s3_chosen = false;
         for _ in 0..10 {

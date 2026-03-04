@@ -12,7 +12,7 @@ pub struct CircuitBreaker {
     pub error_threshold_percent: u8,
     pub window_size: Duration,
     pub open_time: Duration,
-    
+
     pub total_requests: u64,
     pub total_errors: u64,
     pub last_state_change: Instant,
@@ -80,7 +80,8 @@ impl CircuitBreaker {
         self.total_requests += 1;
         self.total_errors += 1;
 
-        if self.total_requests > 5 { // Arbitrary min request count to compute %
+        if self.total_requests > 5 {
+            // Arbitrary min request count to compute %
             let err_rate = (self.total_errors * 100) / self.total_requests;
             if err_rate >= (self.error_threshold_percent as u64) {
                 self.state = CircuitState::Open;
@@ -98,27 +99,27 @@ mod tests {
     fn test_circuit_breaker_transitions() {
         // threshold 50%, window 10s, open 5s
         let mut cb = CircuitBreaker::new(50, 10000, 5000);
-        
+
         assert_eq!(cb.state, CircuitState::Closed);
-        
+
         // 4 successes
         for _ in 0..4 {
             assert!(cb.acquire());
             cb.record_success();
         }
-        
+
         // 4 failures (total requests > 5 now, error rate 50%)
         for _ in 0..4 {
             assert!(cb.acquire());
             cb.record_failure();
         }
-        
+
         assert_eq!(cb.state, CircuitState::Open);
         assert!(!cb.acquire()); // Blocked
 
         // Simulate time passing (5s) for HalfOpen
         cb.last_state_change = Instant::now().checked_sub(Duration::from_secs(10)).unwrap();
-        
+
         assert!(cb.acquire()); // Should allow probe
         assert_eq!(cb.state, CircuitState::HalfOpen);
         assert!(!cb.acquire()); // Shouldn't allow second probe

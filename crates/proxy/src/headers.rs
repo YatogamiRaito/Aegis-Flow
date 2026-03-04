@@ -46,7 +46,10 @@ pub fn apply_add_header(
 
     if config.security_headers {
         let presets = [
-            ("strict-transport-security", "max-age=63072000; includeSubDomains; preload"),
+            (
+                "strict-transport-security",
+                "max-age=63072000; includeSubDomains; preload",
+            ),
             ("x-frame-options", "DENY"),
             ("x-content-type-options", "nosniff"),
             ("x-xss-protection", "1; mode=block"),
@@ -81,9 +84,15 @@ mod tests {
     #[test]
     fn test_apply_proxy_set_header() {
         let mut config = HeadersConfig::default();
-        config.proxy_set_header.insert("x-real-ip".to_string(), "$remote_addr".to_string());
-        config.proxy_set_header.insert("x-forwarded-for".to_string(), "$remote_addr".to_string());
-        config.proxy_set_header.insert("host".to_string(), "$server_name".to_string());
+        config
+            .proxy_set_header
+            .insert("x-real-ip".to_string(), "$remote_addr".to_string());
+        config
+            .proxy_set_header
+            .insert("x-forwarded-for".to_string(), "$remote_addr".to_string());
+        config
+            .proxy_set_header
+            .insert("host".to_string(), "$server_name".to_string());
 
         let req_headers = HeaderMap::new();
         let uri = "/".parse::<Uri>().unwrap();
@@ -111,7 +120,9 @@ mod tests {
     #[test]
     fn test_apply_add_header_and_security() {
         let mut config = HeadersConfig::default();
-        config.add_header.insert("x-custom-id".to_string(), "req-$server_port".to_string());
+        config
+            .add_header
+            .insert("x-custom-id".to_string(), "req-$server_port".to_string());
         config.security_headers = true;
 
         let req_headers = HeaderMap::new();
@@ -134,7 +145,10 @@ mod tests {
 
         assert_eq!(out_headers.get("x-custom-id").unwrap(), "req-443");
         assert_eq!(out_headers.get("x-frame-options").unwrap(), "DENY");
-        assert_eq!(out_headers.get("x-content-type-options").unwrap(), "nosniff");
+        assert_eq!(
+            out_headers.get("x-content-type-options").unwrap(),
+            "nosniff"
+        );
     }
 
     #[test]

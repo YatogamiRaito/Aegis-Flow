@@ -3,7 +3,7 @@ use hyper::client::conn::http1;
 use hyper_util::rt::TokioIo;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
-use tokio::time::{sleep, timeout, Duration};
+use tokio::time::{Duration, sleep, timeout};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HealthStatus {
@@ -113,7 +113,7 @@ pub fn start_active_health_checks(
                 _ = sleep(Duration::from_millis(state.config.interval_ms)) => {
                     let addr_clone = addr.clone();
                     let path_clone = state.config.path.clone();
-                    
+
                     let timeout_res = timeout(
                         Duration::from_millis(state.config.timeout_ms),
                         perform_health_check(&addr_clone, &path_clone)
@@ -159,12 +159,12 @@ mod tests {
         };
 
         let mut state = ServerHealthState::new("127.0.0.1:80".to_string(), config);
-        
+
         // 1st failure (0 -> 1) -> No change (Unknown)
         assert!(!state.record_failure());
         assert_eq!(state.status, HealthStatus::Unknown);
         assert_eq!(state.consecutive_failures, 1);
-        
+
         // 2nd failure (1 -> 2) -> No change (Unknown)
         assert!(!state.record_failure());
         assert_eq!(state.status, HealthStatus::Unknown);
@@ -176,7 +176,7 @@ mod tests {
 
         // 4th failure (3 -> 4) -> No change (Already Unhealthy)
         assert!(!state.record_failure());
-        
+
         // 1st success (4 failures -> 1 success, resets failure counter) -> No change
         assert!(!state.record_success());
         assert_eq!(state.status, HealthStatus::Unhealthy);
@@ -187,7 +187,7 @@ mod tests {
         assert!(state.record_success());
         assert_eq!(state.status, HealthStatus::Healthy);
     }
-    
+
     #[test]
     fn test_passive_health_checks() {
         let config = HealthCheckConfig {
@@ -199,7 +199,7 @@ mod tests {
         };
 
         let mut state = ServerHealthState::new("127.0.0.1:80".to_string(), config);
-        
+
         let max_fails = 2;
         assert!(!state.record_passive_failure(max_fails));
         assert!(state.record_passive_failure(max_fails)); // 2 passive failures == Unhealthy

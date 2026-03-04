@@ -29,9 +29,11 @@ pub struct EncryptedStream<S> {
 }
 
 impl<S> EncryptedStream<S> {
+    /// Create stream with a single symmetric key (same key for both directions).
+    ///
+    /// Prefer `new_bidirectional()` to ensure distinct client/server keys.
     pub fn new(stream: S, key: &[u8]) -> Self {
         // Use the same key for both directions (symmetric)
-        // In TLS, client/server keys differ. Here, we assume a single shared secret for simplicity of MVP.
         let key = Key::<Aes256Gcm>::from_slice(key);
         let cipher = Aes256Gcm::new(key);
 
@@ -39,6 +41,24 @@ impl<S> EncryptedStream<S> {
             stream,
             encryptor: cipher.clone(),
             decryptor: cipher,
+            read_buffer: BytesMut::with_capacity(MAX_FRAME_SIZE * 2),
+            decrypted_buffer: BytesMut::with_capacity(MAX_FRAME_SIZE * 2),
+            write_buffer: BytesMut::with_capacity(MAX_FRAME_SIZE * 2),
+        }
+    }
+
+    /// Create stream with independent keys for each direction.
+    ///
+    /// `encrypt_key` is used for writing (outbound), `decrypt_key` for reading (inbound).
+    /// This matches the TLS convention where client and server use distinct keys.
+    pub fn new_bidirectional(stream: S, encrypt_key: &[u8], decrypt_key: &[u8]) -> Self {
+        let enc_key = Key::<Aes256Gcm>::from_slice(encrypt_key);
+        let dec_key = Key::<Aes256Gcm>::from_slice(decrypt_key);
+
+        Self {
+            stream,
+            encryptor: Aes256Gcm::new(enc_key),
+            decryptor: Aes256Gcm::new(dec_key),
             read_buffer: BytesMut::with_capacity(MAX_FRAME_SIZE * 2),
             decrypted_buffer: BytesMut::with_capacity(MAX_FRAME_SIZE * 2),
             write_buffer: BytesMut::with_capacity(MAX_FRAME_SIZE * 2),
@@ -232,7 +252,7 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for EncryptedStream<S> {
         let ciphertext_tag = me
             .encryptor
             .encrypt(&nonce, buf)
-            .expect("Encryption should never fail with valid key and nonce");
+            .map_err(|e| io::Error::other(format!("Encryption failed: {e}")))?;
 
         let frame_len = NONCE_SIZE + ciphertext_tag.len();
         // println!("EncryptedStream: Writing frame len: {} (overhead: {})", frame_len, FRAME_OVERHEAD);

@@ -9,7 +9,10 @@ pub enum ValidationError {
     #[error("Overlapping server_name '{name}' on listen '{listen}'")]
     OverlappingServerName { name: String, listen: String },
     #[error("Invalid regex '{pattern}' in location block: {source}")]
-    InvalidLocationRegex { pattern: String, source: regex::Error },
+    InvalidLocationRegex {
+        pattern: String,
+        source: regex::Error,
+    },
     #[error("Missing TLS certificate at '{0}' for HTTPS listener")]
     MissingTlsCertificate(String),
     #[error("Missing TLS private key at '{0}' for HTTPS listener")]
@@ -47,7 +50,10 @@ pub fn validate_server_blocks(blocks: &[ServerBlock]) -> Result<(), Vec<Validati
             }
         }
 
-        let is_https = block.listen.iter().any(|l| l.contains("443") || l.ends_with("ssl"));
+        let is_https = block
+            .listen
+            .iter()
+            .any(|l| l.contains("443") || l.ends_with("ssl"));
         if is_https {
             if let Some(cert) = &block.ssl_cert {
                 // If it doesn't exist AND it's not our special dummy test path
@@ -156,7 +162,7 @@ mod tests {
         let errs = validate_server_blocks(&[block]).unwrap_err();
         // Should detect missing cert AND missing key
         assert_eq!(errs.len(), 2);
-        
+
         let mut has_cert_err = false;
         let mut has_key_err = false;
         for e in errs {

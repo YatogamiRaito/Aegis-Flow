@@ -6,6 +6,11 @@ authors.workspace = true
 license.workspace = true
 description = "Post-Quantum Cryptography module for Aegis-Flow"
 
+[features]
+# Enable real TEE attestation backends (Intel DCAP, AMD SEV-SNP libraries).
+# When inactive, platform verify functions return Err(NotImplemented).
+tee-real = []
+
 [dependencies]
 aegis-common = { path = "../common" }
 
@@ -38,6 +43,8 @@ aes-gcm.workspace = true
 chacha20poly1305.workspace = true
 hkdf.workspace = true
 sha2.workspace = true
+zeroize.workspace = true
+raw-cpuid.workspace = true
 
 # Certificate Management
 x509-parser.workspace = true
@@ -51,6 +58,7 @@ pem = "3.0"
 tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread"] }
 criterion.workspace = true
 tracing-subscriber.workspace = true
+proptest = "1.10.0"
 
 [[bench]]
 name = "pqc_handshake"

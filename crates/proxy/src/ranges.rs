@@ -1,5 +1,3 @@
-
-
 #[derive(Debug, PartialEq)]
 pub enum HttpRange {
     /// Range `start-end` (both inclusive)
@@ -22,7 +20,9 @@ impl HttpRange {
 
         for part in ranges_str.split(',') {
             let part = part.trim();
-            if part.is_empty() { continue; }
+            if part.is_empty() {
+                continue;
+            }
 
             if part.starts_with('-') {
                 if let Ok(suffix) = part[1..].parse::<u64>() {
@@ -31,7 +31,7 @@ impl HttpRange {
                     return None; // Invalid syntax
                 }
             } else if part.ends_with('-') {
-                if let Ok(start) = part[..part.len()-1].parse::<u64>() {
+                if let Ok(start) = part[..part.len() - 1].parse::<u64>() {
                     ranges.push(HttpRange::StartOnly(start));
                 } else {
                     return None; // Invalid syntax
@@ -39,7 +39,8 @@ impl HttpRange {
             } else {
                 let parts: Vec<&str> = part.split('-').collect();
                 if parts.len() == 2 {
-                    if let (Ok(start), Ok(end)) = (parts[0].parse::<u64>(), parts[1].parse::<u64>()) {
+                    if let (Ok(start), Ok(end)) = (parts[0].parse::<u64>(), parts[1].parse::<u64>())
+                    {
                         if start <= end {
                             ranges.push(HttpRange::Range(start, end));
                         } else {
@@ -88,7 +89,11 @@ impl HttpRange {
                 if *suffix == 0 {
                     None
                 } else {
-                    let start = if *suffix >= total_size { 0 } else { total_size - *suffix };
+                    let start = if *suffix >= total_size {
+                        0
+                    } else {
+                        total_size - *suffix
+                    };
                     Some((start, total_size - 1))
                 }
             }
@@ -107,11 +112,26 @@ mod tests {
 
     #[test]
     fn test_parse_valid() {
-        assert_eq!(HttpRange::parse("bytes=0-499"), Some(vec![HttpRange::Range(0, 499)]));
-        assert_eq!(HttpRange::parse("bytes=500-"), Some(vec![HttpRange::StartOnly(500)]));
-        assert_eq!(HttpRange::parse("bytes=-500"), Some(vec![HttpRange::Suffix(500)]));
-        assert_eq!(HttpRange::parse("bytes=0-100, 200-300"), Some(vec![HttpRange::Range(0, 100), HttpRange::Range(200, 300)]));
-        assert_eq!(HttpRange::parse("bytes=500-, -500"), Some(vec![HttpRange::StartOnly(500), HttpRange::Suffix(500)]));
+        assert_eq!(
+            HttpRange::parse("bytes=0-499"),
+            Some(vec![HttpRange::Range(0, 499)])
+        );
+        assert_eq!(
+            HttpRange::parse("bytes=500-"),
+            Some(vec![HttpRange::StartOnly(500)])
+        );
+        assert_eq!(
+            HttpRange::parse("bytes=-500"),
+            Some(vec![HttpRange::Suffix(500)])
+        );
+        assert_eq!(
+            HttpRange::parse("bytes=0-100, 200-300"),
+            Some(vec![HttpRange::Range(0, 100), HttpRange::Range(200, 300)])
+        );
+        assert_eq!(
+            HttpRange::parse("bytes=500-, -500"),
+            Some(vec![HttpRange::StartOnly(500), HttpRange::Suffix(500)])
+        );
     }
 
     #[test]
@@ -128,10 +148,10 @@ mod tests {
         assert_eq!(HttpRange::Range(0, 499).resolve(size), Some((0, 499)));
         assert_eq!(HttpRange::Range(500, 1500).resolve(size), Some((500, 999))); // Truncates
         assert_eq!(HttpRange::Range(1000, 1500).resolve(size), None); // Unsatisfiable
-        
+
         assert_eq!(HttpRange::StartOnly(500).resolve(size), Some((500, 999)));
         assert_eq!(HttpRange::StartOnly(1000).resolve(size), None);
-        
+
         assert_eq!(HttpRange::Suffix(500).resolve(size), Some((500, 999)));
         assert_eq!(HttpRange::Suffix(1500).resolve(size), Some((0, 999))); // Resolves to toàn bộ file
         assert_eq!(HttpRange::Suffix(0).resolve(size), None); // Unsatisfiable per spec in some interpretations, although browsers rarely send `-0`

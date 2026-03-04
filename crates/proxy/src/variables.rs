@@ -50,16 +50,23 @@ impl<'a> VariableResolver<'a> {
                         }
                     }
                 }
-                
+
                 // Then check split_clients dynamically if a config was passed
                 if let Some(cfg) = self.config {
                     // Create dummy request for evaluation since we don't hold the original request body
-                    let req = hyper::Request::builder().uri(self.ctx.uri.clone()).body(()).unwrap();
+                    let req = hyper::Request::builder()
+                        .uri(self.ctx.uri.clone())
+                        .body(())
+                        .unwrap();
                     for split in &cfg.split_clients {
                         // Nginx variables are defined WITH the '$' (e.g. `$variant`), but `var_name` here strips it.
                         // We check if the trimmed config match equals `var_name`.
                         if split.variable.trim_start_matches('$') == var_name {
-                            return Some(crate::split_clients::evaluate_split_client(split, &req, self.ctx.remote_addr));
+                            return Some(crate::split_clients::evaluate_split_client(
+                                split,
+                                &req,
+                                self.ctx.remote_addr,
+                            ));
                         }
                     }
                 }
@@ -115,7 +122,9 @@ mod tests {
         headers.insert("host", "api.example.com".parse().unwrap());
         headers.insert("user-agent", "curl/7.68.0".parse().unwrap());
 
-        let uri = "https://api.example.com/search?q=rust".parse::<Uri>().unwrap();
+        let uri = "https://api.example.com/search?q=rust"
+            .parse::<Uri>()
+            .unwrap();
         let method = Method::GET;
 
         let ctx = RequestContext {
@@ -133,11 +142,20 @@ mod tests {
 
         assert_eq!(resolver.resolve("uri"), Some("/search".to_string()));
         assert_eq!(resolver.resolve("args"), Some("q=rust".to_string()));
-        assert_eq!(resolver.resolve("host"), Some("api.example.com".to_string()));
+        assert_eq!(
+            resolver.resolve("host"),
+            Some("api.example.com".to_string())
+        );
         assert_eq!(resolver.resolve("scheme"), Some("https".to_string()));
-        assert_eq!(resolver.resolve("remote_addr"), Some("192.168.1.100".to_string()));
+        assert_eq!(
+            resolver.resolve("remote_addr"),
+            Some("192.168.1.100".to_string())
+        );
         assert_eq!(resolver.resolve("server_port"), Some("8080".to_string()));
-        assert_eq!(resolver.resolve("http_user_agent"), Some("curl/7.68.0".to_string()));
+        assert_eq!(
+            resolver.resolve("http_user_agent"),
+            Some("curl/7.68.0".to_string())
+        );
         assert_eq!(resolver.resolve("unknown_var"), None);
 
         // Interpolation

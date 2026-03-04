@@ -1,7 +1,6 @@
 /// Image filter module
 /// On-the-fly image operations for proxied image responses
 /// Supports resize, crop, rotate and quality adjustments
-
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 
@@ -57,7 +56,10 @@ fn default_quality() -> u8 {
 /// Check if a content-type is an image type we can process
 pub fn is_image_content_type(content_type: &str) -> bool {
     let ct = content_type.split(';').next().unwrap_or("").trim();
-    matches!(ct, "image/jpeg" | "image/png" | "image/gif" | "image/webp" | "image/bmp")
+    matches!(
+        ct,
+        "image/jpeg" | "image/png" | "image/gif" | "image/webp" | "image/bmp"
+    )
 }
 
 /// Apply image filter operations to raw image bytes.
@@ -128,7 +130,11 @@ mod tests {
     fn test_passthrough_non_image() {
         let data = Bytes::from("<html>hello</html>");
         let config = ImageFilterConfig {
-            resize: Some(ResizeConfig { width: 200, height: 200, maintain_aspect: false }),
+            resize: Some(ResizeConfig {
+                width: 200,
+                height: 200,
+                maintain_aspect: false,
+            }),
             ..Default::default()
         };
         let (result, ct) = apply_image_filter(data.clone(), &config, "text/html");

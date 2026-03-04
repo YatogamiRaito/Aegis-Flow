@@ -34,7 +34,10 @@ impl CompiledRewriteRule {
     /// `rewritten_string` will have regex capture groups substituted (e.g., $1).
     pub fn apply(&self, uri: &str) -> Option<(String, Option<RewriteFlag>)> {
         if self.regex.is_match(uri) {
-            let replaced = self.regex.replace(uri, &self.config.replacement).into_owned();
+            let replaced = self
+                .regex
+                .replace(uri, &self.config.replacement)
+                .into_owned();
             Some((replaced, self.config.flag.clone()))
         } else {
             None
@@ -49,11 +52,18 @@ pub struct ReturnDirective {
 }
 
 impl ReturnDirective {
-    pub fn return_response(&self) -> Result<hyper::Response<hyper::body::Bytes>, hyper::http::Error> {
+    pub fn return_response(
+        &self,
+    ) -> Result<hyper::Response<hyper::body::Bytes>, hyper::http::Error> {
         let mut builder = hyper::Response::builder().status(self.code);
 
         if let Some(ref txt) = self.text_or_url {
-            if self.code == 301 || self.code == 302 || self.code == 303 || self.code == 307 || self.code == 308 {
+            if self.code == 301
+                || self.code == 302
+                || self.code == 303
+                || self.code == 307
+                || self.code == 308
+            {
                 builder = builder.header("Location", txt);
                 return builder.body(hyper::body::Bytes::new());
             } else {
@@ -117,6 +127,9 @@ mod tests {
         };
         let resp2 = redir.return_response().unwrap();
         assert_eq!(resp2.status(), 301);
-        assert_eq!(resp2.headers().get("Location").unwrap(), "https://example.com/");
+        assert_eq!(
+            resp2.headers().get("Location").unwrap(),
+            "https://example.com/"
+        );
     }
 }

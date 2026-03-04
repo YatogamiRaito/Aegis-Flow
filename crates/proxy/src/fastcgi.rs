@@ -2,8 +2,8 @@
 
 use anyhow::Result;
 use bytes::{BufMut, Bytes, BytesMut};
-use hyper::Request;
 use http_body_util::BodyExt;
+use hyper::Request;
 use std::collections::HashMap;
 
 const FCGI_VERSION_1: u8 = 1;
@@ -68,27 +68,34 @@ impl FastCgiClient {
         B::Error: Into<anyhow::Error>,
     {
         let mut buf = BytesMut::new();
-        
+
         // 1. FCGI_BEGIN_REQUEST
         let begin_req_body = [
-            (FCGI_RESPONDER >> 8) as u8, // roleB1
+            (FCGI_RESPONDER >> 8) as u8,   // roleB1
             (FCGI_RESPONDER & 0xFF) as u8, // roleB0
-            0, // flags (0 = connection close)
-            0, 0, 0, 0, 0, // reserved
+            0,                             // flags (0 = connection close)
+            0,
+            0,
+            0,
+            0,
+            0, // reserved
         ];
-        
+
         FcgiHeader::new(FCGI_BEGIN_REQUEST, request_id, 8, 0).write_to(&mut buf);
         buf.put_slice(&begin_req_body);
 
         // 2. FCGI_PARAMS
         let mut params: HashMap<String, String> = HashMap::new();
         params.insert("SCRIPT_FILENAME".to_string(), script_filename.to_string());
-        params.insert("REQUEST_METHOD".to_string(), req.method().as_str().to_string());
+        params.insert(
+            "REQUEST_METHOD".to_string(),
+            req.method().as_str().to_string(),
+        );
         params.insert("REQUEST_URI".to_string(), req.uri().path().to_string());
         if let Some(query) = req.uri().query() {
             params.insert("QUERY_STRING".to_string(), query.to_string());
         }
-        
+
         // Add HTTP headers
         for (name, value) in req.headers() {
             let key = format!("HTTP_{}", name.as_str().to_uppercase().replace("-", "_"));
@@ -96,24 +103,25 @@ impl FastCgiClient {
                 params.insert(key, v.to_string());
             }
         }
-        
+
         let mut params_buf = BytesMut::new();
         for (k, v) in params {
             Self::encode_nv_pair(&k, &v, &mut params_buf);
         }
-        
+
         // Write the Params payload in chunks of up to 65535 bytes
         let mut params_bytes = params_buf.freeze();
         while !params_bytes.is_empty() {
             let chunk_len = std::cmp::min(params_bytes.len(), 65535);
             let chunk = params_bytes.split_to(chunk_len);
             let pad_len = (8 - (chunk_len % 8)) % 8;
-            
-            FcgiHeader::new(FCGI_PARAMS, request_id, chunk_len as u16, pad_len as u8).write_to(&mut buf);
+
+            FcgiHeader::new(FCGI_PARAMS, request_id, chunk_len as u16, pad_len as u8)
+                .write_to(&mut buf);
             buf.put(chunk);
             buf.put_bytes(0, pad_len);
         }
-        
+
         // Terminating empty FCGI_PARAMS record
         FcgiHeader::new(FCGI_PARAMS, request_id, 0, 0).write_to(&mut buf);
 
@@ -128,14 +136,15 @@ impl FastCgiClient {
                     let write_len = std::cmp::min(chunk_bytes.len(), 65535);
                     let to_write = chunk_bytes.split_to(write_len);
                     let pad_len = (8 - (write_len % 8)) % 8;
-                    
-                    FcgiHeader::new(FCGI_STDIN, request_id, write_len as u16, pad_len as u8).write_to(&mut buf);
+
+                    FcgiHeader::new(FCGI_STDIN, request_id, write_len as u16, pad_len as u8)
+                        .write_to(&mut buf);
                     buf.put(to_write);
                     buf.put_bytes(0, pad_len);
                 }
             }
         }
-        
+
         // Terminating empty FCGI_STDIN record
         FcgiHeader::new(FCGI_STDIN, request_id, 0, 0).write_to(&mut buf);
 

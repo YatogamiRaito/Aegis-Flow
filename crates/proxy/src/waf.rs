@@ -33,7 +33,10 @@ impl WafEngine {
         // SQL Injection rules
         self.rules.push(WafRule {
             id: 1001,
-            pattern: regex::Regex::new(r"(?i)(union(\s+|%20)+select|or(\s+|%20)+1=1|drop(\s+|%20)+table)").unwrap(),
+            pattern: regex::Regex::new(
+                r"(?i)(union(\s+|%20)+select|or(\s+|%20)+1=1|drop(\s+|%20)+table)",
+            )
+            .unwrap(),
             description: "SQL Injection".to_string(),
         });
 
@@ -41,7 +44,8 @@ impl WafEngine {
         self.rules.push(WafRule {
             id: 2001,
             // Match <script> or %3Cscript%3E
-            pattern: regex::Regex::new(r"(?i)(<script>|%3Cscript%3E|javascript:|onerror=|onload=)").unwrap(),
+            pattern: regex::Regex::new(r"(?i)(<script>|%3Cscript%3E|javascript:|onerror=|onload=)")
+                .unwrap(),
             description: "Cross-Site Scripting (XSS)".to_string(),
         });
 
@@ -106,7 +110,7 @@ mod tests {
             .uri("/login?user=admin'%20OR%201=1%20--")
             .body(())
             .unwrap();
-            
+
         assert!(waf.handle_request(&req).is_err());
     }
 
@@ -117,7 +121,7 @@ mod tests {
             .uri("/search?q=%3Cscript%3Ealert(1)%3C/script%3E")
             .body(())
             .unwrap();
-            
+
         assert!(waf.handle_request(&req).is_err());
     }
 
@@ -128,7 +132,7 @@ mod tests {
             .uri("/download?file=../../etc/passwd")
             .body(())
             .unwrap();
-            
+
         assert!(waf.handle_request(&req).is_err());
     }
 
@@ -139,7 +143,7 @@ mod tests {
             .uri("/ping?host=8.8.8.8;cat%20/etc/passwd")
             .body(())
             .unwrap();
-            
+
         assert!(waf.handle_request(&req).is_err());
     }
 
@@ -150,7 +154,7 @@ mod tests {
             .uri("/login?user=admin'%20OR%201=1%20--")
             .body(())
             .unwrap();
-            
+
         // Should not block in LogOnly mode
         assert!(waf.handle_request(&req).is_ok());
     }
@@ -162,7 +166,7 @@ mod tests {
             .uri("/search?q=%3Cscript%3Ealert(1)%3C/script%3E")
             .body(())
             .unwrap();
-            
+
         // Should not block in Off mode
         assert!(waf.handle_request(&req).is_ok());
     }

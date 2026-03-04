@@ -14,7 +14,7 @@ members = ["crates/aegisfile","crates/certman",
 ]
 
 [workspace.package]
-version = "0.14.0"
+version = "0.30.0"
 edition = "2024"
 authors = ["Aegis-Flow Contributors"]
 license = "Apache-2.0"
@@ -66,6 +66,12 @@ criterion = { version = "0.8", features = ["html_reports"] }
 
 # Development
 rand = "0.8"
+
+# Memory Security
+zeroize = { version = "1.8", features = ["derive"] }
+
+# CPU Feature Detection
+raw-cpuid = "11"
 
 # Encryption
 aes-gcm = "0.10"

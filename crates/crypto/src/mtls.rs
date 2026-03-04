@@ -420,7 +420,6 @@ mod tests {
     use super::*;
     use crate::signing::SigningKeyPair;
 
-
     #[test]
     fn test_default_config() {
         let config = MtlsConfig::default();

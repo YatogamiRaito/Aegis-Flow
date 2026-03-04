@@ -4,7 +4,7 @@
 //! and the TLS layer using rustls.
 
 use crate::hybrid_kex::{HybridCiphertext, HybridKeyExchange, HybridPublicKey, HybridSecretKey};
-use aegis_common::Result;
+use aegis_common::{AegisError, Result};
 use tracing::{debug, info, instrument};
 
 /// PQC-enabled TLS configuration
@@ -52,8 +52,10 @@ pub enum PqcAlgorithm {
 
 /// A secure channel established after PQC handshake
 pub struct SecureChannel {
-    /// Cipher for encryption/decryption
-    cipher: crate::cipher::Cipher,
+    /// Cipher for outbound encryption
+    send_cipher: crate::cipher::Cipher,
+    /// Cipher for inbound decryption
+    recv_cipher: crate::cipher::Cipher,
     /// Channel identifier
     channel_id: u64,
     /// Algorithm used
@@ -61,16 +63,25 @@ pub struct SecureChannel {
 }
 
 impl SecureChannel {
-    /// Create a new secure channel with encryption key
-    pub(crate) fn new(encryption_key: [u8; 32], channel_id: u64, algorithm: PqcAlgorithm) -> Self {
-        let key = crate::cipher::EncryptionKey::from_raw(
-            encryption_key,
+    /// Create a secure channel with distinct keys for sending and receiving
+    pub(crate) fn new_bidirectional(
+        send_key_bytes: [u8; 32],
+        recv_key_bytes: [u8; 32],
+        channel_id: u64,
+        algorithm: PqcAlgorithm,
+    ) -> Self {
+        let send_key = crate::cipher::EncryptionKey::from_raw(
+            send_key_bytes,
             crate::cipher::CipherAlgorithm::Aes256Gcm,
         );
-        let cipher = crate::cipher::Cipher::new(key);
+        let recv_key = crate::cipher::EncryptionKey::from_raw(
+            recv_key_bytes,
+            crate::cipher::CipherAlgorithm::Aes256Gcm,
+        );
 
         Self {
-            cipher,
+            send_cipher: crate::cipher::Cipher::new(send_key),
+            recv_cipher: crate::cipher::Cipher::new(recv_key),
             channel_id,
             algorithm,
         }
@@ -78,12 +89,12 @@ impl SecureChannel {
 
     /// Encrypt data for transmission
     pub fn encrypt(&self, plaintext: &[u8]) -> aegis_common::Result<Vec<u8>> {
-        self.cipher.encrypt(plaintext)
+        self.send_cipher.encrypt(plaintext)
     }
 
     /// Decrypt received data
     pub fn decrypt(&self, ciphertext: &[u8]) -> aegis_common::Result<Vec<u8>> {
-        self.cipher.decrypt(ciphertext)
+        self.recv_cipher.decrypt(ciphertext)
     }
 
     /// Get the channel identifier
@@ -96,9 +107,9 @@ impl SecureChannel {
         self.algorithm
     }
 
-    /// Get the encryption key
-    pub fn encryption_key(&self) -> &crate::cipher::EncryptionKey {
-        self.cipher.key()
+    /// Get the outbound encryption key
+    pub fn send_key(&self) -> &crate::cipher::EncryptionKey {
+        self.send_cipher.key()
     }
 }
 
@@ -128,11 +139,22 @@ impl PqcHandshake {
         }
     }
 
-    /// Server: Generate keypair for incoming connection
-    #[instrument(skip(self))]
-    pub fn server_init(&self) -> Result<(HybridPublicKey, ServerHandshakeState)> {
+    /// Server: Generate keypair for incoming connection and sign with identity key
+    #[instrument(skip(self, identity_key))]
+    pub fn server_init(
+        &self,
+        identity_key: &impl crate::signing::SigningKeyPair,
+    ) -> Result<(
+        HybridPublicKey,
+        crate::signing::MlDsaSignature,
+        ServerHandshakeState,
+    )> {
         debug!("Server initializing PQC handshake");
         let (pk, sk) = self.kex.generate_keypair()?;
+
+        // Sign the ephemeral hybrid public key
+        let sig_bytes = identity_key.sign(pk.as_ref())?;
+        let signature = crate::signing::MlDsaSignature::new(sig_bytes, identity_key.algorithm());
 
         let state = ServerHandshakeState {
             secret_key: sk,
@@ -143,24 +165,44 @@ impl PqcHandshake {
             "Server handshake initialized with {:?}",
             self.config.algorithm
         );
-        Ok((pk, state))
+        Ok((pk, signature, state))
     }
 
     /// Client: Complete handshake with server's public key
-    #[instrument(skip(self, server_pk))]
+    #[instrument(skip(self, server_pk, server_identity_pk, signature))]
     pub fn client_complete(
         &self,
         server_pk: &HybridPublicKey,
+        server_identity_pk: &[u8],
+        signature: &crate::signing::MlDsaSignature,
     ) -> Result<(HybridCiphertext, SecureChannel)> {
         debug!("Client completing PQC handshake");
 
+        // First authenticate the server's identity
+        let verifier =
+            crate::signing::MlDsa65Signer::from_keys(server_identity_pk.to_vec(), vec![]).map_err(
+                |_| AegisError::Crypto("Invalid server identity key format".to_string()),
+            )?;
+
+        use crate::signing::SigningKeyPair; // bring verifier methods into scope
+        if !verifier.verify(server_pk.as_ref(), signature.as_bytes())? {
+            return Err(AegisError::Crypto(
+                "MITM Detected: Invalid server signature during handshake".to_string(),
+            ));
+        }
+
         let (ciphertext, shared_secret) = self.kex.encapsulate(server_pk)?;
-        let encryption_key = shared_secret.derive_key();
+
+        // Client sends with client_key, receives with server_key
+        let send_key = shared_secret.derive_client_key();
+        let recv_key = shared_secret.derive_server_key();
+
         let channel_id = self
             .channel_counter
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
 
-        let channel = SecureChannel::new(encryption_key, channel_id, self.config.algorithm);
+        let channel =
+            SecureChannel::new_bidirectional(send_key, recv_key, channel_id, self.config.algorithm);
 
         info!("Client handshake complete, channel_id={}", channel_id);
         Ok((ciphertext, channel))
@@ -176,12 +218,17 @@ impl PqcHandshake {
         debug!("Server completing PQC handshake");
 
         let shared_secret = self.kex.decapsulate(ciphertext, &state.secret_key)?;
-        let encryption_key = shared_secret.derive_key();
+
+        // Server sends with server_key, receives with client_key
+        let send_key = shared_secret.derive_server_key();
+        let recv_key = shared_secret.derive_client_key();
+
         let channel_id = self
             .channel_counter
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
 
-        let channel = SecureChannel::new(encryption_key, channel_id, state.algorithm);
+        let channel =
+            SecureChannel::new_bidirectional(send_key, recv_key, channel_id, state.algorithm);
 
         info!("Server handshake complete, channel_id={}", channel_id);
         Ok(channel)
@@ -206,18 +253,26 @@ impl std::fmt::Debug for ServerHandshakeState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cipher::CipherAlgorithm;
 
     #[test]
     fn test_pqc_handshake_roundtrip() {
+        use crate::signing::{MlDsa65Signer, SigningKeyPair};
         let config = PqcTlsConfig::default();
         let server_handshake = PqcHandshake::new(config.clone());
         let client_handshake = PqcHandshake::new(config);
 
+        // Server Identity Key
+        let identity_key = MlDsa65Signer::generate().unwrap();
+
         // Server generates keypair
-        let (server_pk, server_state) = server_handshake.server_init().unwrap();
+        let (server_pk, signature, server_state) =
+            server_handshake.server_init(&identity_key).unwrap();
 
         // Client completes handshake
-        let (ciphertext, client_channel) = client_handshake.client_complete(&server_pk).unwrap();
+        let (ciphertext, client_channel) = client_handshake
+            .client_complete(&server_pk, identity_key.public_key(), &signature)
+            .unwrap();
 
         // Server completes handshake
         let server_channel = server_handshake
@@ -250,12 +305,18 @@ mod tests {
     fn test_channel_ids_are_unique() {
         let handshake = PqcHandshake::new(PqcTlsConfig::default());
 
-        let (pk, state1) = handshake.server_init().unwrap();
-        let (ct1, channel1) = handshake.client_complete(&pk).unwrap();
+        use crate::signing::SigningKeyPair;
+        let dummy_id = crate::signing::MlDsa65Signer::generate().unwrap();
+        let (pk, sig, state1) = handshake.server_init(&dummy_id).unwrap();
+        let (ct1, channel1) = handshake
+            .client_complete(&pk, dummy_id.public_key(), &sig)
+            .unwrap();
         let channel_server1 = handshake.server_complete(&ct1, state1).unwrap();
 
-        let (pk2, state2) = handshake.server_init().unwrap();
-        let (ct2, channel2) = handshake.client_complete(&pk2).unwrap();
+        let (pk2, sig2, state2) = handshake.server_init(&dummy_id).unwrap();
+        let (ct2, channel2) = handshake
+            .client_complete(&pk2, dummy_id.public_key(), &sig2)
+            .unwrap();
         let channel_server2 = handshake.server_complete(&ct2, state2).unwrap();
 
         // All channel IDs should be unique
@@ -275,16 +336,20 @@ mod tests {
 
     #[test]
     fn test_server_complete_invalid_ciphertext() {
+        use crate::signing::{MlDsa65Signer, SigningKeyPair};
         let config = PqcTlsConfig::default();
-        let handshake = PqcHandshake::new(config);
+        let handshake = PqcHandshake::new(config.clone());
+        let identity_key = MlDsa65Signer::generate().unwrap();
 
         // 1. Setup "Good" Client (Key B)
         let client_h = PqcHandshake::new(PqcTlsConfig::default());
-        let (pk_b, _) = client_h.server_init().unwrap();
-        let (ct_for_b, client_chan) = client_h.client_complete(&pk_b).unwrap();
+        let (pk_b, signature_b, _) = client_h.server_init(&identity_key).unwrap();
+        let (ct_for_b, client_chan) = client_h
+            .client_complete(&pk_b, identity_key.public_key(), &signature_b)
+            .unwrap();
 
         // 2. Setup "Bad" Server (Key A)
-        let (_, sk_a_state) = handshake.server_init().unwrap();
+        let (_, _, sk_a_state) = handshake.server_init(&identity_key).unwrap();
 
         // 3. Try to complete handshake on Server A using Ciphertext for B
         // This attempts to decapsulate ct_for_b using sk_a
@@ -311,9 +376,92 @@ mod tests {
         let _ = HybridCiphertext::from_bytes(&[0u8; 100]);
     }
 
+    /// # MITM Test
+    ///
+    /// Validates that an active MITM attacker who substitutes a forged signature
+    /// cannot complete a handshake with the client.  The client receives a valid
+    /// server `HybridPublicKey` but a garbage `MlDsaSignature` (3309 zero bytes,
+    /// matching the ML-DSA-65 signature size).  `client_complete` MUST reject
+    /// the connection with `AegisError::Crypto("MITM Detected: ...")`.
+    #[test]
+    fn test_mitm_invalid_signature() {
+        use crate::signing::{MlDsa65Signer, MlDsaAlgorithm, MlDsaSignature, SigningKeyPair};
+
+        let config = PqcTlsConfig::default();
+        let server_handshake = PqcHandshake::new(config.clone());
+        let client_handshake = PqcHandshake::new(config);
+
+        // Legitimate server identity key used to generate a real ephemeral public key.
+        let server_id = MlDsa65Signer::generate().unwrap();
+        let (server_pk, _real_sig, _server_state) =
+            server_handshake.server_init(&server_id).unwrap();
+
+        // MITM attacker forges a completely invalid signature (all zeros).
+        let forged_sig = MlDsaSignature::new(
+            vec![0u8; MlDsaAlgorithm::MlDsa65.signature_size_approx()],
+            MlDsaAlgorithm::MlDsa65,
+        );
+
+        // Client attempts to complete the handshake with the forged signature.
+        let result = client_handshake.client_complete(
+            &server_pk,
+            server_id.public_key(), // attacker is using the correct public key (just bad sig)
+            &forged_sig,
+        );
+
+        assert!(
+            result.is_err(),
+            "client_complete must reject a forged/invalid server signature"
+        );
+
+        if let Err(aegis_common::AegisError::Crypto(msg)) = result {
+            assert!(
+                msg.contains("MITM"),
+                "Error message should indicate MITM detection, got: {msg}"
+            );
+        } else {
+            panic!("Expected AegisError::Crypto with MITM message, got unexpected result");
+        }
+    }
+
+    #[test]
+    fn test_mitm_wrong_identity_key() {
+        use crate::signing::{MlDsa65Signer, SigningKeyPair};
+
+        let config = PqcTlsConfig::default();
+        let server_handshake = PqcHandshake::new(config.clone());
+        let client_handshake = PqcHandshake::new(config);
+
+        // Real server identity key
+        let real_server_id = MlDsa65Signer::generate().unwrap();
+        // Attacker's own (different) identity key - used to present wrong public key to client
+        let attacker_id = MlDsa65Signer::generate().unwrap();
+
+        // Server signs its ephemeral key with its REAL identity key
+        let (server_pk, real_sig, _) = server_handshake.server_init(&real_server_id).unwrap();
+
+        // Client receives the real server_pk + real_sig, but checks against ATTACKER's
+        // public key - this simulates a substituted identity key (wrong CA certificate).
+        let result = client_handshake.client_complete(
+            &server_pk,
+            attacker_id.public_key(), // wrong public key presented by MITM attacker
+            &real_sig,
+        );
+
+        assert!(
+            result.is_err(),
+            "client_complete must reject a valid signature verified against the wrong identity key"
+        );
+    }
+
     #[test]
     fn test_secure_channel_debug() {
-        let channel = SecureChannel::new([0u8; 32], 123, PqcAlgorithm::HybridMlKem768);
+        let channel = SecureChannel::new_bidirectional(
+            [0u8; 32],
+            [0u8; 32],
+            123,
+            PqcAlgorithm::HybridMlKem768,
+        );
         let debug_str = format!("{:?}", channel);
         assert!(debug_str.contains("SecureChannel"));
         assert!(debug_str.contains("123"));
@@ -322,7 +470,12 @@ mod tests {
 
     #[test]
     fn test_secure_channel_encrypt_decrypt() {
-        let channel = SecureChannel::new([42u8; 32], 999, PqcAlgorithm::HybridMlKem768);
+        let channel = SecureChannel::new_bidirectional(
+            [42u8; 32],
+            [42u8; 32],
+            999,
+            PqcAlgorithm::HybridMlKem768,
+        );
         let plaintext = b"Hello, PQC world!";
         let ciphertext = channel.encrypt(plaintext).unwrap();
         let decrypted = channel.decrypt(&ciphertext).unwrap();
@@ -331,7 +484,8 @@ mod tests {
 
     #[test]
     fn test_secure_channel_properties() {
-        let channel = SecureChannel::new([1u8; 32], 456, PqcAlgorithm::MlKem768Only);
+        let channel =
+            SecureChannel::new_bidirectional([1u8; 32], [1u8; 32], 456, PqcAlgorithm::MlKem768Only);
         assert_eq!(channel.channel_id(), 456);
         assert_eq!(channel.algorithm(), PqcAlgorithm::MlKem768Only);
     }
@@ -378,15 +532,18 @@ mod tests {
 
     #[test]
     fn test_secure_channel_different_ids() {
-        let ch1 = SecureChannel::new([0u8; 32], 1, PqcAlgorithm::HybridMlKem768);
-        let ch2 = SecureChannel::new([0u8; 32], 2, PqcAlgorithm::HybridMlKem768);
+        let ch1 =
+            SecureChannel::new_bidirectional([0u8; 32], [0u8; 32], 1, PqcAlgorithm::HybridMlKem768);
+        let ch2 =
+            SecureChannel::new_bidirectional([0u8; 32], [0u8; 32], 2, PqcAlgorithm::HybridMlKem768);
         assert_ne!(ch1.channel_id(), ch2.channel_id());
     }
 
     #[test]
     fn test_secure_channel_large_plaintext() {
-        let channel = SecureChannel::new([0xAB; 32], 100, PqcAlgorithm::HybridMlKem768);
-        let plaintext = vec![0xCD; 10000]; // 10KB
+        let channel =
+            SecureChannel::new_bidirectional([0u8; 32], [0u8; 32], 1, PqcAlgorithm::HybridMlKem768);
+        let plaintext = vec![0xAB; 100_000]; // 100 KB
         let ciphertext = channel.encrypt(&plaintext).unwrap();
         let decrypted = channel.decrypt(&ciphertext).unwrap();
         assert_eq!(decrypted, plaintext);
@@ -441,10 +598,11 @@ mod tests {
 
     #[test]
     fn test_secure_channel_encryption_key() {
-        let key_bytes = [0xAB; 32];
-        let channel = SecureChannel::new(key_bytes, 100, PqcAlgorithm::HybridMlKem768);
-        let key = channel.encryption_key();
-        // Key should be accessible
+        let key_bytes = [7u8; 32];
+        let channel =
+            SecureChannel::new_bidirectional(key_bytes, key_bytes, 1, PqcAlgorithm::HybridMlKem768);
+        let key = channel.send_key();
+        assert_eq!(key.algorithm(), CipherAlgorithm::Aes256Gcm);
         let _ = format!("{:?}", key);
     }
 
@@ -452,7 +610,9 @@ mod tests {
     fn test_server_handshake_state_debug() {
         let config = PqcTlsConfig::default();
         let handshake = PqcHandshake::new(config);
-        let (_, state) = handshake.server_init().unwrap();
+        use crate::signing::SigningKeyPair;
+        let dummy_id = crate::signing::MlDsa65Signer::generate().unwrap();
+        let (_, _, state) = handshake.server_init(&dummy_id).unwrap();
 
         let debug = format!("{:?}", state);
         assert!(debug.contains("ServerHandshakeState"));
@@ -467,15 +627,10 @@ mod tests {
     }
 
     #[test]
-    fn test_deprecated_algorithms() {
-        // Test deprecated algorithm variants are still constructible
-        let _k768 = PqcAlgorithm::Kyber768Only;
-        let _hk768 = PqcAlgorithm::HybridKyber768;
-        let _hk1024 = PqcAlgorithm::HybridKyber1024;
-
-        // Test debug formatting for deprecated variants
-        assert!(format!("{:?}", _k768).contains("Kyber768Only"));
-        assert!(format!("{:?}", _hk768).contains("HybridKyber768"));
-        assert!(format!("{:?}", _hk1024).contains("HybridKyber1024"));
+    fn test_pqc_algorithm_variants_deprecated() {
+        // Just checking compilation
+        let _k768 = PqcAlgorithm::MlKem768Only;
+        let _hk768 = PqcAlgorithm::HybridMlKem768;
+        let _hk1024 = PqcAlgorithm::HybridMlKem1024;
     }
 }

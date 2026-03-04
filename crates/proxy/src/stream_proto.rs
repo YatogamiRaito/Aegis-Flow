@@ -8,15 +8,20 @@ use std::time::{Duration, Instant};
 
 /// Returns true if the request headers indicate an HTTP → WebSocket upgrade.
 pub fn is_websocket_upgrade(headers: &[(String, String)]) -> bool {
-    let upgrade = headers.iter()
+    let upgrade = headers
+        .iter()
         .find(|(k, _)| k.to_lowercase() == "upgrade")
         .map(|(_, v)| v.to_lowercase());
-    let connection = headers.iter()
+    let connection = headers
+        .iter()
         .find(|(k, _)| k.to_lowercase() == "connection")
         .map(|(_, v)| v.to_lowercase());
 
     upgrade.as_deref() == Some("websocket")
-        && connection.as_deref().map(|c| c.contains("upgrade")).unwrap_or(false)
+        && connection
+            .as_deref()
+            .map(|c| c.contains("upgrade"))
+            .unwrap_or(false)
 }
 
 /// Compute the Sec-WebSocket-Accept value from a Sec-WebSocket-Key.
@@ -35,7 +40,7 @@ pub fn websocket_accept_key(sec_ws_key: &str) -> String {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ProxyProtocolHeader {
-    pub protocol: String,   // TCP4 | TCP6 | UNKNOWN
+    pub protocol: String, // TCP4 | TCP6 | UNKNOWN
     pub src_addr: String,
     pub dst_addr: String,
     pub src_port: u16,
@@ -135,17 +140,17 @@ impl From<u8> for FastCgiRecordType {
 impl FastCgiRecordType {
     pub fn as_u8(&self) -> u8 {
         match self {
-            Self::BeginRequest   => 1,
-            Self::AbortRequest   => 2,
-            Self::EndRequest     => 3,
-            Self::Params         => 4,
-            Self::Stdin          => 5,
-            Self::Stdout         => 6,
-            Self::Stderr         => 7,
-            Self::Data           => 8,
-            Self::GetValues      => 9,
+            Self::BeginRequest => 1,
+            Self::AbortRequest => 2,
+            Self::EndRequest => 3,
+            Self::Params => 4,
+            Self::Stdin => 5,
+            Self::Stdout => 6,
+            Self::Stderr => 7,
+            Self::Data => 8,
+            Self::GetValues => 9,
             Self::GetValuesResult => 10,
-            Self::Unknown(v)     => *v,
+            Self::Unknown(v) => *v,
         }
     }
 }
@@ -236,7 +241,9 @@ impl UdpSessionTable {
     ) -> Option<&mut UdpSession> {
         // Evict if at limit (LRU-like: evict oldest)
         if !self.sessions.contains_key(&client) && self.sessions.len() >= self.max_sessions {
-            let oldest = self.sessions.iter()
+            let oldest = self
+                .sessions
+                .iter()
                 .min_by_key(|(_, s)| s.last_activity)
                 .map(|(k, _)| *k);
             if let Some(k) = oldest {
@@ -257,7 +264,8 @@ impl UdpSessionTable {
 
     pub fn cleanup_expired(&mut self) {
         let timeout = self.timeout;
-        self.sessions.retain(|_, s| s.last_activity.elapsed() < timeout);
+        self.sessions
+            .retain(|_, s| s.last_activity.elapsed() < timeout);
     }
 
     pub fn len(&self) -> usize {
@@ -276,8 +284,7 @@ impl UdpSessionTable {
 /// Returns true if the response is a Server-Sent Events stream.
 pub fn is_sse_response(headers: &[(String, String)]) -> bool {
     headers.iter().any(|(k, v)| {
-        k.to_lowercase() == "content-type"
-            && v.to_lowercase().starts_with("text/event-stream")
+        k.to_lowercase() == "content-type" && v.to_lowercase().starts_with("text/event-stream")
     })
 }
 
@@ -306,16 +313,17 @@ mod tests {
         let headers = vec![
             ("Upgrade".to_string(), "websocket".to_string()),
             ("Connection".to_string(), "Upgrade".to_string()),
-            ("Sec-WebSocket-Key".to_string(), "dGhlIHNhbXBsZSBub25jZQ==".to_string()),
+            (
+                "Sec-WebSocket-Key".to_string(),
+                "dGhlIHNhbXBsZSBub25jZQ==".to_string(),
+            ),
         ];
         assert!(is_websocket_upgrade(&headers));
     }
 
     #[test]
     fn test_not_websocket_upgrade() {
-        let headers = vec![
-            ("Content-Type".to_string(), "text/html".to_string()),
-        ];
+        let headers = vec![("Content-Type".to_string(), "text/html".to_string())];
         assert!(!is_websocket_upgrade(&headers));
     }
 
@@ -460,7 +468,10 @@ mod tests {
     fn test_grpc_detection() {
         let grpc = vec![("content-type".to_string(), "application/grpc".to_string())];
         assert!(is_grpc_request(&grpc));
-        let grpc_web = vec![("content-type".to_string(), "application/grpc-web".to_string())];
+        let grpc_web = vec![(
+            "content-type".to_string(),
+            "application/grpc-web".to_string(),
+        )];
         assert!(is_grpc_request(&grpc_web));
         let other = vec![("content-type".to_string(), "text/html".to_string())];
         assert!(!is_grpc_request(&other));

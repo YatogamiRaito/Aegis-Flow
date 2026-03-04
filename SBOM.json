@@ -1,0 +1,60 @@
+{
+  "name": "aegisfile",
+  "version": "0.30.0",
+  "license": "Apache-2.0"
+}
+{
+  "name": "certman",
+  "version": "0.30.0",
+  "license": "Apache-2.0"
+}
+{
+  "name": "aegis-common",
+  "version": "0.30.0",
+  "license": "Apache-2.0"
+}
+{
+  "name": "aegis-crypto",
+  "version": "0.30.0",
+  "license": "Apache-2.0"
+}
+{
+  "name": "aegis-energy",
+  "version": "0.30.0",
+  "license": "Apache-2.0"
+}
+{
+  "name": "aegis-genomics",
+  "version": "0.30.0",
+  "license": "Apache-2.0"
+}
+{
+  "name": "aegis-mail",
+  "version": "0.30.0",
+  "license": "Apache-2.0"
+}
+{
+  "name": "aegis-plugins",
+  "version": "0.30.0",
+  "license": "Apache-2.0"
+}
+{
+  "name": "aegis-procman",
+  "version": "0.30.0",
+  "license": "Apache-2.0"
+}
+{
+  "name": "aegis-proxy",
+  "version": "0.30.0",
+  "license": "Apache-2.0"
+}
+{
+  "name": "aegis-telemetry",
+  "version": "0.30.0",
+  "license": "Apache-2.0"
+}
+{
+  "name": "aegis-examples",
+  "version": "0.30.0",
+  "license": "Apache-2.0"
+}

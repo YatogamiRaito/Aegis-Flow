@@ -5,6 +5,28 @@ All notable changes to Aegis-Flow will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.30.0] - 2026-03-04
+
+### Added
+- **PQC Data Plane Security Hardening (Track 30)**
+  - Hardened cryptographic KDF using HKDF-SHA256 in `HybridSharedSecret`.
+  - Implemented `ZeroizeOnDrop` for `HybridSecretKey`, `HybridSharedSecret`, and `EncryptionKey` for secure memory zeroization.
+  - Aligned `HybridKeyExchange` with the generic `KeyExchange` trait for enhanced protocol agility.
+  - Hardened TEE attestation stubs to return `NotImplemented` for real platforms, ensuring secure fallback.
+  - Enhanced TEE detection using runtime CPUID checks and environment variable overrides.
+  - Implemented Nonce Overflow protection in `Cipher` with `nonce_remaining` metrics.
+  - Added support for ChaCha20-Poly1305 symmetric encryption for cipher agility.
+  - Implemented bidirectional encrypted streams with independent derivation keys.
+  - Added automated cargo-fuzz infrastructure with targets for KEX, Cipher, and Attestation.
+  - New CI benchmark pipeline for automated performance regression tracking.
+
+### Fixed
+- **mTLS**: Resolved a critical handshake state management bug in `MtlsAuthenticator` that caused ephemeral key mismatches.
+- **Testing**: Fixed a race condition in TEE attestation tests related to environment variable manipulation.
+
+### Changed
+- Workspace version bumped to 0.30.0.
+
 ## [0.14.0] - 2025-12-28
 
 ### Added

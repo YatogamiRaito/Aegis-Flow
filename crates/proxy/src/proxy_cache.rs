@@ -71,10 +71,12 @@ impl CacheEntry {
         body: Vec<u8>,
         ttl: Duration,
     ) -> Self {
-        let etag = headers.iter()
+        let etag = headers
+            .iter()
             .find(|(k, _)| k.to_lowercase() == "etag")
             .map(|(_, v)| v.clone());
-        let last_modified = headers.iter()
+        let last_modified = headers
+            .iter()
             .find(|(k, _)| k.to_lowercase() == "last-modified")
             .map(|(_, v)| v.clone());
         let size = body.len();
@@ -203,12 +205,12 @@ pub enum CacheStatus {
 impl CacheStatus {
     pub fn as_str(&self) -> &'static str {
         match self {
-            Self::Hit        => "HIT",
-            Self::Miss       => "MISS",
-            Self::Bypass     => "BYPASS",
-            Self::Expired    => "EXPIRED",
-            Self::Stale      => "STALE",
-            Self::Updating   => "UPDATING",
+            Self::Hit => "HIT",
+            Self::Miss => "MISS",
+            Self::Bypass => "BYPASS",
+            Self::Expired => "EXPIRED",
+            Self::Stale => "STALE",
+            Self::Updating => "UPDATING",
             Self::Revalidated => "REVALIDATED",
         }
     }
@@ -293,7 +295,9 @@ impl MemoryCache {
 
     pub fn purge_prefix(&self, prefix: &str) -> usize {
         let mut inner = self.inner.lock().unwrap();
-        let keys: Vec<String> = inner.lru.iter()
+        let keys: Vec<String> = inner
+            .lru
+            .iter()
             .filter(|(k, _)| k.starts_with(prefix))
             .map(|(k, _)| k.clone())
             .collect();
@@ -356,12 +360,19 @@ impl Default for BypassCheck {
 impl BypassCheck {
     pub fn should_bypass(&self, method: &str, headers: &[(String, String)]) -> bool {
         // Method check
-        if !self.cacheable_methods.iter().any(|m| m.eq_ignore_ascii_case(method)) {
+        if !self
+            .cacheable_methods
+            .iter()
+            .any(|m| m.eq_ignore_ascii_case(method))
+        {
             return true;
         }
         // Header check
         for (name, val) in headers {
-            if self.bypass_headers.iter().any(|h| h.eq_ignore_ascii_case(name))
+            if self
+                .bypass_headers
+                .iter()
+                .any(|h| h.eq_ignore_ascii_case(name))
                 && !val.is_empty()
             {
                 return true;

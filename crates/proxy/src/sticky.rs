@@ -17,11 +17,7 @@ pub fn check_sticky_session<B>(req: &Request<B>, config: &StickyConfig) -> Optio
     None
 }
 
-pub fn issue_sticky_session<B>(
-    res: &mut Response<B>,
-    config: &StickyConfig,
-    server_addr: &str,
-) {
+pub fn issue_sticky_session<B>(res: &mut Response<B>, config: &StickyConfig, server_addr: &str) {
     let cookie_val = format!("{}={}; Path=/; HttpOnly", config.cookie_name, server_addr);
     if let Ok(hv) = HeaderValue::from_str(&cookie_val) {
         res.headers_mut().append("set-cookie", hv);
@@ -53,7 +49,7 @@ mod tests {
         // Check issuing cookie
         let mut res = Response::builder().body(()).unwrap();
         issue_sticky_session(&mut res, &config, "backend-2");
-        
+
         let cookie_set = res.headers().get("set-cookie").unwrap().to_str().unwrap();
         assert!(cookie_set.contains("ROUTEID=backend-2"));
         assert!(cookie_set.contains("HttpOnly"));

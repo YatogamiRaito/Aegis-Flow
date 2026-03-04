@@ -134,17 +134,17 @@ impl PqcProxyServer {
 
                                 let service = hyper::service::service_fn(move |req| {
                                     let upstream = upstream.clone();
-                                    async move { 
+                                    async move {
                                         crate::http_proxy::handle_request(
-                                            req, 
-                                            &upstream, 
+                                            req,
+                                            &upstream,
                                             None,
                                             None,
                                             std::sync::Arc::new(crate::proxy_cache::TtlConfig::new(60)),
                                             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
                                             None,
                                             std::sync::Arc::new(Vec::new()),
-                                        ).await 
+                                        ).await
                                     }
                                 });
 

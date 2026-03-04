@@ -429,6 +429,74 @@ Kullanıcı sana `Track: [Track Adı]` şeklinde bir track verdiğinde şunu yap
 
 **Çözüm:** AST'yi asıl ProxyConfig'e bağlamak, Aegisfile'ı boot sequence'ine (başlangıç döngüsüne) eklemek ve Track 46 ile oluşturulacak CLI paketi içine Aegisfile komutlarını entegre etmek için yeni iz (Track 49) oluşturuldu.
 
+### ❌ Track 25: Dynamic Configuration API — Skor: 1.5/10
+**Dizin:** `conductor/tracks/dynamic_config_api_20260302/`
+**İncelenen dosyalar:**
+- `crates/proxy/src/admin_api.rs`
+
+**Kritik bulgular:**
+- `axum` tabanlı bir REST API taslağı kurulmuş ve basit CRUD testleri geçiyor. `RuntimeConfig` adlı basit bir struct üzerinden çalışıyor ve kendi içinde versiyon numarasını artırabiliyor.
+- **Kritik Hata:** Bu API sadece "Ölü Kod" (Dead Code). `bootstrap.rs` içinde hiçbir zaman başlatılmıyor (tokio::spawn çağrısı yok). 
+- **Kritik Çatı Sorunu:** Değiştirilen `RuntimeConfig`, asıl reverse proxy'nin kullandığı `crates::proxy::config::ProxyConfig` yapısına hiçbir şekilde bağlı değil. Yani API'den bir upstream silseniz dahi, çalışan proxy buna asla tepki vermez; konfigürasyon ayrık ve izoledir.
+- Endpointlerin %80'i (Upstreams, Certs, Cache, Rate Limits) yazılmamış. Kimlik doğrulama (API Key veya Origin Checking) yok.
+
+**Çözüm:** Asıl routing state'ini (örneğin `ArcSwap<ProxyConfig>`) API üzerinden yönetilebilir hale getirmek, eksik sistem deneme (status) endpointlerini axum tarafına kurmak, auth/local-origin denetimi bağlamak için "Hardening" paketi eklendi (Track 50).
+
+### ❌ Track 26: Advanced Request Processing — Skor: 4.5/10
+**Dizin:** `conductor/tracks/advanced_request_processing_20260302/`
+**İncelenen dosyalar:**
+- `crates/proxy/src/map_directive.rs`, `split_clients.rs`
+- `crates/proxy/src/auth_request.rs`, `mirror.rs`, `limit_except.rs`
+- `crates/proxy/src/http_proxy.rs`, `stub_status.rs`
+
+**Kritik bulgular:**
+- `limit_except` (Metod tabanlı erişim kontrolü) ve `/.well-known/aegis_status` (Stub status HTML/JSON) sayfasının metrikleri çok güzel entegre edilmiş ve tam çalışıyor.
+- `auth_request` (subrequest authentication) kısıtlı bir şekilde çalışıyor ama vaad edilen **Header Injection** (`auth_request_set`) yapılmıyor.
+- `mirror` (Traffic Duplication) mantığı yazılmış ama `handle_request` içinde hiçbir zaman çalıştırılmıyor (tokio::spawn çağrısı yok).
+- **En Büyük Eksik:** `map` ve `split_clients` parçaları yazılmış ancak proxy'nin "Variable Evaluation Engine" (Değişken Çözümleme Motoru - `$host`, `$uri` gibi Nginx tarzı string interpolasyonu) **İnşa Edilmemiş**. Bu yüzden dinamik proxy routing (örn: `proxy_pass = "$backend"`) çalışması imkansız.
+
+**Çözüm:** Nginx-var benzeri yapıları çözümleyecek merkezi bir `VariableContext` oluşturmak, mirror requestlerini `tokio::spawn` ile asenkron fırlatmak ve Auth önbelliğini/Header extraction'ı kodlamak için yeni iz (Track 51) oluşturuldu.
+
+### ❌ Track 27: Response Transformation & Logging Extensions — Skor: 4.0/10
+**Dizin:** `conductor/tracks/response_transform_20260302/`
+**İncelenen dosyalar:**
+- `crates/proxy/src/sub_filter.rs`, `ssi.rs`, `image_filter.rs`, `syslog.rs`
+
+**Kritik bulgular:**
+- `sub_filter` (Body rewriting), `ssi` (Server Side Includes) ve `syslog` kod mantığı ve objeleri tamamen kendi başlarına (izole biçimde) inşa edilmiş, testleri de geçiyor.
+- **En Büyük Eksik:** Bu özellikleri asıl HTTP Proxy rotasına ve yaşam döngüsüne bağlayan hiçbir bağlantı yok! Proxy, stream'i olduğu gibi geçiriyor. `sub_filter` ve `ssi` için response stream'ini araya girip okuyacak (**Response Middleware**) yapı geliştirilmemiş, bu yüzden yazılan özelliklerin hiçbiri kullanılamıyor.
+- Syslog ise `access_log.rs` içine hiç entegre edilmemiş; loglar gitmiyor.
+- `image_filter` sadece bir taslak (stub) olarak yazılmış, asıl `image` kütüphanesi entegrasyonu yok.
+
+**Çözüm:** `http_proxy::handle_request` içinde Response Middleware Pipeline inşa ederek stream'e müdahale edip `sub_filter` ve `ssi` transformasyonlarını işletmek ve ardından Syslog ağlarını access loglarına bağlamak için yeni iz (Track 52) oluşturuldu.
+
+### ❌ Track 28: Multi-Worker Architecture — Skor: 1.5/10
+**Dizin:** `conductor/tracks/multi_worker_20260302/`
+**İncelenen dosyalar:**
+- `crates/proxy/src/master.rs`, `main.rs`, `bootstrap.rs`
+
+**Kritik bulgular:**
+- `master.rs` içinde process ID'lerini tutan, crash limitlerini sayan bazı mantık sınıfları var. Ancak, **hiçbir şekilde çalıştırılmıyorlar.**
+- **Kritik Hata:** Aegis-Flow şu anda tek bir proses (single-process) olarak çalışıyor. Master'ın worker fork'ladığı (spawn ettiği) hiçbir yer yok.
+- `SO_REUSEPORT` implementasyonu eksik. Linux'te port paylaşımı olmadan multi-process sunucu çalıştırmak TCP çakışmalarına neden olur.
+- `SIGHUP` (Graceful reload) veya `SIGUSR2` (Hot binary upgrade) sinyallerini dinleyen ve uygulayan bir kod bloğu yazılmamış.
+
+**Çözüm:** `main.rs` daemon başlangıç noktası olarak baştan yazılıp `--worker` argümanını kontrol edecek. `bootstrap.rs` içindeki TCP listener'lar `socket2` ile `SO_REUSEPORT` moduna alınacak ve `master.rs` içine sinyal dinleme/respawn döngüsü eklenecek. Bunun için "Hardening" paketi eklendi (Track 53).
+
+### ❌ Track 29: GeoIP Routing & Mail Proxy — Skor: 4.5/10
+**Dizin:** `conductor/tracks/geoip_mail_20260302/`
+**İncelenen dosyalar:**
+- `crates/proxy/src/geoip.rs`, `geo_directive.rs`
+- `crates/mail/src/*` (Workspace)
+
+**Kritik bulgular:**
+- `geoip.rs` MaxMind DB okumalarını kusursuz yapıyor. `crates/mail` (SMTP, IMAP, POP3 proxy ve Auth HTTP Subrequest) kendi başına çalışıyor, ünite testlerini geçiyor. 
+- **En Büyük Eksik:** Aegis-Proxy'nin `Cargo.toml` dosyasında `aegis-mail` kütüphanesi bile import edilmemiş! Mail proxy için hiçbir port dinlenmiyor.
+- GeoIP sonuçları (Örn: `$geoip_country_code`) `VariableContext` sistemine veya `http_proxy` akışına enjekte edilmiyor.
+- Ortada yapılmış harika parserlar var ama **motor (engine) bunları çağırmıyor**.
+
+**Çözüm:** Proxy'nin config sistemine `[[mail]]` bloğunu eklemek, `bootstrap.rs` içinde Mail TCP Listener'ları başlatmak ve HTTP middleware aşamasında GeoIP'yi resolve etmek için yeni iz (*Track 54: GeoIP Routing & Mail Proxy Hardening*) oluşturuldu.
+
 **Çözüm:** Process Manager "beyni" inşa edilmiş ancak "ağzı ve elleri" yapılmamış. CLI komutlarını proxy binary'sine bağlamak ve Daemon bootloop mekaniğini eklemek için yeni iz (*Track 40: Process Manager CLI & Daemon Bootstrapping*) oluşturuldu.
 
 ---
@@ -624,6 +692,46 @@ Kullanıcı sana `Track: [Track Adı]` şeklinde bir track verdiğinde şunu yap
 - Phase 2: Aegisfile to ProxyConfig Bridge (`aegisfile` verisini Caddy mantığıyla TOML verisine kodda eşlemek)
 - Phase 3: Daemon Loading (Çalıştırıldığında dizindeki `Aegisfile` dosyasını otomatik okumak)
 - Phase 4: CLI Commands (`aegis adapt`, `fmt`, ve `validate` komutlarını bağlamak)
+
+### Track 50: Dynamic Config API Hardening (v0.50.0) — `[ ]`
+**Dizin:** `conductor/tracks/dynamic_config_api_hardening_20260304/`
+**Fazlar:**
+- Phase 1: Core State Integration (`ArcSwap<ProxyConfig>` yapısı ile canlı reload)
+- Phase 2: Complete the API Endpoints (Upstream ve server modifikasyonları için ful axum CRUD)
+- Phase 3: Authentication and Security (Rate_limit, IP whitelist ve X-API-Key middleware)
+- Phase 4: Status and Extensibility Endpoints (Cache, bağlantılar ve metriklerin real-time sunulması)
+
+### Track 51: Advanced Request Processing Hardening (v0.51.0) — `[ ]`
+**Dizin:** `conductor/tracks/advanced_request_processing_hardening_20260304/`
+**Fazlar:**
+- Phase 1: Request Variable Engine (Per-request `$variable` çözümleme motorunun inşa edilmesi)
+- Phase 2: Wiring Map and Split Clients (`proxy_pass` ve headerların lazy-evaluation motorundan geçmesi)
+- Phase 3: Traffic Mirror Execution (Body bufferlama ve asenkron request cloning işlemleri)
+- Phase 4: Auth Request Enhancements (Auth servis yanıtlarından header extraction ve caching)
+
+### Track 52: Response Transformation & Logging Hardening (v0.52.0) — `[ ]`
+**Dizin:** `conductor/tracks/response_transform_hardening_20260304/`
+**Fazlar:**
+- Phase 1: Response Middleware Pipeline (`http_proxy` içinde response araya girmesi ve buffer/stream yönetimi)
+- Phase 2: Wiring Sub-Filter and SSI (Okunan body'ye transformasyonların per-request uygulanması)
+- Phase 3: Syslog Integration (`access_log.rs` event loop'una Syslog transport eklenmesi)
+- Phase 4: Verification and Cleanup (Content-Length hesaplamalarının test edilmesi)
+
+### Track 53: Multi-Worker Architecture Hardening (v0.53.0) — `[ ]`
+**Dizin:** `conductor/tracks/multi_worker_hardening_20260304/`
+**Fazlar:**
+- Phase 1: SO_REUSEPORT Integration (Tüm dinleyicilerin port-sharing yapacak raw socketlere çevrilmesi)
+- Phase 2: CLI and Master Process Orchestration (`main.rs` daemon logic ve `--worker` fork mekaniği)
+- Phase 3: Signal Handling (SIGHUP sinyaline yanıt olarak reload senaryosunun yazılması)
+- Phase 4: Worker Graceful Shutdown (Eski workerların SIGQUIT beklemesi ve bağlantıları bitirmesi)
+
+### Track 54: GeoIP Routing & Mail Proxy Hardening (v0.54.0) — `[ ]`
+**Dizin:** `conductor/tracks/geoip_mail_hardening_20260304/`
+**Fazlar:**
+- Phase 1: Dependency & Config Wiring (`aegis-mail` crate'in proxy rust ağına bağlanması, yapılandırma okuma)
+- Phase 2: Mail Server Listeners (`bootstrap.rs`'de mail TCP server döngülerinin kurulması)
+- Phase 3: GeoIP Variable Injection (HTTP Middleware aşamasında country_code lookup)
+- Phase 4: Geo Directive Logic (IPCIDR range evaluation motoru)
 
 ---
 

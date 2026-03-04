@@ -478,6 +478,7 @@ impl std::fmt::Debug for MlDsaVerifier {
 /// Hybrid signature format tag
 const HYBRID_SIGNATURE_TAG: u8 = 0x01;
 /// Pure ML-DSA signature tag (no Ed25519) - reserved for future use
+#[allow(dead_code)]
 const MLDSA_ONLY_TAG: u8 = 0x00;
 
 /// Hybrid signature combining ML-DSA-65 and Ed25519

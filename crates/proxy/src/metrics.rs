@@ -90,10 +90,22 @@ pub fn init_metrics() -> PrometheusHandle {
             );
             describe_counter!(names::CACHE_HITS, "Total number of cache hits");
             describe_counter!(names::CACHE_MISSES, "Total number of cache misses");
-            describe_counter!(names::CACHE_BYTES_SAVED, "Total bytes served from cache instead of upstream");
-            describe_gauge!(names::CACHE_MEMORY_BYTES, "Current size of the memory cache in bytes");
-            describe_gauge!(names::WEBSOCKET_CONNECTIONS_ACTIVE, "Number of active WebSocket connections");
-            describe_counter!(names::WEBSOCKET_MESSAGES_TOTAL, "Total WebSocket messages forwarded");
+            describe_counter!(
+                names::CACHE_BYTES_SAVED,
+                "Total bytes served from cache instead of upstream"
+            );
+            describe_gauge!(
+                names::CACHE_MEMORY_BYTES,
+                "Current size of the memory cache in bytes"
+            );
+            describe_gauge!(
+                names::WEBSOCKET_CONNECTIONS_ACTIVE,
+                "Number of active WebSocket connections"
+            );
+            describe_counter!(
+                names::WEBSOCKET_MESSAGES_TOTAL,
+                "Total WebSocket messages forwarded"
+            );
 
             METRICS_HANDLE.set(handle.clone()).ok();
             handle

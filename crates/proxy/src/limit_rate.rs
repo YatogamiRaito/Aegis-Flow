@@ -1,11 +1,11 @@
-use hyper::{Request, Response, StatusCode};
 use http_body_util::BodyExt;
+use hyper::body::{Body, Bytes};
+use hyper::{Request, Response, StatusCode};
 use std::time::Duration;
 use tokio::time::timeout;
-use hyper::body::{Body, Bytes};
 
 pub struct RateAndSizeLimits {
-    pub limit_rate: u64, // bytes per second
+    pub limit_rate: u64,       // bytes per second
     pub limit_rate_after: u64, // free burst size
     pub client_max_body_size: u64,
     pub client_header_timeout: Duration,
@@ -98,7 +98,7 @@ mod tests {
     #[tokio::test]
     async fn test_read_body_with_timeout() {
         let body = Full::new(Bytes::from("hello world"));
-        
+
         // Allowed size, generous timeout
         let res = read_body_with_timeout(body, 100, Duration::from_secs(1)).await;
         assert!(res.is_ok());
@@ -109,7 +109,7 @@ mod tests {
         assert!(res2.is_err());
         assert_eq!(res2.unwrap_err().status(), StatusCode::PAYLOAD_TOO_LARGE);
     }
-    
+
     #[tokio::test]
     async fn test_limit_rate_sleep() {
         let limits = RateAndSizeLimits {
@@ -123,7 +123,7 @@ mod tests {
         let start = Instant::now();
         apply_limit_rate(400, &limits).await; // Under burst, no sleep
         assert!(start.elapsed() < Duration::from_millis(50));
-        
+
         let start2 = Instant::now();
         apply_limit_rate(1500, &limits).await; // 1000 over, rate 1000/s -> 1 sec sleep
         assert!(start2.elapsed() >= Duration::from_millis(900));

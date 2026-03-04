@@ -1,7 +1,7 @@
+use percent_encoding::{AsciiSet, NON_ALPHANUMERIC, utf8_percent_encode};
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
-use serde::{Serialize, Deserialize};
-use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
 
 const PATH_ENCODE_SET: &AsciiSet = &NON_ALPHANUMERIC
     .remove(b'-')
@@ -21,9 +21,13 @@ pub struct DirEntry {
     pub mtime_secs: u64,
 }
 
-pub fn generate_directory_listing(dir_path: &Path, uri_path: &str, as_json: bool) -> Result<(String, String), std::io::Error> {
+pub fn generate_directory_listing(
+    dir_path: &Path,
+    uri_path: &str,
+    as_json: bool,
+) -> Result<(String, String), std::io::Error> {
     let mut entries = Vec::new();
-    
+
     // Add parent dir link if not at root
     if uri_path != "/" && !uri_path.is_empty() {
         entries.push(DirEntry {
@@ -38,8 +42,9 @@ pub fn generate_directory_listing(dir_path: &Path, uri_path: &str, as_json: bool
         let entry = entry?;
         let metadata = entry.metadata()?;
         let name = entry.file_name().to_string_lossy().to_string();
-        
-        let mtime_secs = metadata.modified()
+
+        let mtime_secs = metadata
+            .modified()
             .ok()
             .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
             .map(|d| d.as_secs())
@@ -76,22 +81,22 @@ pub fn generate_directory_listing(dir_path: &Path, uri_path: &str, as_json: bool
 fn generate_html(entries: &[DirEntry], uri_path: &str) -> String {
     let mut html = String::new();
     let display_path = html_escape::encode_text(uri_path);
-    
+
     html.push_str(&format!(
         "<!DOCTYPE html><html><head><title>Index of {}</title>\
         <style>body{{font-family:monospace}} th{{text-align:left}} table{{width:100%}} td{{padding:2px 10px}}</style>\
         </head><body><h1>Index of {}</h1><hr><table>",
         display_path, display_path
     ));
-    
+
     html.push_str("<tr><th>Name</th><th>Last Modified</th><th>Size</th></tr>");
-    
+
     let base_href = if uri_path.ends_with('/') {
         uri_path.to_string()
     } else if uri_path.is_empty() {
-         "/".to_string()
+        "/".to_string()
     } else {
-         format!("{}/", uri_path)
+        format!("{}/", uri_path)
     };
 
     for entry in entries {
@@ -99,11 +104,16 @@ fn generate_html(entries: &[DirEntry], uri_path: &str) -> String {
             "../".to_string()
         } else {
             let encoded_name = encode_uri_path(&entry.name);
-            format!("{}{}{}", base_href, encoded_name, if entry.is_dir { "/" } else { "" })
+            format!(
+                "{}{}{}",
+                base_href,
+                encoded_name,
+                if entry.is_dir { "/" } else { "" }
+            )
         };
-        
+
         let display_name = html_escape::encode_text(&entry.name);
-        
+
         let size_str = if entry.is_dir && entry.name == ".." {
             "-".to_string()
         } else if entry.is_dir {
@@ -122,10 +132,18 @@ fn generate_html(entries: &[DirEntry], uri_path: &str) -> String {
 
         html.push_str(&format!(
             "<tr><td><a href=\"{}\">{}{}</a></td><td>{}</td><td>{}</td></tr>",
-            href, display_name, if entry.is_dir && entry.name != ".." { "/" } else { "" }, date_str, size_str
+            href,
+            display_name,
+            if entry.is_dir && entry.name != ".." {
+                "/"
+            } else {
+                ""
+            },
+            date_str,
+            size_str
         ));
     }
-    
+
     html.push_str("</table><hr></body></html>");
     html
 }
@@ -133,8 +151,8 @@ fn generate_html(entries: &[DirEntry], uri_path: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
     use std::fs::File;
+    use tempfile::tempdir;
 
     #[test]
     fn test_html_directory_listing() {
@@ -143,7 +161,7 @@ mod tests {
         std::fs::create_dir(dir.path().join("subdir")).unwrap();
 
         let (html, mime) = generate_directory_listing(dir.path(), "/somedir/", false).unwrap();
-        
+
         assert_eq!(mime, "text/html; charset=utf-8");
         assert!(html.contains("<title>Index of /somedir/</title>"));
         assert!(html.contains("<a href=\"../\">..</a>"));
@@ -157,7 +175,7 @@ mod tests {
         File::create(dir.path().join("test.txt")).unwrap();
 
         let (json, mime) = generate_directory_listing(dir.path(), "/somedir/", true).unwrap();
-        
+
         assert_eq!(mime, "application/json");
         let parsed: Vec<DirEntry> = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed[0].name, "..");

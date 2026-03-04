@@ -671,10 +671,10 @@ proxy_timeout = "10s"
         let config = ProxyConfig::parse(toml_content, ConfigFormat::Toml).unwrap();
         assert_eq!(config.port, 8443);
         assert!(config.tls.require_client_cert);
-        
+
         // Assert streams got parsed
         assert_eq!(config.streams.len(), 2);
-        
+
         let tcp_stream = &config.streams[0];
         assert_eq!(tcp_stream.listen, "0.0.0.0:5432");
         assert_eq!(tcp_stream.protocol, StreamProtocol::Tcp);

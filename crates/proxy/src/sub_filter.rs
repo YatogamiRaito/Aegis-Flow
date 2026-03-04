@@ -4,7 +4,7 @@ use regex::Regex;
 pub struct SubFilter {
     pub search: String,
     pub replace: String,
-    pub once: bool,    // replace first occurrence only if true
+    pub once: bool,         // replace first occurrence only if true
     pub types: Vec<String>, // content-types to process
 }
 
@@ -69,7 +69,10 @@ pub struct BodyInjection {
 
 impl BodyInjection {
     pub fn new() -> Self {
-        Self { prepend: None, append: None }
+        Self {
+            prepend: None,
+            append: None,
+        }
     }
 
     pub fn with_prepend(mut self, content: &str) -> Self {
@@ -108,17 +111,17 @@ pub enum SsiDirective {
 pub fn parse_ssi_directives(input: &str) -> Vec<SsiDirective> {
     let re = Regex::new(r"<!--#(\w+)\s*(.*?)-->").unwrap();
     let attr_re = Regex::new(r#"(\w+)="([^"]*)""#).unwrap();
-    
+
     let mut result = Vec::new();
     for cap in re.captures_iter(input) {
         let directive_name = &cap[1];
         let attrs_str = &cap[2];
-        
+
         let mut attrs: std::collections::HashMap<String, String> = std::collections::HashMap::new();
         for attr in attr_re.captures_iter(attrs_str) {
             attrs.insert(attr[1].to_string(), attr[2].to_string());
         }
-        
+
         match directive_name {
             "include" => {
                 if let Some(v) = attrs.get("virtual") {
@@ -176,7 +179,7 @@ mod tests {
         let inj = BodyInjection::new()
             .with_prepend("<header>")
             .with_append("</footer>");
-        
+
         let result = inj.apply("body content");
         assert_eq!(result, "<header>body content</footer>");
     }
@@ -186,7 +189,10 @@ mod tests {
         let html = r#"<html><!--#include virtual="/header.html"--></html>"#;
         let directives = parse_ssi_directives(html);
         assert_eq!(directives.len(), 1);
-        assert_eq!(directives[0], SsiDirective::IncludeVirtual("/header.html".to_string()));
+        assert_eq!(
+            directives[0],
+            SsiDirective::IncludeVirtual("/header.html".to_string())
+        );
     }
 
     #[test]
@@ -194,7 +200,10 @@ mod tests {
         let html = r#"Hello <!--#echo var="REQUEST_URI"-->"#;
         let directives = parse_ssi_directives(html);
         assert_eq!(directives.len(), 1);
-        assert_eq!(directives[0], SsiDirective::EchoVar("REQUEST_URI".to_string()));
+        assert_eq!(
+            directives[0],
+            SsiDirective::EchoVar("REQUEST_URI".to_string())
+        );
     }
 
     #[test]
@@ -202,6 +211,9 @@ mod tests {
         let html = r#"<!--#set var="name" value="world"-->"#;
         let directives = parse_ssi_directives(html);
         assert_eq!(directives.len(), 1);
-        assert_eq!(directives[0], SsiDirective::SetVar("name".to_string(), "world".to_string()));
+        assert_eq!(
+            directives[0],
+            SsiDirective::SetVar("name".to_string(), "world".to_string())
+        );
     }
 }

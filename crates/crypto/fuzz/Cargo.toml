@@ -1,0 +1,33 @@
+[package]
+name = "aegis-crypto-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+aegis-crypto = { path = ".." }
+
+[[bin]]
+name = "fuzz_hybrid_kex"
+path = "fuzz_targets/fuzz_hybrid_kex.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_cipher"
+path = "fuzz_targets/fuzz_cipher.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_attestation"
+path = "fuzz_targets/fuzz_attestation.rs"
+test = false
+doc = false
+bench = false

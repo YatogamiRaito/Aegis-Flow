@@ -34,13 +34,17 @@ pub struct CachedAuthDecision {
 const AUTH_CACHE_TTL: Duration = Duration::from_secs(60);
 
 /// Simple in-process auth cache: (cache_key → CachedAuthDecision)
-static AUTH_CACHE: Lazy<Mutex<HashMap<String, CachedAuthDecision>>> = Lazy::new(|| {
-    Mutex::new(HashMap::new())
-});
+static AUTH_CACHE: Lazy<Mutex<HashMap<String, CachedAuthDecision>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
 
 /// Build a cache key from auth URI + relevant request headers
 fn build_cache_key(auth_uri: &str, auth_header: Option<&str>, cookie: Option<&str>) -> String {
-    format!("{}|{}|{}", auth_uri, auth_header.unwrap_or("-"), cookie.unwrap_or("-"))
+    format!(
+        "{}|{}|{}",
+        auth_uri,
+        auth_header.unwrap_or("-"),
+        cookie.unwrap_or("-")
+    )
 }
 
 fn cache_get(key: &str) -> Option<CachedAuthDecision> {
@@ -86,9 +90,13 @@ where
     B: hyper::body::Body + Send + 'static,
 {
     // --- Cache check: avoid roundtrip for recently-validated sessions ---
-    let auth_header_val = req.headers().get(header::AUTHORIZATION)
+    let auth_header_val = req
+        .headers()
+        .get(header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok());
-    let cookie_val = req.headers().get(header::COOKIE)
+    let cookie_val = req
+        .headers()
+        .get(header::COOKIE)
         .and_then(|v| v.to_str().ok());
     let cache_key = build_cache_key(auth_uri, auth_header_val, cookie_val);
 
@@ -114,7 +122,9 @@ where
             error!("Auth request URI is invalid: {} - {}", auth_uri, e);
             let resp = Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .body(Full::new(Bytes::from("Internal Server Error (Auth Request Configuration Invalid)")))
+                .body(Full::new(Bytes::from(
+                    "Internal Server Error (Auth Request Configuration Invalid)",
+                )))
                 .unwrap();
             return AuthResult::Error(resp);
         }
@@ -141,18 +151,20 @@ where
                     }
                 }
                 // Cache the positive decision
-                cache_insert(cache_key, CachedAuthDecision {
-                    allowed: true,
-                    injected_headers: injected_headers.clone(),
-                    expires_at: Instant::now() + AUTH_CACHE_TTL,
-                });
+                cache_insert(
+                    cache_key,
+                    CachedAuthDecision {
+                        allowed: true,
+                        injected_headers: injected_headers.clone(),
+                        expires_at: Instant::now() + AUTH_CACHE_TTL,
+                    },
+                );
                 AuthResult::Allowed(injected_headers)
             } else {
                 // Auth denied (401, 403, etc)
                 // Return proxy response exactly matching Auth Server's status
-                let mut proxy_res = Response::builder()
-                    .status(res.status());
-                
+                let mut proxy_res = Response::builder().status(res.status());
+
                 // Copy WWW-Authenticate header if present (crucial for Basic Auth flows)
                 if let Some(auth_header) = res.headers().get(header::WWW_AUTHENTICATE) {
                     proxy_res = proxy_res.header(header::WWW_AUTHENTICATE, auth_header);
@@ -170,7 +182,9 @@ where
             error!("Auth request subrequest failed: {}", e);
             let resp = Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .body(Full::new(Bytes::from("Internal Server Error (Auth Request Failed)")))
+                .body(Full::new(Bytes::from(
+                    "Internal Server Error (Auth Request Failed)",
+                )))
                 .unwrap();
             AuthResult::Error(resp)
         }

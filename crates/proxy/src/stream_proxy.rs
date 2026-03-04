@@ -23,13 +23,15 @@ impl StreamProxyServer {
             match listener.accept().await {
                 Ok((client_stream, client_addr)) => {
                     debug!("📥 New TCP stream connection from: {}", client_addr);
-                    
+
                     let upstream_addr = self.config.proxy_pass.clone();
-                    
+
                     let config_clone = self.config.clone();
-                    
+
                     tokio::spawn(async move {
-                        if let Err(e) = handle_tcp_stream(client_stream, client_addr, config_clone).await {
+                        if let Err(e) =
+                            handle_tcp_stream(client_stream, client_addr, config_clone).await
+                        {
                             warn!("⚠️ TCP Stream proxy error for {}: {}", client_addr, e);
                         }
                     });
@@ -58,15 +60,24 @@ async fn handle_tcp_stream(
                 // Try to parse v1 or v2
                 if let Ok(Some((header, bytes_read))) = ProxyHeader::parse_v2(&buf[..n]) {
                     client_addr = header.source_addr;
-                    debug!("🕵️ PROXY Protocol v2 decoded. Real client IP: {}", client_addr);
+                    debug!(
+                        "🕵️ PROXY Protocol v2 decoded. Real client IP: {}",
+                        client_addr
+                    );
                     initial_buffer.extend_from_slice(&buf[bytes_read..n]);
                 } else if let Ok(Some((header, bytes_read))) = ProxyHeader::parse_v1(&buf[..n]) {
                     client_addr = header.source_addr;
-                    debug!("🕵️ PROXY Protocol v1 decoded. Real client IP: {}", client_addr);
+                    debug!(
+                        "🕵️ PROXY Protocol v1 decoded. Real client IP: {}",
+                        client_addr
+                    );
                     initial_buffer.extend_from_slice(&buf[bytes_read..n]);
                 } else {
                     // Could not parse, disconnect early or treat as raw data
-                    warn!("⚠️ Invalid PROXY Protocol header received from: {}", client_addr);
+                    warn!(
+                        "⚠️ Invalid PROXY Protocol header received from: {}",
+                        client_addr
+                    );
                     return Ok(());
                 }
             }
@@ -85,7 +96,10 @@ async fn handle_tcp_stream(
         }
     };
 
-    debug!("🔗 Established TCP connection to upstream {}", upstream_addr);
+    debug!(
+        "🔗 Established TCP connection to upstream {}",
+        upstream_addr
+    );
 
     // If we buffered data after stripping PROXY Protocol, send it now
     if !initial_buffer.is_empty() {
@@ -101,7 +115,10 @@ async fn handle_tcp_stream(
             );
         }
         Err(e) => {
-            debug!("⚠️ TCP Stream bidirectional pump error for {}: {}", client_addr, e);
+            debug!(
+                "⚠️ TCP Stream bidirectional pump error for {}: {}",
+                client_addr, e
+            );
         }
     }
 

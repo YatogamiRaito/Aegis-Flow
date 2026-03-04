@@ -22,7 +22,11 @@ impl AclEngine {
         Self { rules: Vec::new() }
     }
 
-    pub fn add_rule(&mut self, cidr: &str, action: AclAction) -> Result<(), ipnetwork::IpNetworkError> {
+    pub fn add_rule(
+        &mut self,
+        cidr: &str,
+        action: AclAction,
+    ) -> Result<(), ipnetwork::IpNetworkError> {
         if cidr == "all" {
             self.rules.push(AclRule {
                 network: None,
@@ -75,7 +79,7 @@ mod tests {
     #[test]
     fn test_acl_engine() {
         let mut engine = AclEngine::new();
-        
+
         // allow 192.168.1.0/24;
         engine.add_rule("192.168.1.0/24", AclAction::Allow).unwrap();
         // deny 10.0.0.1;
@@ -104,10 +108,7 @@ mod tests {
         );
 
         // 8.8.8.8 -> matches 4th rule (all) -> Deny
-        assert_eq!(
-            engine.check_ip("8.8.8.8".parse().unwrap()),
-            AclAction::Deny
-        );
+        assert_eq!(engine.check_ip("8.8.8.8".parse().unwrap()), AclAction::Deny);
     }
 
     #[test]
@@ -125,7 +126,7 @@ mod tests {
     fn test_ipv6() {
         let mut engine = AclEngine::new();
         engine.add_rule("2001:0db8::/32", AclAction::Allow).unwrap();
-        
+
         assert_eq!(
             engine.check_ip("2001:0db8:85a3::8a2e:0370:7334".parse().unwrap()),
             AclAction::Allow

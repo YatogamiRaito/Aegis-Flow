@@ -44,8 +44,8 @@ mod tests {
         };
 
         let client = create_upstream_client(&opts);
-        
-        // At this point we can't easily introspect reqwest::Client internal config, 
+
+        // At this point we can't easily introspect reqwest::Client internal config,
         // but if it built successfully without panicking, the options are valid.
         assert!(true);
     }

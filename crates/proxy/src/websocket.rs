@@ -1,43 +1,49 @@
-use hyper::{Request, Response, StatusCode};
-use hyper::body::Bytes;
 use http_body_util::combinators::BoxBody;
-use tracing::{error, info, debug};
+use hyper::body::Bytes;
+use hyper::{Request, Response, StatusCode};
 use hyper_util::rt::TokioIo;
+use tracing::{debug, error, info};
 
 pub fn is_websocket_upgrade<B>(req: &Request<B>) -> bool {
     let headers = req.headers();
-    
-    let is_upgrade = headers.get(hyper::header::CONNECTION)
+
+    let is_upgrade = headers
+        .get(hyper::header::CONNECTION)
         .and_then(|v| v.to_str().ok())
         .map(|s| s.to_ascii_lowercase().contains("upgrade"))
         .unwrap_or(false);
-        
-    let is_websocket = headers.get(hyper::header::UPGRADE)
+
+    let is_websocket = headers
+        .get(hyper::header::UPGRADE)
         .and_then(|v| v.to_str().ok())
         .map(|s| s.eq_ignore_ascii_case("websocket"))
         .unwrap_or(false);
-        
+
     is_upgrade && is_websocket
 }
 
 pub async fn handle_websocket_upgrade<B>(
     req: Request<B>,
     upstream: &str,
-) -> Result<Response<BoxBody<Bytes, crate::http_proxy::BoxError>>, hyper::Error> 
+) -> Result<Response<BoxBody<Bytes, crate::http_proxy::BoxError>>, hyper::Error>
 where
     B: hyper::body::Body + Send + 'static,
     B::Data: Send,
     B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
 {
-    
-    let path_and_query = req.uri().path_and_query().map(|pq| pq.as_str()).unwrap_or(req.uri().path());
+    let path_and_query = req
+        .uri()
+        .path_and_query()
+        .map(|pq| pq.as_str())
+        .unwrap_or(req.uri().path());
     let upstream_url = format!("http://{}{}", upstream, path_and_query);
 
     debug!("🕸️ Forwarding WS upgrade to: {}", upstream_url);
 
     let client = reqwest::Client::new();
-    let reqwest_method = reqwest::Method::from_bytes(req.method().as_str().as_bytes()).unwrap_or(reqwest::Method::GET);
-    
+    let reqwest_method = reqwest::Method::from_bytes(req.method().as_str().as_bytes())
+        .unwrap_or(reqwest::Method::GET);
+
     let mut upstream_req = client.request(reqwest_method, &upstream_url);
 
     // Copy original headers
@@ -62,7 +68,10 @@ where
     };
 
     if upstream_res.status() != reqwest::StatusCode::SWITCHING_PROTOCOLS {
-        error!("Upstream failed to switch protocols: status {}", upstream_res.status());
+        error!(
+            "Upstream failed to switch protocols: status {}",
+            upstream_res.status()
+        );
         let mut builder = Response::builder().status(upstream_res.status().as_u16());
         for (k, v) in upstream_res.headers() {
             builder = builder.header(k.as_str(), v.as_bytes());
@@ -100,18 +109,21 @@ where
         let mut upstream_io = upstream_upgraded;
 
         crate::metrics::increment_websocket_connections();
-        
+
         debug!("WebSocket connection established. Starting bidirectional pump.");
 
         match tokio::io::copy_bidirectional(&mut client_io, &mut upstream_io).await {
             Ok((from_client, from_upstream)) => {
-                debug!("WebSocket connection closed. Client sent {} bytes, upstream sent {} bytes", from_client, from_upstream);
+                debug!(
+                    "WebSocket connection closed. Client sent {} bytes, upstream sent {} bytes",
+                    from_client, from_upstream
+                );
             }
             Err(e) => {
                 debug!("WebSocket connection closed with error: {}", e);
             }
         }
-        
+
         crate::metrics::decrement_websocket_connections();
     });
 

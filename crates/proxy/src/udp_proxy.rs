@@ -37,23 +37,34 @@ impl UdpProxyServer {
             match listener.recv_from(&mut buf).await {
                 Ok((len, mut client_addr)) => {
                     let mut data_start = 0;
-                    
+
                     if self.config.proxy_protocol {
                         // Attempt to parse out the header before forwarding payload
                         if let Ok(Some((header, bytes_read))) = ProxyHeader::parse_v2(&buf[..len]) {
                             client_addr = header.source_addr;
-                            debug!("🕵️ UDP PROXY Protocol v2 decoded. Real client IP: {}", client_addr);
+                            debug!(
+                                "🕵️ UDP PROXY Protocol v2 decoded. Real client IP: {}",
+                                client_addr
+                            );
                             data_start = bytes_read;
-                        } else if let Ok(Some((header, bytes_read))) = ProxyHeader::parse_v1(&buf[..len]) {
+                        } else if let Ok(Some((header, bytes_read))) =
+                            ProxyHeader::parse_v1(&buf[..len])
+                        {
                             client_addr = header.source_addr;
-                            debug!("🕵️ UDP PROXY Protocol v1 decoded. Real client IP: {}", client_addr);
+                            debug!(
+                                "🕵️ UDP PROXY Protocol v1 decoded. Real client IP: {}",
+                                client_addr
+                            );
                             data_start = bytes_read;
                         } else {
-                            warn!("⚠️ Invalid UDP PROXY Protocol header received from: {}", client_addr);
+                            warn!(
+                                "⚠️ Invalid UDP PROXY Protocol header received from: {}",
+                                client_addr
+                            );
                             continue; // Drop the datagram
                         }
                     }
-                    
+
                     let data = buf[data_start..len].to_vec();
                     let upstream_addr = self.config.proxy_pass.clone();
                     let expected_responses = self.config.proxy_responses;
@@ -68,7 +79,9 @@ impl UdpProxyServer {
                             expected_responses,
                             listener_clone,
                             sessions_clone,
-                        ).await {
+                        )
+                        .await
+                        {
                             warn!("⚠️ UDP datagram handling error for {}: {}", client_addr, e);
                         }
                     });
@@ -120,7 +133,8 @@ async fn handle_udp_datagram(
                         listen_clone,
                         table_clone,
                         expected_responses,
-                    ).await;
+                    )
+                    .await;
                 });
             }
 
@@ -130,7 +144,12 @@ async fn handle_udp_datagram(
 
     // Forward the datagram to the upstream server
     upstream_socket.send(&data).await?;
-    debug!("📤 Forwarded {} byte UDP datagram from {} to {}", data.len(), client_addr, upstream_addr);
+    debug!(
+        "📤 Forwarded {} byte UDP datagram from {} to {}",
+        data.len(),
+        client_addr,
+        upstream_addr
+    );
 
     // If we expect 0 responses, we can evict immediately. Fire and forget.
     if expected_responses == 0 {
@@ -153,7 +172,10 @@ async fn pump_udp_responses(
     while let Ok(len) = upstream_socket.recv(&mut buf).await {
         // Forward the response back to the client using the main listening socket
         if let Err(e) = listener.send_to(&buf[..len], client_addr).await {
-            warn!("⚠️ Failed to send UDP response back to client {}: {}", client_addr, e);
+            warn!(
+                "⚠️ Failed to send UDP response back to client {}: {}",
+                client_addr, e
+            );
             break;
         }
 
@@ -173,7 +195,10 @@ async fn pump_udp_responses(
         if remove {
             let mut session_lock = sessions.lock().await;
             session_lock.pop(&client_addr);
-            debug!("🛑 Reached expected responses ({}), evicting UDP session for {}", expected_responses, client_addr);
+            debug!(
+                "🛑 Reached expected responses ({}), evicting UDP session for {}",
+                expected_responses, client_addr
+            );
             break;
         }
     }

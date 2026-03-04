@@ -1,9 +1,9 @@
 use crate::config::SplitClientsConfig;
-use hyper::Request;
-use std::hash::Hasher;
-use murmur3::murmur3_32;
-use std::io::Cursor;
 use crate::variables::{RequestContext, VariableResolver};
+use hyper::Request;
+use murmur3::murmur3_32;
+use std::hash::Hasher;
+use std::io::Cursor;
 
 /// Evaluates a `split_clients` rule against an incoming HTTP request.
 /// Deterministically returns the assigned bucket value based on exact percentage distributions.
@@ -19,10 +19,14 @@ pub fn evaluate_split_client<B>(
         remote_addr: client_ip,
         server_name: "", // Not strictly needed for split_client evaluating $remote_addr
         server_port: 0,
-        request_uri: req.uri().path_and_query().map(|pq| pq.as_str()).unwrap_or(req.uri().path()),
+        request_uri: req
+            .uri()
+            .path_and_query()
+            .map(|pq| pq.as_str())
+            .unwrap_or(req.uri().path()),
         scheme: req.uri().scheme_str().unwrap_or("http"),
     };
-    
+
     // We pass `None` for config here to prevent infinite recursion,
     // as evaluate_split_client is invoked from inside VariableResolver searching for split_clients.
     let resolver = VariableResolver::new(ctx, None);
@@ -45,13 +49,17 @@ pub fn evaluate_split_client<B>(
     }
 
     // Fallback: If distributions math wasn't perfectly 100%, return the last bucket natively
-    config.buckets.last().map(|b| b.value.clone()).unwrap_or_default()
+    config
+        .buckets
+        .last()
+        .map(|b| b.value.clone())
+        .unwrap_or_default()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{SplitClientsConfig, SplitClientsBucket};
+    use crate::config::{SplitClientsBucket, SplitClientsConfig};
     use hyper::Request;
 
     #[test]
@@ -60,8 +68,14 @@ mod tests {
             key: "$remote_addr".to_string(),
             variable: "$variant".to_string(),
             buckets: vec![
-                SplitClientsBucket { percent: 10.0, value: "canary".to_string() },
-                SplitClientsBucket { percent: 90.0, value: "stable".to_string() },
+                SplitClientsBucket {
+                    percent: 10.0,
+                    value: "canary".to_string(),
+                },
+                SplitClientsBucket {
+                    percent: 90.0,
+                    value: "stable".to_string(),
+                },
             ],
         };
 

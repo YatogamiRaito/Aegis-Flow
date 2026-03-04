@@ -1,9 +1,9 @@
+use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use rustls::server::{ClientHello, ResolvesServerCert};
 use rustls::sign::CertifiedKey;
-use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::path::PathBuf;
+use std::sync::Arc;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -52,7 +52,7 @@ impl SniResolver {
     pub fn set_default_cert(&mut self, cert: Arc<CertifiedKey>) {
         self.default_cert = Some(cert);
     }
-    
+
     fn get_cert_for_name(&self, name: &str) -> Option<Arc<CertifiedKey>> {
         let name = name.to_lowercase();
         if let Some(cert) = self.certs.get(&name) {
@@ -94,28 +94,46 @@ impl ResolvesServerCert for SniResolver {
                 let domain_dir = storage.join(sni);
                 let cert_path = domain_dir.join("fullchain.pem");
                 let key_path = domain_dir.join("privkey.pem");
-                
+
                 if cert_path.exists() && key_path.exists() {
                     if let Ok(cert_bytes) = std::fs::read(&cert_path) {
                         if let Ok(mut key_bytes) = std::fs::read(&key_path) {
-                            if let Some(enc_key) = self.acme_manager.as_ref().and_then(|m| m.config.encryption_key.as_ref()) {
-                                if let Ok(dec_pem) = crate::acme::crypto_helpers::decrypt_pem(&key_bytes, enc_key) {
+                            if let Some(enc_key) = self
+                                .acme_manager
+                                .as_ref()
+                                .and_then(|m| m.config.encryption_key.as_ref())
+                            {
+                                if let Ok(dec_pem) =
+                                    crate::acme::crypto_helpers::decrypt_pem(&key_bytes, enc_key)
+                                {
                                     key_bytes = dec_pem.into_bytes();
                                 } else {
-                                    tracing::warn!("Failed to decrypt Private Key for SNI: {}", sni);
+                                    tracing::warn!(
+                                        "Failed to decrypt Private Key for SNI: {}",
+                                        sni
+                                    );
                                 }
                             }
                             let mut cert_reader = std::io::BufReader::new(cert_bytes.as_slice());
                             let mut key_reader = std::io::BufReader::new(key_bytes.as_slice());
-                            
-                            let certs: Vec<_> = rustls_pemfile::certs(&mut cert_reader).filter_map(Result::ok).collect();
-                            let mut pkcs8_keys: Vec<_> = rustls_pemfile::pkcs8_private_keys(&mut key_reader).filter_map(Result::ok).collect();
-                            
+
+                            let certs: Vec<_> = rustls_pemfile::certs(&mut cert_reader)
+                                .filter_map(Result::ok)
+                                .collect();
+                            let mut pkcs8_keys: Vec<_> =
+                                rustls_pemfile::pkcs8_private_keys(&mut key_reader)
+                                    .filter_map(Result::ok)
+                                    .collect();
+
                             // Let's Encrypt creates PKCS8 natively often via rcgen, otherwise it might be RSA.
                             // Assuming PKCS8 for our ECDSA generator.
                             if !certs.is_empty() && !pkcs8_keys.is_empty() {
                                 let key = pkcs8_keys.remove(0);
-                                if let Ok(crypto_key) = rustls::crypto::ring::sign::any_supported_type(&PrivateKeyDer::Pkcs8(key)) {
+                                if let Ok(crypto_key) =
+                                    rustls::crypto::ring::sign::any_supported_type(
+                                        &PrivateKeyDer::Pkcs8(key),
+                                    )
+                                {
                                     let mut certified_key = CertifiedKey::new(certs, crypto_key);
                                     let ocsp_path = domain_dir.join("ocsp.der");
                                     if let Ok(ocsp_bytes) = std::fs::read(&ocsp_path) {
@@ -145,16 +163,16 @@ mod tests {
     }
 
     use rcgen::generate_simple_self_signed;
-    
+
     fn create_dummy_cert() -> Arc<CertifiedKey> {
         let cert = generate_simple_self_signed(vec!["example.com".to_string()]).unwrap();
         let cert_der = cert.cert.der().to_vec();
         let key_der = cert.key_pair.serialize_der();
-        
+
         let pki_cert = CertificateDer::from(cert_der);
         let pki_key = PrivateKeyDer::try_from(key_der.clone()).unwrap();
         let crypto_key = rustls::crypto::ring::sign::any_supported_type(&pki_key).unwrap();
-        
+
         Arc::new(CertifiedKey::new(vec![pki_cert.into_owned()], crypto_key))
     }
 
@@ -169,8 +187,14 @@ mod tests {
         resolver.add_cert("*.test.com", cert2.clone());
         resolver.set_default_cert(cert_default.clone());
 
-        assert!(Arc::ptr_eq(&resolver.get_cert_for_name("example.com").unwrap(), &cert1));
-        assert!(Arc::ptr_eq(&resolver.get_cert_for_name("www.test.com").unwrap(), &cert2));
+        assert!(Arc::ptr_eq(
+            &resolver.get_cert_for_name("example.com").unwrap(),
+            &cert1
+        ));
+        assert!(Arc::ptr_eq(
+            &resolver.get_cert_for_name("www.test.com").unwrap(),
+            &cert2
+        ));
         assert!(resolver.get_cert_for_name("unknown.org").is_none());
 
         // We can't easily construct a ClientHello to test `resolve()` directly

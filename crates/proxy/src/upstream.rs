@@ -47,11 +47,21 @@ pub struct HealthCheckConfig {
     pub path: String,
 }
 
-fn default_interval() -> u64 { 5000 }
-fn default_timeout() -> u64 { 2000 }
-fn default_healthy_thresh() -> u32 { 2 }
-fn default_unhealthy_thresh() -> u32 { 3 }
-fn default_hc_path() -> String { "/".to_string() }
+fn default_interval() -> u64 {
+    5000
+}
+fn default_timeout() -> u64 {
+    2000
+}
+fn default_healthy_thresh() -> u32 {
+    2
+}
+fn default_unhealthy_thresh() -> u32 {
+    3
+}
+fn default_hc_path() -> String {
+    "/".to_string()
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StickyConfig {
@@ -69,9 +79,15 @@ pub struct CircuitBreakerConfig {
     pub open_time_ms: u64,
 }
 
-fn default_cb_error_thresh() -> u8 { 50 }
-fn default_cb_window() -> u64 { 10000 }
-fn default_cb_open_time() -> u64 { 5000 }
+fn default_cb_error_thresh() -> u8 {
+    50
+}
+fn default_cb_window() -> u64 {
+    10000
+}
+fn default_cb_open_time() -> u64 {
+    5000
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpstreamGroup {
@@ -126,7 +142,7 @@ mod tests {
         assert_eq!(group.servers.len(), 2);
         assert_eq!(group.servers[0].weight, 3);
         assert!(group.servers[1].backup);
-        
+
         let hc = group.health_check.unwrap();
         assert_eq!(hc.interval_ms, 10000);
         assert_eq!(hc.path, "/health");

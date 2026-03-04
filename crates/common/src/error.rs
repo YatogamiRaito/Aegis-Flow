@@ -32,6 +32,10 @@ pub enum AegisError {
     /// Generic internal error
     #[error("Internal error: {0}")]
     Internal(String),
+
+    /// Feature not yet implemented (stub)
+    #[error("Not implemented: {0}")]
+    NotImplemented(String),
 }
 
 /// Result type alias for Aegis-Flow operations

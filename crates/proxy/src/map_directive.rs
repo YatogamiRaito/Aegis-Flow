@@ -1,6 +1,6 @@
 use regex::Regex;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MapConfig {
@@ -22,8 +22,8 @@ pub struct MapBlock {
     pub source_var: String,
     pub target_var: String,
     pub default: Option<String>,
-    pub entries: Vec<(String, String)>,         // exact match
-    pub regex_entries: Vec<(Regex, String)>,    // regex match
+    pub entries: Vec<(String, String)>,      // exact match
+    pub regex_entries: Vec<(Regex, String)>, // regex match
 }
 
 impl MapBlock {
@@ -59,14 +59,14 @@ impl MapBlock {
                 return Some(val.clone());
             }
         }
-        
+
         // Then regex match
         for (re, val) in &self.regex_entries {
             if re.is_match(input) {
                 return Some(val.clone());
             }
         }
-        
+
         // Default fallback
         self.default.clone()
     }
@@ -90,7 +90,7 @@ impl SplitClients {
         // Simple hash of key → bucket
         let hash = simple_hash(key);
         let percent = (hash % 100) as f64;
-        
+
         let mut cumulative = 0.0;
         for (bucket_percent, val) in &self.buckets {
             cumulative += bucket_percent;
@@ -120,7 +120,7 @@ mod tests {
         let mut map = MapBlock::new("$request_method", "$backend");
         map.add_exact("GET", "read_pool");
         map.add_exact("POST", "write_pool");
-        
+
         assert_eq!(map.resolve("GET"), Some("read_pool".to_string()));
         assert_eq!(map.resolve("POST"), Some("write_pool".to_string()));
     }
@@ -130,9 +130,12 @@ mod tests {
         let mut map = MapBlock::new("$uri", "$cache_zone");
         map.add_regex(r"^/api/", "api_cache");
         map.add_regex(r"^/static/", "static_cache");
-        
+
         assert_eq!(map.resolve("/api/users"), Some("api_cache".to_string()));
-        assert_eq!(map.resolve("/static/style.css"), Some("static_cache".to_string()));
+        assert_eq!(
+            map.resolve("/static/style.css"),
+            Some("static_cache".to_string())
+        );
     }
 
     #[test]
@@ -140,7 +143,7 @@ mod tests {
         let mut map = MapBlock::new("$method", "$backend");
         map.add_exact("GET", "read_pool");
         map = map.with_default("default_pool");
-        
+
         assert_eq!(map.resolve("DELETE"), Some("default_pool".to_string()));
     }
 
@@ -148,36 +151,39 @@ mod tests {
     fn test_map_no_match() {
         let mut map = MapBlock::new("$method", "$backend");
         map.add_exact("GET", "read_pool");
-        
+
         assert_eq!(map.resolve("PATCH"), None);
     }
 
     #[test]
     fn test_split_clients_consistent() {
-        let sc = SplitClients::new("$remote_addr", vec![
-            (50.0, "version_a".to_string()),
-            (50.0, "version_b".to_string()),
-        ]);
-        
+        let sc = SplitClients::new(
+            "$remote_addr",
+            vec![
+                (50.0, "version_a".to_string()),
+                (50.0, "version_b".to_string()),
+            ],
+        );
+
         let v1 = sc.resolve("192.168.1.1");
         let v2 = sc.resolve("192.168.1.1");
-        
+
         // Same IP should always get the same variant
         assert_eq!(v1, v2);
     }
 
     #[test]
     fn test_split_clients_distribution() {
-        let sc = SplitClients::new("$remote_addr", vec![
-            (50.0, "a".to_string()),
-            (50.0, "b".to_string()),
-        ]);
-        
+        let sc = SplitClients::new(
+            "$remote_addr",
+            vec![(50.0, "a".to_string()), (50.0, "b".to_string())],
+        );
+
         // Test a few known IPs
         let results: Vec<&str> = (0..10)
             .map(|i| sc.resolve(&format!("192.168.1.{}", i)).unwrap_or("unknown"))
             .collect();
-            
+
         // Not all should be the same (very unlikely)
         let has_a = results.contains(&"a");
         let has_b = results.contains(&"b");

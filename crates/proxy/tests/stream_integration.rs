@@ -3,7 +3,7 @@ use aegis_proxy::stream_proxy::StreamProxyServer;
 use aegis_proxy::udp_proxy::UdpProxyServer;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream, UdpSocket};
-use tokio::time::{timeout, Duration};
+use tokio::time::{Duration, timeout};
 
 #[tokio::test]
 async fn test_tcp_stream_proxy() {
@@ -21,20 +21,20 @@ async fn test_tcp_stream_proxy() {
     };
 
     let proxy = StreamProxyServer::new(stream_cfg.clone());
-    
+
     // Bind to test a random free port gracefully but we can't easily extract the auto-bound port
-    // from StreamProxyServer natively without exposing its listener handle. 
+    // from StreamProxyServer natively without exposing its listener handle.
     // We'll trust it binds successfully if we pass it an explicit port.
     let proxy_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let proxy_addr = proxy_listener.local_addr().unwrap();
-    
+
     // We will drop this listener and let StreamProxyServer bind to its port immediately
     drop(proxy_listener);
-    
+
     let mut actual_cfg = stream_cfg;
     actual_cfg.listen = proxy_addr.to_string();
     let final_proxy = StreamProxyServer::new(actual_cfg);
-    
+
     tokio::spawn(async move {
         // Will run forever
         let _ = final_proxy.run().await;
@@ -61,15 +61,15 @@ async fn test_tcp_stream_proxy() {
         .await
         .expect("Client connect timed out")
         .expect("Client connect failed");
-        
+
     client.write_all(b"HELLO_Aegis").await.unwrap();
-    
+
     let mut response = [0u8; 128];
     let n = timeout(Duration::from_secs(1), client.read(&mut response))
         .await
         .expect("Client read timed out")
         .expect("Client read failed");
-        
+
     let response_str = std::str::from_utf8(&response[..n]).unwrap();
     assert_eq!(response_str, "UPSTREAM_ECHO_HELLO_Aegis");
 }
@@ -113,13 +113,13 @@ async fn test_udp_stream_proxy() {
 
     let test_client = UdpSocket::bind("127.0.0.1:0").await.unwrap();
     test_client.send_to(b"UDP_HELLO", proxy_addr).await.unwrap();
-    
+
     let mut response = [0u8; 128];
     let (n, src) = timeout(Duration::from_secs(1), test_client.recv_from(&mut response))
         .await
         .expect("UDP read timed out")
         .expect("UDP read failed");
-        
+
     assert_eq!(src, proxy_addr); // Response should come from proxy, not upstream directly
     let response_str = std::str::from_utf8(&response[..n]).unwrap();
     assert_eq!(response_str, "UDP_ECHO_UDP_HELLO");
@@ -170,8 +170,10 @@ async fn test_tcp_stream_proxy_protocol_v1() {
         .unwrap();
 
     // Send PROXY protocol v1 followed by real data
-    client.write_all(b"PROXY TCP4 198.51.100.22 203.0.113.7 35646 80\r\nPURE_PAYLOAD")
-        .await.unwrap();
+    client
+        .write_all(b"PROXY TCP4 198.51.100.22 203.0.113.7 35646 80\r\nPURE_PAYLOAD")
+        .await
+        .unwrap();
 
     let mut response = [0u8; 128];
     let n = timeout(Duration::from_secs(1), client.read(&mut response))

@@ -1,4 +1,4 @@
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -92,7 +92,7 @@ impl ProxyHeader {
     /// V2 signature: \x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A
     pub fn parse_v2(input: &[u8]) -> Result<Option<(Self, usize)>> {
         let signature = b"\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A";
-        
+
         if input.len() < 16 {
             // Check if it at least starts with the signature before dropping
             for i in 0..input.len() {
@@ -183,10 +183,10 @@ impl ProxyHeader {
     /// Generates a PROXY Protocol v2 binary header.
     pub fn to_v2_bytes(&self) -> Vec<u8> {
         let signature = b"\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A";
-        
+
         // Version 2 | Command PROXY
         let version_cmd = 0x21u8;
-        
+
         let mut buf = Vec::with_capacity(signature.len() + 4 + 36);
         buf.extend_from_slice(signature);
         buf.push(version_cmd);
@@ -210,8 +210,10 @@ impl ProxyHeader {
                 buf.extend_from_slice(&0u16.to_be_bytes());
             }
         }
-        
-        if let (IpAddr::V4(_), IpAddr::V4(_)) | (IpAddr::V6(_), IpAddr::V6(_)) = (self.source_addr.ip(), self.dest_addr.ip()) {
+
+        if let (IpAddr::V4(_), IpAddr::V4(_)) | (IpAddr::V6(_), IpAddr::V6(_)) =
+            (self.source_addr.ip(), self.dest_addr.ip())
+        {
             buf.extend_from_slice(&self.source_addr.port().to_be_bytes());
             buf.extend_from_slice(&self.dest_addr.port().to_be_bytes());
         }
@@ -228,7 +230,7 @@ mod tests {
     fn test_parse_v1_tcp4() {
         let input = b"PROXY TCP4 192.168.1.100 10.0.0.1 50000 80\r\nSome other data";
         let (header, bytes_read) = ProxyHeader::parse_v1(input).unwrap().unwrap();
-        
+
         assert_eq!(bytes_read, 44);
         assert_eq!(header.source_addr, "192.168.1.100:50000".parse().unwrap());
         assert_eq!(header.dest_addr, "10.0.0.1:80".parse().unwrap());

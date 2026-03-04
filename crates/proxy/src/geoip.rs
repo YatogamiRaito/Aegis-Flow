@@ -1,6 +1,6 @@
 use std::net::IpAddr;
-use std::sync::{Arc, RwLock};
 use std::path::PathBuf;
+use std::sync::{Arc, RwLock};
 use tracing::{info, warn};
 
 /// GeoIP module: map IP addresses to country codes and metadata
@@ -36,14 +36,16 @@ impl IpRange {
         if parts.len() != 2 {
             return None;
         }
-        
+
         let ip: IpAddr = parts[0].parse().ok()?;
         let prefix_len: u8 = parts[1].parse().ok()?;
-        
+
         match ip {
             IpAddr::V4(v4) => {
                 let ip_int = u32::from(v4) as u128;
-                let mask: u128 = if prefix_len == 0 { 0 } else {
+                let mask: u128 = if prefix_len == 0 {
+                    0
+                } else {
                     (u32::MAX << (32 - prefix_len)) as u128
                 };
                 let start = ip_int & mask;
@@ -52,7 +54,11 @@ impl IpRange {
             }
             IpAddr::V6(v6) => {
                 let ip_int = u128::from_be_bytes(v6.octets());
-                let mask = if prefix_len == 0 { 0 } else { !((1u128 << (128 - prefix_len)) - 1) };
+                let mask = if prefix_len == 0 {
+                    0
+                } else {
+                    !((1u128 << (128 - prefix_len)) - 1)
+                };
                 let start = ip_int & mask;
                 let end = start | !mask;
                 Some(IpRange { start, end })
@@ -77,7 +83,9 @@ fn ip_to_u128(ip: IpAddr) -> u128 {
 
 impl GeoIpDatabase {
     pub fn new() -> Self {
-        Self { country_map: Vec::new() }
+        Self {
+            country_map: Vec::new(),
+        }
     }
 
     pub fn add_range(&mut self, cidr: &str, record: GeoIpRecord) {
@@ -88,7 +96,8 @@ impl GeoIpDatabase {
 
     pub fn lookup(&self, ip: IpAddr) -> Option<&GeoIpRecord> {
         let ip_int = ip_to_u128(ip);
-        self.country_map.iter()
+        self.country_map
+            .iter()
             .find(|(range, _)| range.contains(ip_int))
             .map(|(_, record)| record)
     }
@@ -125,7 +134,7 @@ impl GeoDirective {
 
     pub fn resolve(&self, ip: IpAddr) -> Option<String> {
         let ip_int = ip_to_u128(ip);
-        
+
         // Find most specific (smallest range)
         let mut best: Option<(u128, &str)> = None;
         for (range, val) in &self.ranges {
@@ -136,7 +145,7 @@ impl GeoDirective {
                 }
             }
         }
-        
+
         best.map(|(_, v)| v.to_string())
             .or_else(|| self.default.clone())
     }
@@ -257,28 +266,34 @@ mod tests {
     #[test]
     fn test_geoip_lookup() {
         let mut db = GeoIpDatabase::new();
-        db.add_range("8.8.8.0/24", GeoIpRecord {
-            country_code: "US".to_string(),
-            country_name: "United States".to_string(),
-            asn: Some(15169),
-            org: Some("Google LLC".to_string()),
-            city: Some("Mountain View".to_string()),
-            region: Some("California".to_string()),
-            region_code: Some("CA".to_string()),
-            latitude: Some(37.386),
-            longitude: Some(-122.0838),
-        });
-        db.add_range("1.1.1.0/24", GeoIpRecord {
-            country_code: "AU".to_string(),
-            country_name: "Australia".to_string(),
-            asn: Some(13335),
-            org: Some("Cloudflare, Inc.".to_string()),
-            city: None,
-            region: None,
-            region_code: None,
-            latitude: None,
-            longitude: None,
-        });
+        db.add_range(
+            "8.8.8.0/24",
+            GeoIpRecord {
+                country_code: "US".to_string(),
+                country_name: "United States".to_string(),
+                asn: Some(15169),
+                org: Some("Google LLC".to_string()),
+                city: Some("Mountain View".to_string()),
+                region: Some("California".to_string()),
+                region_code: Some("CA".to_string()),
+                latitude: Some(37.386),
+                longitude: Some(-122.0838),
+            },
+        );
+        db.add_range(
+            "1.1.1.0/24",
+            GeoIpRecord {
+                country_code: "AU".to_string(),
+                country_name: "Australia".to_string(),
+                asn: Some(13335),
+                org: Some("Cloudflare, Inc.".to_string()),
+                city: None,
+                region: None,
+                region_code: None,
+                latitude: None,
+                longitude: None,
+            },
+        );
 
         let us = db.lookup("8.8.8.8".parse().unwrap());
         assert!(us.is_some());
@@ -301,7 +316,7 @@ mod tests {
         geo.add_range("10.0.0.0/8", "internal");
         geo.add_range("0.0.0.0/0", "external");
         geo = geo.with_default("external");
-        
+
         let internal = geo.resolve("10.5.0.1".parse().unwrap());
         // 10.x.x.x should match internal (more specific)
         assert_eq!(internal, Some("internal".to_string()));
@@ -309,9 +324,8 @@ mod tests {
 
     #[test]
     fn test_geo_directive_default() {
-        let geo = GeoDirective::new("$remote_addr", "$zone")
-            .with_default("default_zone");
-        
+        let geo = GeoDirective::new("$remote_addr", "$zone").with_default("default_zone");
+
         let result = geo.resolve("8.8.8.8".parse().unwrap());
         assert_eq!(result, Some("default_zone".to_string()));
     }
@@ -319,7 +333,7 @@ mod tests {
     #[test]
     fn test_country_acl() {
         let acl = CountryAcl::deny_countries(vec!["CN", "RU", "KP"]);
-        
+
         assert!(!acl.is_allowed("CN"));
         assert!(!acl.is_allowed("ru")); // case insensitive
         assert!(acl.is_allowed("US"));
