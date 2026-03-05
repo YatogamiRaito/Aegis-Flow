@@ -73,11 +73,25 @@ impl CarbonIntensity {
     }
 }
 
+/// A forecasted carbon intensity point
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ForecastPoint {
+    /// Timestamp of the forecasted measurement
+    pub timestamp: chrono::DateTime<chrono::Utc>,
+    /// Predicted carbon intensity in gCO2eq/kWh
+    pub predicted_intensity: f64,
+    /// Confidence or rating if provided
+    pub confidence: Option<String>,
+}
+
 /// Errors that can occur when interacting with energy APIs
 #[derive(Debug, Error)]
 pub enum EnergyApiError {
     #[error("HTTP request failed: {0}")]
     HttpError(#[from] reqwest::Error),
+
+    #[error("HTTP middleware error: {0}")]
+    MiddlewareError(String),
 
     #[error("API authentication failed")]
     AuthenticationError,
@@ -98,6 +112,15 @@ pub enum EnergyApiError {
     ConfigError(String),
 }
 
+impl From<reqwest_middleware::Error> for EnergyApiError {
+    fn from(err: reqwest_middleware::Error) -> Self {
+        match err {
+            reqwest_middleware::Error::Reqwest(e) => EnergyApiError::HttpError(e),
+            reqwest_middleware::Error::Middleware(e) => EnergyApiError::MiddlewareError(format!("{}", e)),
+        }
+    }
+}
+
 /// WattTime API response for grid region
 #[derive(Debug, Deserialize)]
 pub struct WattTimeRegionResponse {
@@ -115,6 +138,19 @@ pub struct WattTimeIndexResponse {
     pub point_time: String,
 }
 
+/// WattTime API response for carbon forecast
+#[derive(Debug, Deserialize)]
+pub struct WattTimeForecastData {
+    pub point_time: String,
+    pub value: f64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct WattTimeForecastResponse {
+    pub generated_at: String,
+    pub forecast: Vec<WattTimeForecastData>,
+}
+
 /// Electricity Maps API response
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -125,6 +161,19 @@ pub struct ElectricityMapsResponse {
     pub updated_at: String,
     #[serde(default)]
     pub fossil_fuel_percentage: Option<f64>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ElectricityMapsForecastData {
+    pub carbon_intensity: f64,
+    pub datetime: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ElectricityMapsForecastResponse {
+    pub zone: String,
+    pub forecast: Vec<ElectricityMapsForecastData>,
 }
 
 #[cfg(test)]

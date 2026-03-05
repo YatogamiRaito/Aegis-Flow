@@ -1,4 +1,4 @@
-use rcgen::{generate_simple_self_signed, CertifiedKey};
+use rcgen::{CertifiedKey, generate_simple_self_signed};
 use std::net::IpAddr;
 
 /// Check if the given IP is a private/local IP (RFC 1918, loopback, link-local)
@@ -10,10 +10,7 @@ pub fn is_private_ip(ip: IpAddr) -> bool {
                 || v4.is_link_local()
                 || (v4.octets()[0] == 169 && v4.octets()[1] == 254)
         }
-        IpAddr::V6(v6) => {
-            v6.is_loopback()
-                || v6.is_unicast_link_local()
-        }
+        IpAddr::V6(v6) => v6.is_loopback() || v6.is_unicast_link_local(),
     }
 }
 
@@ -36,7 +33,7 @@ mod tests {
         assert!(is_private_ip("192.168.1.1".parse().unwrap()));
         assert!(is_private_ip("127.0.0.1".parse().unwrap()));
         assert!(is_private_ip("::1".parse().unwrap()));
-        
+
         assert!(!is_private_ip("8.8.8.8".parse().unwrap()));
         assert!(!is_private_ip("1.1.1.1".parse().unwrap()));
     }
@@ -46,7 +43,7 @@ mod tests {
         let domains = vec!["localhost".to_string(), "example.local".to_string()];
         let result = generate_self_signed(domains);
         assert!(result.is_ok());
-        
+
         let (cert_pem, key_pem) = result.unwrap();
         assert!(cert_pem.contains("CERTIFICATE"));
         assert!(key_pem.contains("PRIVATE KEY"));

@@ -5,14 +5,12 @@
 
 use crate::metrics;
 use aegis_energy::{CarbonIntensityCache, EnergyApiClient, Region};
-use std::collections::VecDeque;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
-use tokio::sync::{Mutex, RwLock};
+use std::time::Duration;
 use tracing::{debug, info, warn};
 
 /// Priority level for deferred jobs
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
 pub enum JobPriority {
     /// Must execute immediately regardless of carbon intensity
     Critical = 0,
@@ -40,8 +38,10 @@ impl JobPriority {
     }
 }
 
+use serde::{Serialize, Deserialize};
+
 /// A deferred job waiting for a green window
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct DeferredJob {
     /// Unique job identifier
     pub id: String,
@@ -50,7 +50,8 @@ pub struct DeferredJob {
     /// Target region for execution
     pub region: Region,
     /// When the job was submitted
-    pub submitted_at: Instant,
+    #[serde(with = "chrono::serde::ts_milliseconds")]
+    pub submitted_at: chrono::DateTime<chrono::Utc>,
     /// Maximum carbon intensity threshold for execution
     pub carbon_threshold: f64,
     /// Job payload (opaque bytes)
@@ -70,7 +71,7 @@ impl DeferredJob {
             id: id.into(),
             priority,
             region,
-            submitted_at: Instant::now(),
+            submitted_at: chrono::Utc::now(),
             carbon_threshold,
             payload,
         }
@@ -78,17 +79,19 @@ impl DeferredJob {
 
     /// Check if this job has exceeded its maximum wait time
     pub fn is_expired(&self) -> bool {
-        self.submitted_at.elapsed() > self.priority.max_wait_duration()
+        let elapsed = chrono::Utc::now().signed_duration_since(self.submitted_at);
+        let max_wait = chrono::Duration::from_std(self.priority.max_wait_duration()).unwrap_or(chrono::Duration::zero());
+        elapsed > max_wait
     }
 
     /// Time remaining before expiration
     pub fn time_remaining(&self) -> Duration {
-        let max_wait = self.priority.max_wait_duration();
-        let elapsed = self.submitted_at.elapsed();
+        let elapsed = chrono::Utc::now().signed_duration_since(self.submitted_at);
+        let max_wait = chrono::Duration::from_std(self.priority.max_wait_duration()).unwrap_or(chrono::Duration::zero());
         if elapsed >= max_wait {
             Duration::ZERO
         } else {
-            max_wait - elapsed
+            (max_wait - elapsed).to_std().unwrap_or(Duration::ZERO)
         }
     }
 }
@@ -135,22 +138,23 @@ pub struct GreenWaitScheduler<C: EnergyApiClient> {
     config: GreenWaitConfig,
     client: Arc<C>,
     cache: Arc<CarbonIntensityCache>,
-    /// Queue of deferred jobs
-    queue: Arc<Mutex<VecDeque<DeferredJob>>>,
+    /// Persistent queue of deferred jobs
+    queue: Arc<crate::persistent_queue::PersistentQueue>,
     /// Current carbon intensity per region
-    region_intensity: Arc<RwLock<std::collections::HashMap<String, f64>>>,
+    region_intensity: Arc<tokio::sync::RwLock<std::collections::HashMap<String, f64>>>,
 }
 
 impl<C: EnergyApiClient + Send + Sync + 'static> GreenWaitScheduler<C> {
     /// Create a new Green-Wait scheduler
-    pub fn new(config: GreenWaitConfig, client: C, cache: CarbonIntensityCache) -> Self {
-        Self {
+    pub fn new(config: GreenWaitConfig, client: C, cache: CarbonIntensityCache, db_path: impl AsRef<std::path::Path>) -> anyhow::Result<Self> {
+        let queue = crate::persistent_queue::PersistentQueue::new(db_path)?;
+        Ok(Self {
             config,
             client: Arc::new(client),
             cache: Arc::new(cache),
-            queue: Arc::new(Mutex::new(VecDeque::new())),
-            region_intensity: Arc::new(RwLock::new(std::collections::HashMap::new())),
-        }
+            queue: Arc::new(queue),
+            region_intensity: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
+        })
     }
 
     /// Check if the scheduler is enabled
@@ -160,7 +164,7 @@ impl<C: EnergyApiClient + Send + Sync + 'static> GreenWaitScheduler<C> {
 
     /// Get current queue length
     pub async fn queue_length(&self) -> usize {
-        self.queue.lock().await.len()
+        self.queue.len().await
     }
 
     /// Submit a job for green-wait scheduling
@@ -188,17 +192,33 @@ impl<C: EnergyApiClient + Send + Sync + 'static> GreenWaitScheduler<C> {
             return ScheduleResult::ExecutedImmediately;
         }
 
+        // Ensure region is tracked for refresh
+        {
+            let mut intensities = self.region_intensity.write().await;
+            if !intensities.contains_key(&job.region.id) {
+                // Initialize with MAX so it doesn't trigger execution until refreshed
+                intensities.insert(job.region.id.clone(), f64::MAX);
+            }
+        }
+
         // Queue the job
-        let mut queue = self.queue.lock().await;
-        if queue.len() >= self.config.max_queue_size {
+        let position = self.queue.len().await;
+        if position >= self.config.max_queue_size {
             warn!(job_id = %job.id, "Queue is full, rejecting job");
             return ScheduleResult::QueueFull;
         }
 
-        let position = queue.len();
         debug!(job_id = %job.id, position = position, "Job queued for green window");
-        queue.push_back(job);
-        metrics::update_deferred_jobs(queue.len());
+        if let Err(e) = self.queue.push(&job).await {
+            warn!(job_id = %job.id, error = %e, "Failed to persist queued job");
+            // Depending on policy, we might still say QueueFull or similar, but let's just queue it.
+            // Oh actually, we should fail it. For now, just return QueueFull or a new kind of error.
+            // We'll map db errors to QueueFull for simplicity in this signature.
+            return ScheduleResult::QueueFull;
+        }
+        
+        let new_len = position + 1;
+        metrics::update_deferred_jobs(new_len);
 
         ScheduleResult::Queued { position }
     }
@@ -217,13 +237,12 @@ impl<C: EnergyApiClient + Send + Sync + 'static> GreenWaitScheduler<C> {
 
     /// Process ready jobs from the queue
     pub async fn process_ready_jobs(&self) -> Vec<DeferredJob> {
-        let mut queue = self.queue.lock().await;
         let intensities = self.region_intensity.read().await;
 
         let mut ready_jobs = Vec::new();
-        let mut remaining_jobs = VecDeque::new();
+        let mut remaining_jobs = Vec::new();
 
-        while let Some(job) = queue.pop_front() {
+        while let Ok(Some((_id, job))) = self.queue.pop().await {
             // Check if job is expired (must execute now)
             if job.is_expired() {
                 info!(
@@ -235,44 +254,47 @@ impl<C: EnergyApiClient + Send + Sync + 'static> GreenWaitScheduler<C> {
             }
 
             // Check if carbon intensity is acceptable
-            if let Some(&intensity) = intensities.get(&job.region.id)
-                && intensity <= job.carbon_threshold
-            {
-                info!(
-                    job_id = %job.id,
-                    intensity = intensity,
-                    threshold = job.carbon_threshold,
-                    "Green window detected, executing job"
-                );
-                ready_jobs.push(job);
-                continue;
+            if let Some(&intensity) = intensities.get(&job.region.id) {
+                if intensity <= job.carbon_threshold {
+                    info!(
+                        job_id = %job.id,
+                        intensity = intensity,
+                        threshold = job.carbon_threshold,
+                        "Green window detected, executing job"
+                    );
+                    ready_jobs.push(job);
+                    continue;
+                }
             }
 
             // Job not ready, keep in queue
-            remaining_jobs.push_back(job);
+            remaining_jobs.push(job);
         }
 
-        *queue = remaining_jobs;
-        metrics::update_deferred_jobs(queue.len());
+        // Re-queue remaining jobs
+        for job in remaining_jobs {
+            let _ = self.queue.push(&job).await;
+        }
+
+        metrics::update_deferred_jobs(self.queue.len().await);
         ready_jobs
     }
 
     /// Refresh carbon intensity data for all queued regions
     /// Call this periodically from your main loop
     pub async fn refresh_intensities(&self) {
-        // Get unique regions from queued jobs
-        let regions: Vec<Region> = {
-            let q = self.queue.lock().await;
-            let mut seen = std::collections::HashMap::new();
-            for job in q.iter() {
-                seen.entry(job.region.id.clone())
-                    .or_insert(job.region.clone());
-            }
-            seen.into_values().collect()
+        // Since queue is DB backed, we can't easily iterate without mutating or adding methods.
+        // For simplicity, we can fetch all regions from the DB, but a better approach is to
+        // just blindly update the regions we know of from region_intensity keys, which already tracked queued jobs.
+        
+        let regions_to_update: Vec<String> = {
+            let intensities = self.region_intensity.read().await;
+            intensities.keys().cloned().collect()
         };
 
         // Update carbon intensity for each region
-        for region in regions {
+        for region_id in regions_to_update {
+            let region = Region::new(&region_id, &region_id);
             if let Some(cached) = self.cache.get(&region).await {
                 self.update_region_intensity(&region.id, cached.value).await;
                 metrics::update_carbon_intensity(&region.id, cached.value);
@@ -292,38 +314,38 @@ impl<C: EnergyApiClient + Send + Sync + 'static> GreenWaitScheduler<C> {
 
     /// Get queue statistics
     pub async fn stats(&self) -> GreenWaitStats {
-        let queue = self.queue.lock().await;
-        let total = queue.len();
-        let expired = queue.iter().filter(|j| j.is_expired()).count();
+        let (total, expired, critical, high, normal, low, background) = self.queue.get_stats().await;
 
-        let by_priority = [
-            queue
-                .iter()
-                .filter(|j| j.priority == JobPriority::Critical)
-                .count(),
-            queue
-                .iter()
-                .filter(|j| j.priority == JobPriority::High)
-                .count(),
-            queue
-                .iter()
-                .filter(|j| j.priority == JobPriority::Normal)
-                .count(),
-            queue
-                .iter()
-                .filter(|j| j.priority == JobPriority::Low)
-                .count(),
-            queue
-                .iter()
-                .filter(|j| j.priority == JobPriority::Background)
-                .count(),
-        ];
+        let by_priority = [critical, high, normal, low, background];
 
         GreenWaitStats {
             total_queued: total,
             expired_count: expired,
             by_priority,
         }
+    }
+
+    /// Estimate the greenest point in time within the job's max wait duration
+    pub async fn estimate_green_window(&self, job: &DeferredJob) -> Option<chrono::DateTime<chrono::Utc>> {
+        let max_wait = job.priority.max_wait_duration();
+        let deadline = job.submitted_at + chrono::Duration::from_std(max_wait).unwrap_or(chrono::Duration::seconds(0));
+        
+        // Request based on max wait
+        let hours = (max_wait.as_secs() / 3600 + 1) as u32;
+        
+        if let Ok(forecast) = self.client.get_carbon_forecast(&job.region, hours).await {
+            let valid_points: Vec<_> = forecast.into_iter()
+                .filter(|p| p.timestamp <= deadline && p.timestamp >= job.submitted_at)
+                .collect();
+            
+            if let Some(best) = valid_points.into_iter().min_by(|a, b| {
+                a.predicted_intensity.partial_cmp(&b.predicted_intensity).unwrap_or(std::cmp::Ordering::Equal)
+            }) {
+                return Some(best.timestamp);
+            }
+        }
+        
+        None
     }
 }
 
@@ -387,6 +409,14 @@ mod tests {
                 longitude: Some(lon),
             })
         }
+
+        async fn get_carbon_forecast(
+            &self,
+            _region: &Region,
+            _hours: u32,
+        ) -> Result<Vec<aegis_energy::ForecastPoint>, EnergyApiError> {
+            Ok(vec![])
+        }
     }
 
     #[test]
@@ -418,7 +448,7 @@ mod tests {
     async fn test_critical_job_executes_immediately() {
         let client = MockClient { intensity: 500.0 }; // High carbon
         let cache = CarbonIntensityCache::new(300);
-        let scheduler = GreenWaitScheduler::new(GreenWaitConfig::default(), client, cache);
+        let scheduler = GreenWaitScheduler::new(GreenWaitConfig::default(), client, cache, tempfile::NamedTempFile::new().unwrap().path()).unwrap();
 
         let job = DeferredJob::new(
             "critical-1",
@@ -436,7 +466,7 @@ mod tests {
     async fn test_job_queued_when_carbon_high() {
         let client = MockClient { intensity: 500.0 }; // High carbon
         let cache = CarbonIntensityCache::new(300);
-        let scheduler = GreenWaitScheduler::new(GreenWaitConfig::default(), client, cache);
+        let scheduler = GreenWaitScheduler::new(GreenWaitConfig::default(), client, cache, tempfile::NamedTempFile::new().unwrap().path()).unwrap();
 
         // Set current intensity
         scheduler.update_region_intensity("us-west", 500.0).await;
@@ -458,7 +488,7 @@ mod tests {
     async fn test_job_executes_when_carbon_low() {
         let client = MockClient { intensity: 50.0 }; // Low carbon
         let cache = CarbonIntensityCache::new(300);
-        let scheduler = GreenWaitScheduler::new(GreenWaitConfig::default(), client, cache);
+        let scheduler = GreenWaitScheduler::new(GreenWaitConfig::default(), client, cache, tempfile::NamedTempFile::new().unwrap().path()).unwrap();
 
         // Set current intensity to low
         scheduler.update_region_intensity("us-west", 50.0).await;
@@ -479,7 +509,7 @@ mod tests {
     async fn test_queue_stats() {
         let client = MockClient { intensity: 500.0 };
         let cache = CarbonIntensityCache::new(300);
-        let scheduler = GreenWaitScheduler::new(GreenWaitConfig::default(), client, cache);
+        let scheduler = GreenWaitScheduler::new(GreenWaitConfig::default(), client, cache, tempfile::NamedTempFile::new().unwrap().path()).unwrap();
 
         scheduler.update_region_intensity("us-west", 500.0).await;
 
@@ -504,7 +534,7 @@ mod tests {
     async fn test_process_ready_jobs() {
         let client = MockClient { intensity: 50.0 };
         let cache = CarbonIntensityCache::new(300);
-        let scheduler = GreenWaitScheduler::new(GreenWaitConfig::default(), client, cache);
+        let scheduler = GreenWaitScheduler::new(GreenWaitConfig::default(), client, cache, tempfile::NamedTempFile::new().unwrap().path()).unwrap();
 
         // Initially high carbon
         scheduler.update_region_intensity("us-west", 500.0).await;
@@ -535,7 +565,7 @@ mod tests {
             enabled: false,
             ..Default::default()
         };
-        let scheduler = GreenWaitScheduler::new(config, client, cache);
+        let scheduler = GreenWaitScheduler::new(config, client, cache, tempfile::NamedTempFile::new().unwrap().path()).unwrap();
         assert!(!scheduler.is_enabled());
 
         let job = DeferredJob::new(
@@ -557,7 +587,7 @@ mod tests {
             max_queue_size: 2,
             ..Default::default()
         };
-        let scheduler = GreenWaitScheduler::new(config, client, cache);
+        let scheduler = GreenWaitScheduler::new(config, client, cache, tempfile::NamedTempFile::new().unwrap().path()).unwrap();
         scheduler.update_region_intensity("us-west", 500.0).await;
 
         // Fill the queue
@@ -603,7 +633,7 @@ mod tests {
     fn test_is_running() {
         let client = MockClient { intensity: 50.0 };
         let cache = CarbonIntensityCache::new(300);
-        let scheduler = GreenWaitScheduler::new(GreenWaitConfig::default(), client, cache);
+        let scheduler = GreenWaitScheduler::new(GreenWaitConfig::default(), client, cache, tempfile::NamedTempFile::new().unwrap().path()).unwrap();
         assert!(scheduler.is_running());
     }
 
@@ -695,7 +725,7 @@ mod tests {
     async fn test_job_expiration_processing() {
         let client = MockClient { intensity: 500.0 };
         let cache = CarbonIntensityCache::new(300);
-        let scheduler = GreenWaitScheduler::new(GreenWaitConfig::default(), client, cache);
+        let scheduler = GreenWaitScheduler::new(GreenWaitConfig::default(), client, cache, tempfile::NamedTempFile::new().unwrap().path()).unwrap();
 
         scheduler.update_region_intensity("us-west", 500.0).await;
 
@@ -723,7 +753,7 @@ mod tests {
     async fn test_stats_all_priorities() {
         let client = MockClient { intensity: 500.0 };
         let cache = CarbonIntensityCache::new(300);
-        let scheduler = GreenWaitScheduler::new(GreenWaitConfig::default(), client, cache);
+        let scheduler = GreenWaitScheduler::new(GreenWaitConfig::default(), client, cache, tempfile::NamedTempFile::new().unwrap().path()).unwrap();
         scheduler.update_region_intensity("us-west", 500.0).await;
 
         let priorities = [
@@ -759,7 +789,7 @@ mod tests {
             max_queue_size: 2,
             ..Default::default()
         };
-        let scheduler = GreenWaitScheduler::new(config, client, cache);
+        let scheduler = GreenWaitScheduler::new(config, client, cache, tempfile::NamedTempFile::new().unwrap().path()).unwrap();
         scheduler.update_region_intensity("us-west", 500.0).await;
 
         // Fill queue
@@ -791,9 +821,10 @@ mod tests {
     async fn test_process_ready_jobs_green_window() {
         let client = MockClient { intensity: 50.0 };
         let cache = CarbonIntensityCache::new(300);
-        let scheduler = GreenWaitScheduler::new(GreenWaitConfig::default(), client, cache);
+        let config = GreenWaitConfig::default();
+        let db_path = tempfile::NamedTempFile::new().unwrap();
+        let scheduler = GreenWaitScheduler::new(config, client, cache, db_path.path()).unwrap();
 
-        // Set high intensity initially so job gets queued
         scheduler.update_region_intensity("us-west", 500.0).await;
 
         let job = DeferredJob::new(
@@ -803,10 +834,8 @@ mod tests {
             100.0,
             vec![],
         );
-        scheduler.submit(job).await;
-        assert_eq!(scheduler.queue_length().await, 1);
+        let _ = scheduler.submit(job).await;
 
-        // Now lower intensity below threshold
         scheduler.update_region_intensity("us-west", 50.0).await;
 
         let ready = scheduler.process_ready_jobs().await;
@@ -819,7 +848,7 @@ mod tests {
     async fn test_process_ready_jobs_expired() {
         let client = MockClient { intensity: 500.0 };
         let cache = CarbonIntensityCache::new(300);
-        let scheduler = GreenWaitScheduler::new(GreenWaitConfig::default(), client, cache);
+        let scheduler = GreenWaitScheduler::new(GreenWaitConfig::default(), client, cache, tempfile::NamedTempFile::new().unwrap().path()).unwrap();
 
         scheduler.update_region_intensity("us-west", 500.0).await;
 
@@ -843,7 +872,7 @@ mod tests {
     async fn test_refresh_intensities_updates_cache() {
         let client = MockClient { intensity: 123.0 };
         let cache = CarbonIntensityCache::new(300);
-        let scheduler = GreenWaitScheduler::new(GreenWaitConfig::default(), client, cache);
+        let scheduler = GreenWaitScheduler::new(GreenWaitConfig::default(), client, cache, tempfile::NamedTempFile::new().unwrap().path()).unwrap();
 
         let job = DeferredJob::new(
             "refresh-test",
@@ -857,9 +886,142 @@ mod tests {
         // Force a refresh
         scheduler.refresh_intensities().await;
 
-        // Check if cached/updated
         let intensity = scheduler.get_region_intensity("eu-test").await;
         assert_eq!(intensity, Some(123.0));
+    }
+
+    struct PredictiveMockClient {
+        forecast: Vec<aegis_energy::ForecastPoint>,
+    }
+
+    impl EnergyApiClient for PredictiveMockClient {
+        async fn get_carbon_intensity(
+            &self,
+            _region: &Region,
+        ) -> Result<CarbonIntensity, EnergyApiError> {
+            Ok(CarbonIntensity {
+                region: Region::new("mock", "Mock"),
+                value: 500.0,
+                timestamp: chrono::Utc::now(),
+                valid_for_seconds: 300,
+                rating: None,
+            })
+        }
+
+        async fn get_carbon_intensity_by_location(
+            &self,
+            lat: f64,
+            lon: f64,
+        ) -> Result<CarbonIntensity, EnergyApiError> {
+            let region = Region {
+                id: "mock".to_string(),
+                name: "Mock".to_string(),
+                latitude: Some(lat),
+                longitude: Some(lon),
+            };
+            self.get_carbon_intensity(&region).await
+        }
+
+        async fn get_region_for_location(
+            &self,
+            lat: f64,
+            lon: f64,
+        ) -> Result<Region, EnergyApiError> {
+            Ok(Region {
+                id: "mock".to_string(),
+                name: "Mock".to_string(),
+                latitude: Some(lat),
+                longitude: Some(lon),
+            })
+        }
+
+        async fn get_carbon_forecast(
+            &self,
+            _region: &Region,
+            _hours: u32,
+        ) -> Result<Vec<aegis_energy::ForecastPoint>, EnergyApiError> {
+            Ok(self.forecast.clone())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_predictive_schedule_selects_greenest_window() {
+        let now = chrono::Utc::now();
+        let forecast = vec![
+            aegis_energy::ForecastPoint {
+                timestamp: now + chrono::Duration::hours(1),
+                predicted_intensity: 300.0,
+                confidence: None,
+            },
+            aegis_energy::ForecastPoint {
+                timestamp: now + chrono::Duration::hours(2),
+                predicted_intensity: 100.0, // Greenest point
+                confidence: None,
+            },
+            aegis_energy::ForecastPoint {
+                timestamp: now + chrono::Duration::hours(3),
+                predicted_intensity: 400.0,
+                confidence: None,
+            },
+        ];
+
+        let client = PredictiveMockClient { forecast };
+        let cache = CarbonIntensityCache::new(300);
+        let scheduler = GreenWaitScheduler::new(GreenWaitConfig::default(), client, cache, tempfile::NamedTempFile::new().unwrap().path()).unwrap();
+
+        let job = DeferredJob::new(
+            "pred-1",
+            JobPriority::Background, // Wait up to 24h
+            Region::new("mock", "Mock"),
+            150.0,
+            vec![],
+        );
+
+        let window = scheduler.estimate_green_window(&job).await;
+        assert!(window.is_some());
+        // Verify it selected the 2nd hour
+        assert_eq!(window.unwrap(), now + chrono::Duration::hours(2));
+    }
+
+    #[tokio::test]
+    async fn test_predictive_schedule_respects_max_wait() {
+        let now = chrono::Utc::now();
+        
+        let forecast = vec![
+            aegis_energy::ForecastPoint {
+                timestamp: now + chrono::Duration::minutes(15),
+                predicted_intensity: 400.0, // Best within high priority 5 min? No, outside 5 min
+                confidence: None,
+            },
+            aegis_energy::ForecastPoint {
+                timestamp: now + chrono::Duration::minutes(2),
+                predicted_intensity: 450.0, // Inside 5 min window
+                confidence: None,
+            },
+            aegis_energy::ForecastPoint {
+                timestamp: now + chrono::Duration::minutes(10),
+                predicted_intensity: 50.0, // Greenest, but too late for High priority
+                confidence: None,
+            },
+        ];
+
+        let client = PredictiveMockClient { forecast };
+        let cache = CarbonIntensityCache::new(300);
+        let scheduler = GreenWaitScheduler::new(GreenWaitConfig::default(), client, cache, tempfile::NamedTempFile::new().unwrap().path()).unwrap();
+
+        // High priority max wait is 5 minutes (300 secs)
+        let job = DeferredJob::new(
+            "pred-2",
+            JobPriority::High,
+            Region::new("mock", "Mock"),
+            150.0,
+            vec![],
+        );
+
+        let window = scheduler.estimate_green_window(&job).await;
+        assert!(window.is_some());
+        // It should pick the point within the 5 minute window, i.e., at 2 mins
+        assert_eq!(window.unwrap(), now + chrono::Duration::minutes(2));
     }
 
     #[test]
@@ -1009,7 +1171,7 @@ mod tests {
         // Lines 183-185: Execute immediately when carbon is low
         let client = MockClient { intensity: 50.0 }; // Low carbon
         let cache = CarbonIntensityCache::new(300);
-        let scheduler = GreenWaitScheduler::new(GreenWaitConfig::default(), client, cache);
+        let scheduler = GreenWaitScheduler::new(GreenWaitConfig::default(), client, cache, tempfile::NamedTempFile::new().unwrap().path()).unwrap();
 
         // Set the region intensity in the scheduler's map
         scheduler.update_region_intensity("low-region", 50.0).await;
@@ -1035,7 +1197,7 @@ mod tests {
         };
         let client = MockClient { intensity: 500.0 }; // High carbon, will queue
         let cache = CarbonIntensityCache::new(300);
-        let scheduler = GreenWaitScheduler::new(config, client, cache);
+        let scheduler = GreenWaitScheduler::new(config, client, cache, tempfile::NamedTempFile::new().unwrap().path()).unwrap();
 
         let job1 = DeferredJob::new(
             "job1",

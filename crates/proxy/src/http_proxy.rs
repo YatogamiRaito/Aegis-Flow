@@ -10,11 +10,11 @@ use hyper_util::rt::TokioIo;
 use reqwest::ClientBuilder;
 
 use crate::scgi::ScgiClient;
+use opentelemetry::propagation::{Extractor, Injector};
 use std::net::SocketAddr;
 use std::time::Instant;
 use tokio::net::{TcpListener, TcpStream};
 use tracing::{debug, error, info, instrument, warn};
-use opentelemetry::propagation::{Extractor, Injector};
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 use crate::metrics;

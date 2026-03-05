@@ -1,5 +1,5 @@
-use crate::table::ProcessTable;
 use crate::process::ProcessStatus;
+use crate::table::ProcessTable;
 use std::fmt::Write;
 
 pub fn get_metrics(table: &ProcessTable) -> String {
@@ -64,7 +64,11 @@ pub fn get_metrics(table: &ProcessTable) -> String {
         "# HELP aegis_pm_process_status Whether the process is online (1) or not (0).\n# TYPE aegis_pm_process_status gauge"
     );
     for p in &all_processes {
-        let status_val = if p.status == ProcessStatus::Online { 1 } else { 0 };
+        let status_val = if p.status == ProcessStatus::Online {
+            1
+        } else {
+            0
+        };
         let _ = writeln!(
             metrics_string,
             "aegis_pm_process_status{{name=\"{}\",status=\"{}\"}} {}",
@@ -94,7 +98,7 @@ mod tests {
         });
 
         let metrics = get_metrics(&table);
-        
+
         assert!(metrics.contains("# HELP aegis_pm_process_uptime_seconds"));
         assert!(metrics.contains("aegis_pm_process_uptime_seconds{name=\"test-app\"} 3600"));
         assert!(metrics.contains("aegis_pm_process_memory_bytes{name=\"test-app\"} 50000000"));

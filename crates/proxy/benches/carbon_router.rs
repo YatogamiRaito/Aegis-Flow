@@ -112,6 +112,47 @@ fn bench_score_normalization(c: &mut Criterion) {
     });
 }
 
+/// Benchmark routing decision with 100 regions
+fn bench_select_greenest_region_100(c: &mut Criterion) {
+    let mut regions = Vec::with_capacity(100);
+    for i in 0..100 {
+        regions.push(RegionScore {
+            region_id: format!("region-{}", i),
+            carbon_intensity: 50.0 + (i as f64 * 5.0) % 400.0,
+            score: (50.0 + (i as f64 * 5.0) % 400.0) / 500.0,
+            recommended: (50.0 + (i as f64 * 5.0) % 400.0) < 200.0,
+        });
+    }
+
+    c.bench_function("carbon/select_greenest_region_100", |b| {
+        b.iter(|| {
+            let best = regions
+                .iter()
+                .filter(|r| r.recommended)
+                .min_by(|a, b| a.carbon_intensity.partial_cmp(&b.carbon_intensity).unwrap())
+                .map(|r| r.region_id.clone());
+            black_box(best)
+        })
+    });
+}
+
+/// Benchmark calculate routing weight latency
+fn bench_get_routing_weight(c: &mut Criterion) {
+    let intensity = 150.0;
+    let max_intensity = 500.0;
+    let carbon_weight = 0.5;
+
+    c.bench_function("carbon/get_routing_weight", |b| {
+        b.iter(|| {
+            let score = f64::max(0.0, f64::min(1.0, intensity / max_intensity));
+            let inverted = 1.0 - score;
+            let factor = inverted * carbon_weight + (1.0 - carbon_weight);
+            let weight = (factor * 100.0) as u32;
+            black_box(weight)
+        })
+    });
+}
+
 criterion_group!(
     benches,
     bench_router_config,
@@ -119,6 +160,8 @@ criterion_group!(
     bench_routing_decision,
     bench_spatial_arbitrage,
     bench_score_normalization,
+    bench_select_greenest_region_100,
+    bench_get_routing_weight,
 );
 
 criterion_main!(benches);

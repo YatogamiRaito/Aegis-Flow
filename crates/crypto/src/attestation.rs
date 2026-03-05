@@ -415,12 +415,11 @@ impl TeeCapabilities {
             }
 
             // AMD SEV/SEV-ES detection: CPUID 8000_001F
-            if let Some(amd_info) = cpuid.get_svm_info() {
-                caps.sev = amd_info.has_sev();
-                caps.sev_es = amd_info.has_sev_es();
-                // SEV-SNP bit is not yet directly exposed in raw-cpuid v11;
-                // it can be read from /sys/module/kvm_amd/parameters/sev_snp
-                // but that requires elevated privileges. Mark as not detected here.
+            if let Some(_amd_info) = cpuid.get_svm_info() {
+                // In raw-cpuid 11.x, SvmFeatures does not expose SEV directly.
+                // For now, we fall back to sysfs or env vars for SEV detection.
+                caps.sev = false;
+                caps.sev_es = false;
             }
         }
     }

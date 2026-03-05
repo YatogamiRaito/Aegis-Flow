@@ -7,6 +7,7 @@ use std::time::Duration;
 use tracing::{debug, instrument};
 
 /// Cache for carbon intensity lookups
+#[derive(Clone)]
 pub struct CarbonIntensityCache {
     cache: Cache<String, Arc<CarbonIntensity>>,
     default_ttl: Duration,

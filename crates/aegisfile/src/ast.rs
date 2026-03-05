@@ -54,7 +54,7 @@ fn convert_site(site: &SiteBlock) -> SiteConfig {
             _ => {}
         }
     }
-    
+
     SiteConfig {
         domains: site.domains.clone(),
         locations,
@@ -92,7 +92,7 @@ pub fn format_sites(sites: &[SiteBlock]) -> String {
 // Validate sites: return errors as strings
 pub fn validate_sites(sites: &[SiteBlock]) -> Vec<String> {
     let mut errors = Vec::new();
-    
+
     for site in sites {
         if site.domains.is_empty() {
             errors.push("Found site block with no domains".to_string());
@@ -109,14 +109,17 @@ pub fn validate_sites(sites: &[SiteBlock]) -> Vec<String> {
                 }
                 "redirect" => {
                     if directive.args.is_empty() {
-                        errors.push(format!("redirect requires at least 1 argument in site {:?}", site.domains));
+                        errors.push(format!(
+                            "redirect requires at least 1 argument in site {:?}",
+                            site.domains
+                        ));
                     }
                 }
                 _ => {}
             }
         }
     }
-    
+
     errors
 }
 
@@ -127,10 +130,11 @@ mod tests {
 
     #[test]
     fn test_ast_to_config() {
-        let input = "example.com {\n    reverse_proxy /api localhost:3000\n    file_server /static\n}\n";
+        let input =
+            "example.com {\n    reverse_proxy /api localhost:3000\n    file_server /static\n}\n";
         let sites = parse(input);
         let configs = convert_sites(&sites);
-        
+
         assert_eq!(configs.len(), 1);
         assert_eq!(configs[0].domains, vec!["example.com"]);
         assert_eq!(configs[0].locations.len(), 1);
@@ -144,7 +148,7 @@ mod tests {
         let input = "example.com {\n    reverse_proxy /api localhost:3000\n}\n";
         let sites = parse(input);
         let formatted = format_sites(&sites);
-        
+
         assert!(formatted.contains("example.com {"));
         assert!(formatted.contains("reverse_proxy /api localhost:3000"));
         assert!(formatted.contains('}'));
@@ -155,7 +159,7 @@ mod tests {
         let input = "example.com {\n    reverse_proxy /api\n}\n"; // missing upstream
         let sites = parse(input);
         let errors = validate_sites(&sites);
-        
+
         assert!(!errors.is_empty());
         assert!(errors.iter().any(|e| e.contains("reverse_proxy")));
     }

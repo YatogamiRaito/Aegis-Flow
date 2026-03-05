@@ -1,0 +1,27 @@
+{
+    "title": "Aegis Flow Connections",
+    "uid": "aegis-connections",
+    "panels": [
+        {
+            "type": "timeseries",
+            "title": "Active Connections",
+            "targets": [
+                {
+                    "expr": "aegis_connections_active"
+                }
+            ]
+        },
+        {
+            "type": "timeseries",
+            "title": "Bytes In/Out",
+            "targets": [
+                {
+                    "expr": "rate(aegis_bytes_received_total[1m])"
+                },
+                {
+                    "expr": "rate(aegis_bytes_sent_total[1m])"
+                }
+            ]
+        }
+    ]
+}

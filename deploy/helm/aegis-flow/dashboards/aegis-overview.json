@@ -1,0 +1,21 @@
+{
+  "title": "Aegis Flow Overview",
+  "uid": "aegis-overview",
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Request Rate",
+      "targets": [{"expr": "rate(aegis_requests_total[1m])"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "Error Rate",
+      "targets": [{"expr": "rate(aegis_errors_total[1m])"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "P95 Latency",
+      "targets": [{"expr": "histogram_quantile(0.95, rate(aegis_request_duration_seconds_bucket[5m]))"}]
+    }
+  ]
+}

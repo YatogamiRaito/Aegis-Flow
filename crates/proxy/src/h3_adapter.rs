@@ -207,7 +207,10 @@ impl<B: Buf> OpenStreams<B> for S2nConnection {
         _cx: &mut Context<'_>,
     ) -> Poll<Result<Self::BidiStream, StreamErrorIncoming>> {
         Poll::Ready(Err(StreamErrorIncoming::Unknown(Box::new(
-            std::io::Error::new(std::io::ErrorKind::Other, "Not implemented natively via poll by s2n, would need background task wrapper"),
+            std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Not implemented natively via poll by s2n, would need background task wrapper",
+            ),
         ))))
     }
 
@@ -216,7 +219,10 @@ impl<B: Buf> OpenStreams<B> for S2nConnection {
         _cx: &mut Context<'_>,
     ) -> Poll<Result<Self::SendStream, StreamErrorIncoming>> {
         Poll::Ready(Err(StreamErrorIncoming::Unknown(Box::new(
-            std::io::Error::new(std::io::ErrorKind::Other, "Not implemented natively via poll by s2n"),
+            std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Not implemented natively via poll by s2n",
+            ),
         ))))
     }
 

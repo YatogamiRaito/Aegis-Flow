@@ -7,7 +7,9 @@ use std::thread;
 
 /// Get the number of available CPU cores. Default to 1 if detection fails.
 pub fn cpu_count() -> usize {
-    thread::available_parallelism().map(|n| n.get()).unwrap_or(1)
+    thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(1)
 }
 
 /// Aggregate status for a cluster of processes.
@@ -77,15 +79,23 @@ impl ClusterManager {
         for i in 0..instances {
             let instance_id = i;
             let instance_name = format!("{}-{}", base_name, instance_id);
-            
+
             // Clone config to inject instance specific env vars
             let mut instance_config = config.clone();
-            
-            instance_config.env.insert("INSTANCE_ID".to_string(), instance_id.to_string());
-            instance_config.env.insert("PM_ID".to_string(), instance_id.to_string()); // PM2 compatibility
-            instance_config.env.insert("AEGIS_APP_NAME".to_string(), base_name.to_string());
-            
-            self.pm.spawn_process(&instance_name, &instance_config).await?;
+
+            instance_config
+                .env
+                .insert("INSTANCE_ID".to_string(), instance_id.to_string());
+            instance_config
+                .env
+                .insert("PM_ID".to_string(), instance_id.to_string()); // PM2 compatibility
+            instance_config
+                .env
+                .insert("AEGIS_APP_NAME".to_string(), base_name.to_string());
+
+            self.pm
+                .spawn_process(&instance_name, &instance_config)
+                .await?;
             spawned_names.push(instance_name);
         }
 
@@ -93,10 +103,14 @@ impl ClusterManager {
     }
 
     /// Aggregate status for all instances with the given base name prefix
-    pub fn cluster_status(&self, table: &crate::table::ProcessTable, base_name: &str) -> ClusterStatus {
+    pub fn cluster_status(
+        &self,
+        table: &crate::table::ProcessTable,
+        base_name: &str,
+    ) -> ClusterStatus {
         let mut status = ClusterStatus::default();
         let all_processes = table.list();
-        
+
         let mut count = 0;
         let mut sum_cpu = 0.0;
 
@@ -105,7 +119,7 @@ impl ClusterManager {
             if p.name.starts_with(&format!("{}-", base_name)) {
                 status.total_instances += 1;
                 status.total_memory_bytes += p.memory_bytes;
-                
+
                 count += 1;
                 sum_cpu += p.cpu_percent;
 
@@ -133,16 +147,18 @@ impl ClusterManager {
         delay_between_instances: std::time::Duration,
     ) -> Result<(), DaemonError> {
         let all_processes = table.list();
-        
+
         let mut to_restart = Vec::new();
         for p in all_processes {
             if p.name.starts_with(&format!("{}-", base_name)) {
                 to_restart.push(p.name);
             }
         }
-        
+
         for name in to_restart {
-            self.pm.restart_process(&name, config, std::time::Duration::from_millis(100)).await?;
+            self.pm
+                .restart_process(&name, config, std::time::Duration::from_millis(100))
+                .await?;
             tokio::time::sleep(delay_between_instances).await;
         }
 
@@ -170,9 +186,9 @@ mod tests {
         writeln!(file, "SECRET=\"my-secret\"").unwrap();
         writeln!(file, "SINGLE='quote-secret'").unwrap();
         writeln!(file, "   SPACED   =   value   ").unwrap();
-        
+
         let env = parse_dotenv(file.path()).unwrap();
-        
+
         assert_eq!(env.get("PORT").unwrap(), "8080");
         assert_eq!(env.get("SECRET").unwrap(), "my-secret");
         assert_eq!(env.get("SINGLE").unwrap(), "quote-secret");
@@ -185,27 +201,38 @@ mod tests {
         let table = Arc::new(crate::table::ProcessTable::new());
         let pm = Arc::new(ProcessManager::new(table.clone()));
         let cluster_manager = ClusterManager::new(pm.clone());
-        
+
         let mut config = ProcessConfig::new("echo");
         config.args = vec!["hello".to_string()];
         config.instances = 3;
-        
-        let names = cluster_manager.spawn_cluster("cluster-app", config.clone()).await.unwrap();
+
+        let names = cluster_manager
+            .spawn_cluster("cluster-app", config.clone())
+            .await
+            .unwrap();
         assert_eq!(names.len(), 3);
         assert_eq!(names[0], "cluster-app-0");
         assert_eq!(names[1], "cluster-app-1");
         assert_eq!(names[2], "cluster-app-2");
-        
+
         // Wait briefly for spawns to register completely
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-        
+
         let status = cluster_manager.cluster_status(&table, "cluster-app");
         assert_eq!(status.total_instances, 3);
         assert_eq!(status.online_instances, 3);
-        
+
         // Test Rolling Restart (just verify it runs without error)
-        cluster_manager.rolling_restart("cluster-app", &config, &table, std::time::Duration::from_millis(10)).await.unwrap();
-        
+        cluster_manager
+            .rolling_restart(
+                "cluster-app",
+                &config,
+                &table,
+                std::time::Duration::from_millis(10),
+            )
+            .await
+            .unwrap();
+
         // Cleanup
         for name in names {
             pm.delete_process(&name).await.unwrap();

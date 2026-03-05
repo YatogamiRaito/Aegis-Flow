@@ -1,5 +1,5 @@
-use crate::process::ProcessConfig;
 use crate::daemon::{DaemonError, ProcessManager};
+use crate::process::ProcessConfig;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
@@ -68,26 +68,40 @@ impl EcosystemConfig {
 
     fn validate(&self, _base_dir: &Path) -> Result<(), ConfigError> {
         if self.apps.is_empty() {
-            return Err(ConfigError::Validation("No apps defined in ecosystem".to_string()));
+            return Err(ConfigError::Validation(
+                "No apps defined in ecosystem".to_string(),
+            ));
         }
 
         let mut names = std::collections::HashSet::new();
         for app in &self.apps {
             if app.name.is_empty() {
-                return Err(ConfigError::Validation("App name cannot be empty".to_string()));
+                return Err(ConfigError::Validation(
+                    "App name cannot be empty".to_string(),
+                ));
             }
             if app.script.is_empty() {
-                return Err(ConfigError::Validation(format!("App '{}' has no script defined", app.name)));
+                return Err(ConfigError::Validation(format!(
+                    "App '{}' has no script defined",
+                    app.name
+                )));
             }
             if !names.insert(&app.name) {
-                return Err(ConfigError::Validation(format!("Duplicate app name: {}", app.name)));
+                return Err(ConfigError::Validation(format!(
+                    "Duplicate app name: {}",
+                    app.name
+                )));
             }
         }
         Ok(())
     }
 
     /// Convert AppConfigEntry to a concrete ProcessConfig for a specified environment
-    pub fn build_process_config(&self, app: &AppConfigEntry, env_profile: Option<&str>) -> ProcessConfig {
+    pub fn build_process_config(
+        &self,
+        app: &AppConfigEntry,
+        env_profile: Option<&str>,
+    ) -> ProcessConfig {
         let mut env = app.env.clone();
 
         match env_profile {
@@ -129,20 +143,28 @@ impl EcosystemManager {
         Self { pm }
     }
 
-    pub async fn start_ecosystem(&self, config: &EcosystemConfig, env_profile: Option<&str>) -> Result<(), DaemonError> {
+    pub async fn start_ecosystem(
+        &self,
+        config: &EcosystemConfig,
+        env_profile: Option<&str>,
+    ) -> Result<(), DaemonError> {
         for app in &config.apps {
             let proc_config = config.build_process_config(app, env_profile);
-            
-            // To be robust, one would spawn multiple if instances > 1, 
+
+            // To be robust, one would spawn multiple if instances > 1,
             // but for simplicity here we assume the Daemon/ClusterManager handles that,
             // or the ecosystem loop expands them. For now, just spawn named app.
-            
+
             if proc_config.instances > 1 {
                 // Should invoke cluster manager logic, or we implement loop here:
                 for i in 0..proc_config.instances {
                     let mut inst_config = proc_config.clone();
-                    inst_config.env.insert("INSTANCE_ID".to_string(), i.to_string());
-                    self.pm.spawn_process(&format!("{}-{}", app.name, i), &inst_config).await?;
+                    inst_config
+                        .env
+                        .insert("INSTANCE_ID".to_string(), i.to_string());
+                    self.pm
+                        .spawn_process(&format!("{}-{}", app.name, i), &inst_config)
+                        .await?;
                 }
             } else {
                 self.pm.spawn_process(&app.name, &proc_config).await?;
@@ -155,25 +177,44 @@ impl EcosystemManager {
         for app in &config.apps {
             if app.instances > 1 {
                 for i in 0..app.instances {
-                    let _ = self.pm.stop_process(&format!("{}-{}", app.name, i), std::time::Duration::from_millis(500)).await;
+                    let _ = self
+                        .pm
+                        .stop_process(
+                            &format!("{}-{}", app.name, i),
+                            std::time::Duration::from_millis(500),
+                        )
+                        .await;
                 }
             } else {
-                let _ = self.pm.stop_process(&app.name, std::time::Duration::from_millis(500)).await;
+                let _ = self
+                    .pm
+                    .stop_process(&app.name, std::time::Duration::from_millis(500))
+                    .await;
             }
         }
         Ok(())
     }
 
-    pub async fn restart_all(&self, config: &EcosystemConfig, env_profile: Option<&str>) -> Result<(), DaemonError> {
+    pub async fn restart_all(
+        &self,
+        config: &EcosystemConfig,
+        env_profile: Option<&str>,
+    ) -> Result<(), DaemonError> {
         let delay = std::time::Duration::from_millis(500);
         for app in &config.apps {
             let proc_config = config.build_process_config(app, env_profile);
             if app.instances > 1 {
                 for i in 0..app.instances {
-                    let _ = self.pm.restart_process(&format!("{}-{}", app.name, i), &proc_config, delay).await;
+                    let _ = self
+                        .pm
+                        .restart_process(&format!("{}-{}", app.name, i), &proc_config, delay)
+                        .await;
                 }
             } else {
-                let _ = self.pm.restart_process(&app.name, &proc_config, delay).await;
+                let _ = self
+                    .pm
+                    .restart_process(&app.name, &proc_config, delay)
+                    .await;
             }
         }
         Ok(())
@@ -189,7 +230,7 @@ mod tests {
     fn test_parse_toml_ecosystem() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("ecosystem.toml");
-        
+
         let toml_content = r#"
         [[apps]]
         name = "api-server"
@@ -207,17 +248,17 @@ mod tests {
         script = "python"
         args = ["worker.py"]
         "#;
-        
+
         std::fs::write(&path, toml_content).unwrap();
-        
+
         let config = EcosystemConfig::from_file(&path).unwrap();
         assert_eq!(config.apps.len(), 2);
-        
+
         let api = &config.apps[0];
         assert_eq!(api.name, "api-server");
         assert_eq!(api.instances, 4);
         assert_eq!(api.env.get("PORT").unwrap(), "3000");
-        
+
         let worker = &config.apps[1];
         assert_eq!(worker.name, "worker");
         assert_eq!(worker.args, vec!["worker.py"]);
@@ -227,7 +268,7 @@ mod tests {
     fn test_parse_yaml_ecosystem() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("ecosystem.yaml");
-        
+
         let yaml_content = r#"
 apps:
   - name: "api"
@@ -236,15 +277,15 @@ apps:
       DEBUG: "true"
 "#;
         std::fs::write(&path, yaml_content).unwrap();
-        
+
         let config = EcosystemConfig::from_file(&path).unwrap();
         assert_eq!(config.apps.len(), 1);
         let api = &config.apps[0];
         assert_eq!(api.name, "api");
-        
+
         let proc_config = config.build_process_config(api, Some("staging"));
         assert_eq!(proc_config.env.get("DEBUG").unwrap(), "true");
-        
+
         let proc_config_dev = config.build_process_config(api, None);
         assert!(proc_config_dev.env.get("DEBUG").is_none());
     }
@@ -253,11 +294,11 @@ apps:
     fn test_config_validation() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("ecosystem.toml");
-        
+
         // Empty apps
         std::fs::write(&path, "apps = []").unwrap();
         assert!(EcosystemConfig::from_file(&path).is_err());
-        
+
         // Missing name
         let toml_content = r#"
         [[apps]]
@@ -273,27 +314,25 @@ apps:
         let table = Arc::new(ProcessTable::new());
         let pm = Arc::new(ProcessManager::new(table.clone()));
         let manager = EcosystemManager::new(pm.clone());
-        
+
         let config = EcosystemConfig {
-            apps: vec![
-                AppConfigEntry {
-                    name: "app1".to_string(),
-                    script: "sleep".to_string(),
-                    args: vec!["10".to_string()],
-                    env: HashMap::new(),
-                    env_production: None,
-                    env_staging: None,
-                    cwd: None,
-                    instances: 1,
-                    max_memory_bytes: None,
-                    max_restarts: 15,
-                }
-            ]
+            apps: vec![AppConfigEntry {
+                name: "app1".to_string(),
+                script: "sleep".to_string(),
+                args: vec!["10".to_string()],
+                env: HashMap::new(),
+                env_production: None,
+                env_staging: None,
+                cwd: None,
+                instances: 1,
+                max_memory_bytes: None,
+                max_restarts: 15,
+            }],
         };
-        
+
         manager.start_ecosystem(&config, None).await.unwrap();
         assert!(table.get("app1").is_ok());
-        
+
         manager.stop_all(&config).await.unwrap();
         let p = table.get("app1").unwrap();
         assert_eq!(p.status, crate::process::ProcessStatus::Stopped);

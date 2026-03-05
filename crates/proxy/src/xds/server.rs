@@ -95,15 +95,28 @@ impl DiscoveryService {
                         svc, node_id, req.version_info, req.response_nonce
                     );
                 } else {
-                    info!("xDS: [{}] Initial DiscoveryRequest from node {}", svc, node_id);
+                    info!(
+                        "xDS: [{}] Initial DiscoveryRequest from node {}",
+                        svc, node_id
+                    );
                 }
 
                 // In xDS, if the client is ACK-ing the latest version and we have no new updates, we pause.
-                if req.version_info == snapshot.version && req.error_detail.is_none() && last_sent_version == snapshot.version {
+                if req.version_info == snapshot.version
+                    && req.error_detail.is_none()
+                    && last_sent_version == snapshot.version
+                {
                     continue;
                 }
 
-                let nonce = format!("nonce-{}-{}", snapshot.version, std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_micros());
+                let nonce = format!(
+                    "nonce-{}-{}",
+                    snapshot.version,
+                    std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap()
+                        .as_micros()
+                );
 
                 let response = DiscoveryResponse {
                     version_info: snapshot.version.clone(),
@@ -125,12 +138,34 @@ impl DiscoveryService {
     }
 }
 
+#[tonic::async_trait]
+impl aggregated_discovery_service_server::AggregatedDiscoveryService for DiscoveryService {
+    type StreamAggregatedResourcesStream = ReceiverStream<Result<DiscoveryResponse, Status>>;
+
+    async fn stream_aggregated_resources(
+        &self,
+        request: Request<Streaming<DiscoveryRequest>>,
+    ) -> Result<Response<Self::StreamAggregatedResourcesStream>, Status> {
+        info!("xDS: New ADS stream request");
+        self.handle_stream("ADS", request).await
+    }
+}
+
 /// Helper to start the xDS server
 pub async fn run_xds_server(addr: &str, snapshot: Arc<Snapshot>) -> anyhow::Result<()> {
     let svc = DiscoveryService::new(snapshot);
-    let lds = listener_discovery_service_server::ListenerDiscoveryServiceServer::new(DiscoveryService::new(svc.snapshot.clone()));
-    let cds = cluster_discovery_service_server::ClusterDiscoveryServiceServer::new(DiscoveryService::new(svc.snapshot.clone()));
-    let rds = route_discovery_service_server::RouteDiscoveryServiceServer::new(DiscoveryService::new(svc.snapshot.clone()));
+    let lds = listener_discovery_service_server::ListenerDiscoveryServiceServer::new(
+        DiscoveryService::new(svc.snapshot.clone()),
+    );
+    let cds = cluster_discovery_service_server::ClusterDiscoveryServiceServer::new(
+        DiscoveryService::new(svc.snapshot.clone()),
+    );
+    let rds = route_discovery_service_server::RouteDiscoveryServiceServer::new(
+        DiscoveryService::new(svc.snapshot.clone()),
+    );
+    let ads = aggregated_discovery_service_server::AggregatedDiscoveryServiceServer::new(
+        DiscoveryService::new(svc.snapshot.clone()),
+    );
 
     info!("🚀 xDS Server listening on {}", addr);
 
@@ -138,6 +173,7 @@ pub async fn run_xds_server(addr: &str, snapshot: Arc<Snapshot>) -> anyhow::Resu
         .add_service(lds)
         .add_service(cds)
         .add_service(rds)
+        .add_service(ads)
         .serve(addr.parse()?)
         .await?;
 

@@ -9,4 +9,4 @@ mod types;
 
 pub use cache::CarbonIntensityCache;
 pub use client::{ElectricityMapsClient, EnergyApiClient, WattTimeClient};
-pub use types::{CarbonIntensity, EnergyApiError, EnergyApiProvider, Region};
+pub use types::{CarbonIntensity, EnergyApiError, EnergyApiProvider, Region, ForecastPoint};

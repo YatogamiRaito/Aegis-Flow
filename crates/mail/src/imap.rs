@@ -2,14 +2,13 @@
 /// Handles client IMAP connections, performs auth routing via HTTP,
 /// then proxies the IMAP session to the backend mail server.
 /// Supports STARTTLS, IMAPS, IDLE passthrough for push notifications.
-
 use tracing::debug;
 
 /// IMAP server configuration
 #[derive(Debug, Clone)]
 pub struct ImapConfig {
     pub listen_addr: String,
-    pub imaps_addr: Option<String>,    // TLS-direct IMAP on port 993
+    pub imaps_addr: Option<String>, // TLS-direct IMAP on port 993
     pub auth_http_url: String,
     pub starttls: bool,
 }
@@ -44,12 +43,28 @@ pub fn imap_capability(starttls: bool) -> String {
 #[derive(Debug, PartialEq)]
 pub enum ImapCommand {
     Capability,
-    Login { tag: String, user: String, pass: String },
-    Authenticate { tag: String, mechanism: String },
-    StartTls { tag: String },
-    Idle { tag: String },
-    Logout { tag: String },
-    Other { tag: String, cmd: String },
+    Login {
+        tag: String,
+        user: String,
+        pass: String,
+    },
+    Authenticate {
+        tag: String,
+        mechanism: String,
+    },
+    StartTls {
+        tag: String,
+    },
+    Idle {
+        tag: String,
+    },
+    Logout {
+        tag: String,
+    },
+    Other {
+        tag: String,
+        cmd: String,
+    },
 }
 
 /// Parse a raw IMAP command line into an ImapCommand
@@ -70,15 +85,28 @@ pub fn parse_imap_command(line: &str) -> Option<ImapCommand> {
         "LOGIN" => {
             // LOGIN user pass (may be quoted)
             let login_parts: Vec<&str> = args.splitn(2, ' ').collect();
-            let user = login_parts.get(0).copied().unwrap_or("").trim_matches('"').to_string();
-            let pass = login_parts.get(1).copied().unwrap_or("").trim_matches('"').to_string();
+            let user = login_parts
+                .get(0)
+                .copied()
+                .unwrap_or("")
+                .trim_matches('"')
+                .to_string();
+            let pass = login_parts
+                .get(1)
+                .copied()
+                .unwrap_or("")
+                .trim_matches('"')
+                .to_string();
             ImapCommand::Login { tag, user, pass }
         }
         "AUTHENTICATE" => {
             let mechanism = args.to_uppercase();
             ImapCommand::Authenticate { tag, mechanism }
         }
-        _ => ImapCommand::Other { tag, cmd: cmd.to_string() },
+        _ => ImapCommand::Other {
+            tag,
+            cmd: cmd.to_string(),
+        },
     })
 }
 

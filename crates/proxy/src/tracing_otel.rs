@@ -2,21 +2,23 @@
 //!
 //! Provides distributed tracing with OTLP/gRPC exporter.
 
-use opentelemetry::{global, KeyValue};
-use opentelemetry::trace::TracerProvider as _;
-use opentelemetry_otlp::{WithExportConfig, SpanExporter};
-use opentelemetry_sdk::{runtime, trace::TracerProvider, Resource};
-use opentelemetry_sdk::trace::{self as sdktrace, Sampler};
-use opentelemetry_sdk::propagation::{TraceContextPropagator, BaggagePropagator};
 use opentelemetry::propagation::TextMapCompositePropagator;
-use tracing_subscriber::prelude::*;
+use opentelemetry::trace::TracerProvider as _;
+use opentelemetry::{KeyValue, global};
+use opentelemetry_otlp::{SpanExporter, WithExportConfig};
+use opentelemetry_sdk::propagation::{BaggagePropagator, TraceContextPropagator};
+use opentelemetry_sdk::trace::{self as sdktrace, Sampler};
+use opentelemetry_sdk::{Resource, runtime, trace::TracerProvider};
 use tracing_subscriber::EnvFilter;
+use tracing_subscriber::prelude::*;
 
-/// Initialize OpenTelemetry tracing
+#[deprecated(
+    since = "0.31.0",
+    note = "Please use crate::telemetry::init_tracing instead"
+)]
 pub fn init_tracing(service_name: &str, otlp_endpoint: &str) -> anyhow::Result<()> {
     // Determine log level from env or default to info
-    let env_filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("info"));
+    let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 
     // Create OTel resource
     let resource = Resource::new(vec![
@@ -33,7 +35,9 @@ pub fn init_tracing(service_name: &str, otlp_endpoint: &str) -> anyhow::Result<(
     // Create Tracer Provider with ParentBased Probabilistic Sampling (10%)
     let tracer_provider = TracerProvider::builder()
         .with_batch_exporter(exporter, runtime::Tokio)
-        .with_sampler(Sampler::ParentBased(Box::new(Sampler::TraceIdRatioBased(0.1))))
+        .with_sampler(Sampler::ParentBased(Box::new(Sampler::TraceIdRatioBased(
+            0.1,
+        ))))
         .with_resource(resource)
         .build();
 
@@ -46,7 +50,8 @@ pub fn init_tracing(service_name: &str, otlp_endpoint: &str) -> anyhow::Result<(
     ]));
 
     // Create Tracing Layer
-    let otel_layer = tracing_opentelemetry::layer().with_tracer(tracer_provider.tracer("aegis-proxy"));
+    let otel_layer =
+        tracing_opentelemetry::layer().with_tracer(tracer_provider.tracer("aegis-proxy"));
 
     // Initialize Registry with layers
     tracing_subscriber::registry()
@@ -55,7 +60,10 @@ pub fn init_tracing(service_name: &str, otlp_endpoint: &str) -> anyhow::Result<(
         .with(tracing_subscriber::fmt::layer().json())
         .init();
 
-    tracing::info!("🔍 OpenTelemetry tracing initialized (endpoint: {})", otlp_endpoint);
+    tracing::info!(
+        "🔍 OpenTelemetry tracing initialized (endpoint: {})",
+        otlp_endpoint
+    );
     Ok(())
 }
 

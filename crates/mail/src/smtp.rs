@@ -1,12 +1,11 @@
+use crate::mail_auth::{MailAuthRequest, MailAuthResult, authenticate};
+use bytes::Bytes;
+use tokio::io::{AsyncReadExt, AsyncWriteExt, BufWriter};
 /// SMTP Mail Proxy
 /// Handles client SMTP connections, performs auth routing via HTTP,
 /// then proxies the session to the backend mail server.
-
-use tokio::net::{TcpStream, TcpListener};
-use tokio::io::{AsyncReadExt, AsyncWriteExt, BufWriter};
+use tokio::net::{TcpListener, TcpStream};
 use tracing::{debug, error, info};
-use bytes::Bytes;
-use crate::mail_auth::{MailAuthRequest, MailAuthResult, authenticate};
 
 /// SMTP server configuration
 #[derive(Debug, Clone)]
@@ -30,7 +29,7 @@ impl Default for SmtpConfig {
 
 /// Parse the AUTH PLAIN payload (base64 encoded "\0user\0pass")
 pub fn parse_auth_plain(encoded: &str) -> Option<(String, String)> {
-    use base64::{engine::general_purpose::STANDARD, Engine};
+    use base64::{Engine, engine::general_purpose::STANDARD};
     let decoded = STANDARD.decode(encoded.trim()).ok()?;
     let s = String::from_utf8(decoded).ok()?;
     // Format: \0username\0password
@@ -46,8 +45,10 @@ pub fn parse_auth_plain(encoded: &str) -> Option<(String, String)> {
 
 /// Parse the AUTH LOGIN exchange (base64 encoded user/pass in sequence)
 pub fn parse_auth_login_part(encoded: &str) -> Option<String> {
-    use base64::{engine::general_purpose::STANDARD, Engine};
-    STANDARD.decode(encoded.trim()).ok()
+    use base64::{Engine, engine::general_purpose::STANDARD};
+    STANDARD
+        .decode(encoded.trim())
+        .ok()
         .and_then(|b| String::from_utf8(b).ok())
 }
 
@@ -59,7 +60,7 @@ pub fn smtp_greeting(hostname: &str) -> String {
 /// Generate EHLO response with supported capabilities
 pub fn smtp_ehlo_response(hostname: &str, starttls: bool) -> String {
     let mut caps = format!("250-{}\r\n", hostname);
-    caps.push_str("250-SIZE 52428800\r\n");  // 50MB max
+    caps.push_str("250-SIZE 52428800\r\n"); // 50MB max
     caps.push_str("250-AUTH PLAIN LOGIN\r\n");
     caps.push_str("250-PIPELINING\r\n");
     if starttls {
@@ -128,7 +129,7 @@ mod tests {
 
     #[test]
     fn test_parse_auth_plain() {
-        use base64::{engine::general_purpose::STANDARD, Engine};
+        use base64::{Engine, engine::general_purpose::STANDARD};
         // Format: \0user\0pass
         let payload = STANDARD.encode("\0user@example.com\0mysecret");
         let result = parse_auth_plain(&payload);

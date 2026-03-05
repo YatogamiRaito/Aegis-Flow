@@ -1,9 +1,9 @@
 //! PQC-enabled proxy server implementation
 
 use crate::config::ProxyConfig;
+use aegis_crypto::signing::{MlDsa65Signer, SigningKeyPair};
 use aegis_crypto::stream::EncryptedStream;
 use aegis_crypto::tls::{PqcHandshake, PqcTlsConfig};
-use aegis_crypto::signing::{MlDsa65Signer, SigningKeyPair};
 use anyhow::Result;
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -23,9 +23,14 @@ impl PqcProxyServer {
         let tls_config = PqcTlsConfig::default();
         let handshake = Arc::new(PqcHandshake::new(tls_config));
         // For now, generate a temporary identity key. In production, this should be loaded from config/secret.
-        let identity_key = Arc::new(MlDsa65Signer::generate().expect("Failed to generate identity key"));
+        let identity_key =
+            Arc::new(MlDsa65Signer::generate().expect("Failed to generate identity key"));
 
-        Self { config, handshake, identity_key }
+        Self {
+            config,
+            handshake,
+            identity_key,
+        }
     }
 
     /// Run the PQC proxy server
@@ -310,7 +315,10 @@ mod tests {
         let sig_len = u32::from_be_bytes(sig_len_bytes) as usize;
         let mut sig_bytes = vec![0u8; sig_len];
         client.read_exact(&mut sig_bytes).await.unwrap();
-        let signature = aegis_crypto::signing::MlDsaSignature::new(sig_bytes, aegis_crypto::signing::MlDsaAlgorithm::MlDsa65);
+        let signature = aegis_crypto::signing::MlDsaSignature::new(
+            sig_bytes,
+            aegis_crypto::signing::MlDsaAlgorithm::MlDsa65,
+        );
 
         // Receive server identity PK
         let mut id_pk_len_bytes = [0u8; 4];
@@ -320,7 +328,9 @@ mod tests {
         client.read_exact(&mut id_pk_bytes).await.unwrap();
 
         let server_pk = aegis_crypto::HybridPublicKey::from_bytes(&pk_bytes).unwrap();
-        let (ciphertext, client_channel) = client_handshake.client_complete(&server_pk, &id_pk_bytes, &signature).unwrap();
+        let (ciphertext, client_channel) = client_handshake
+            .client_complete(&server_pk, &id_pk_bytes, &signature)
+            .unwrap();
 
         let ct_bytes = ciphertext.to_bytes();
         client
@@ -899,7 +909,10 @@ mod tests {
         let sig_len = u32::from_be_bytes(sig_len_bytes) as usize;
         let mut sig_bytes = vec![0u8; sig_len];
         client.read_exact(&mut sig_bytes).await.unwrap();
-        let signature = aegis_crypto::signing::MlDsaSignature::new(sig_bytes, aegis_crypto::signing::MlDsaAlgorithm::MlDsa65);
+        let signature = aegis_crypto::signing::MlDsaSignature::new(
+            sig_bytes,
+            aegis_crypto::signing::MlDsaAlgorithm::MlDsa65,
+        );
 
         // Receive server identity PK
         let mut id_pk_len_bytes = [0u8; 4];
@@ -909,7 +922,9 @@ mod tests {
         client.read_exact(&mut id_pk_bytes).await.unwrap();
 
         let server_pk = aegis_crypto::HybridPublicKey::from_bytes(&pk_bytes).unwrap();
-        let (ciphertext, client_channel) = client_handshake.client_complete(&server_pk, &id_pk_bytes, &signature).unwrap();
+        let (ciphertext, client_channel) = client_handshake
+            .client_complete(&server_pk, &id_pk_bytes, &signature)
+            .unwrap();
 
         let ct_bytes = ciphertext.to_bytes();
         client
@@ -999,7 +1014,10 @@ mod tests {
         let sig_len = u32::from_be_bytes(sig_len_bytes) as usize;
         let mut sig_bytes = vec![0u8; sig_len];
         client.read_exact(&mut sig_bytes).await.unwrap();
-        let signature = aegis_crypto::signing::MlDsaSignature::new(sig_bytes, aegis_crypto::signing::MlDsaAlgorithm::MlDsa65);
+        let signature = aegis_crypto::signing::MlDsaSignature::new(
+            sig_bytes,
+            aegis_crypto::signing::MlDsaAlgorithm::MlDsa65,
+        );
 
         // Receive server identity PK
         let mut id_pk_len_bytes = [0u8; 4];
@@ -1009,7 +1027,9 @@ mod tests {
         client.read_exact(&mut id_pk_bytes).await.unwrap();
 
         let server_pk = aegis_crypto::HybridPublicKey::from_bytes(&pk_bytes).unwrap();
-        let (ciphertext, client_channel) = client_handshake.client_complete(&server_pk, &id_pk_bytes, &signature).unwrap();
+        let (ciphertext, client_channel) = client_handshake
+            .client_complete(&server_pk, &id_pk_bytes, &signature)
+            .unwrap();
 
         let ct_bytes = ciphertext.to_bytes();
         client
@@ -1175,7 +1195,10 @@ mod tests {
         let sig_len = u32::from_be_bytes(sig_len_bytes) as usize;
         let mut sig_bytes = vec![0u8; sig_len];
         client.read_exact(&mut sig_bytes).await.unwrap();
-        let signature = aegis_crypto::signing::MlDsaSignature::new(sig_bytes, aegis_crypto::signing::MlDsaAlgorithm::MlDsa65);
+        let signature = aegis_crypto::signing::MlDsaSignature::new(
+            sig_bytes,
+            aegis_crypto::signing::MlDsaAlgorithm::MlDsa65,
+        );
 
         // Receive server identity PK
         let mut id_pk_len_bytes = [0u8; 4];
@@ -1185,7 +1208,9 @@ mod tests {
         client.read_exact(&mut id_pk_bytes).await.unwrap();
 
         let server_pk = aegis_crypto::HybridPublicKey::from_bytes(&pk_bytes).unwrap();
-        let (ciphertext, client_channel) = client_handshake.client_complete(&server_pk, &id_pk_bytes, &signature).unwrap();
+        let (ciphertext, client_channel) = client_handshake
+            .client_complete(&server_pk, &id_pk_bytes, &signature)
+            .unwrap();
 
         let ct_bytes = ciphertext.to_bytes();
         client

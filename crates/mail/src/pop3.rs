@@ -7,7 +7,7 @@
 #[derive(Debug, Clone)]
 pub struct Pop3Config {
     pub listen_addr: String,
-    pub pop3s_addr: Option<String>,   // TLS-direct POP3S on port 995
+    pub pop3s_addr: Option<String>, // TLS-direct POP3S on port 995
     pub auth_http_url: String,
     pub starttls: bool,
 }

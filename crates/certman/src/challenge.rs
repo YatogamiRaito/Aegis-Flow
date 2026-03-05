@@ -1,5 +1,5 @@
-use sha2::{Sha256, Digest};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+use sha2::{Digest, Sha256};
 
 /// HTTP-01 challenge: serve a key authorization at /.well-known/acme-challenge/<token>
 pub struct Http01Challenge {

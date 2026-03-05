@@ -1,12 +1,12 @@
-pub mod snapshot;
 pub mod server;
+pub mod snapshot;
 
-pub use snapshot::Snapshot;
 pub use server::run_xds_server;
-pub mod lds;
-pub mod cds;
-pub mod rds;
+pub use snapshot::Snapshot;
 pub mod ads;
+pub mod cds;
+pub mod lds;
+pub mod rds;
 
 pub mod envoy {
     pub mod api {

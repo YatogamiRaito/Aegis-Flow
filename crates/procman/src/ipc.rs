@@ -54,7 +54,9 @@ pub struct IpcServer {
 
 impl IpcServer {
     pub fn new(path: impl Into<PathBuf>) -> Self {
-        Self { socket_path: path.into() }
+        Self {
+            socket_path: path.into(),
+        }
     }
 
     /// Run the server loop indefinitely
@@ -102,7 +104,7 @@ impl IpcServer {
         stream.read_exact(&mut data_buf).await?;
 
         let request: IpcRequest = serde_json::from_slice(&data_buf)?;
-        
+
         // Execute the handler
         let response = handler(request).await;
 
@@ -150,7 +152,7 @@ impl IpcClient {
 
     pub async fn send_command(&self, request: &IpcRequest) -> Result<IpcResponse, IpcError> {
         let connect_fut = UnixStream::connect(&self.socket_path);
-        
+
         let mut stream = tokio::time::timeout(self.timeout, connect_fut)
             .await
             .map_err(|_| IpcError::Timeout)?
@@ -195,26 +197,30 @@ mod tests {
     use super::*;
     use std::sync::Arc;
     use tokio::sync::Mutex;
-    
+
     static SOCKET_COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     // Create a temporary path for the socket
     fn get_temp_socket() -> PathBuf {
         let temp_dir = std::env::temp_dir();
         let idx = SOCKET_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        temp_dir.join(format!("aegis-ipc-test-{}-{}.sock", std::process::id(), idx))
+        temp_dir.join(format!(
+            "aegis-ipc-test-{}-{}.sock",
+            std::process::id(),
+            idx
+        ))
     }
 
     #[tokio::test]
     async fn test_ipc_communication() {
         let sock_path = get_temp_socket();
-        
+
         // Ensure cleanup at end of test (or test failure)
         let sock_path_clone = sock_path.clone();
-        
+
         // Keep track of received requests
         let received_req = Arc::new(Mutex::new(None));
         let received_clone = received_req.clone();
-        
+
         let handler = move |req: IpcRequest| {
             let received = received_clone.clone();
             async move {
@@ -224,32 +230,34 @@ mod tests {
         };
 
         let server = IpcServer::new(&sock_path);
-        
+
         // Spawn server in background
         let server_task = tokio::spawn(async move {
             let _ = server.serve(handler).await;
         });
-        
+
         // Wait for server to bound socket
         tokio::time::sleep(Duration::from_millis(50)).await;
-        
+
         // Client connects and sends
         let client = IpcClient::new(&sock_path).with_timeout(Duration::from_secs(1));
-        let req = IpcRequest::Stop { name: "test-app".to_string() };
-        
+        let req = IpcRequest::Stop {
+            name: "test-app".to_string(),
+        };
+
         let response = client.send_command(&req).await.unwrap();
-        
+
         match response {
-            IpcResponse::Ok => {},
+            IpcResponse::Ok => {}
             _ => panic!("Expected Ok response"),
         }
-        
+
         let received = received_req.lock().await.take().unwrap();
         match received {
             IpcRequest::Stop { name } => assert_eq!(name, "test-app"),
             _ => panic!("Expected Stop request"),
         }
-        
+
         // Clean up
         server_task.abort();
         if sock_path_clone.exists() {
@@ -261,13 +269,13 @@ mod tests {
     async fn test_ipc_timeout() {
         let sock_path = get_temp_socket();
         // Don't start a server
-        
+
         let client = IpcClient::new(&sock_path).with_timeout(Duration::from_millis(10));
         let req = IpcRequest::List;
-        
+
         let result = client.send_command(&req).await;
         assert!(result.is_err());
-        // Since there is no listener, connection will be refused instantly, or we timeout if firewall drops it. 
+        // Since there is no listener, connection will be refused instantly, or we timeout if firewall drops it.
         // Either way it should be an error.
     }
 }

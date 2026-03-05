@@ -3,13 +3,13 @@
 //! Wraps hickory-resolver to provide persistent, asynchronous DNS resolution
 //! with respect for TTL values from upstream servers.
 
-use std::sync::Arc;
-use std::time::{Duration, Instant};
 use hickory_resolver::TokioAsyncResolver;
 use hickory_resolver::config::{ResolverConfig, ResolverOpts};
 use moka::future::Cache;
-use tracing::{debug, error, warn};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
+use tracing::{debug, error, warn};
 
 /// A resolved IP address with its TTL
 #[derive(Debug, Clone)]
@@ -32,11 +32,9 @@ impl AsyncResolver {
     pub fn new() -> Self {
         let (config, opts) = hickory_resolver::system_conf::read_system_conf()
             .unwrap_or_else(|_| (ResolverConfig::default(), ResolverOpts::default()));
-        
+
         let resolver = TokioAsyncResolver::tokio(config, opts);
-        let cache = Cache::builder()
-            .max_capacity(1000)
-            .build();
+        let cache = Cache::builder().max_capacity(1000).build();
 
         Self { resolver, cache }
     }
@@ -51,7 +49,7 @@ impl AsyncResolver {
                 return Ok(resolved.ips);
             } else if now < resolved.stale_until {
                 debug!("DNS cache hit (stale): {} -> {:?}", host, resolved.ips);
-                
+
                 // Only trigger ONE background refresh for this host
                 if !resolved.is_refreshing.swap(true, Ordering::AcqRel) {
                     let host_clone = host.to_string();
@@ -63,11 +61,12 @@ impl AsyncResolver {
                         if let Ok(lookup) = resolver.lookup_ip(&host_clone).await {
                             let ips: Vec<_> = lookup.iter().collect();
                             let refresh_now = Instant::now();
-                            let ttl_secs = lookup.valid_until()
+                            let ttl_secs = lookup
+                                .valid_until()
                                 .duration_since(refresh_now)
                                 .as_secs()
                                 .max(60);
-                                
+
                             let new_resolved = ResolvedAddr {
                                 ips,
                                 expires_at: refresh_now + Duration::from_secs(ttl_secs),
@@ -85,7 +84,7 @@ impl AsyncResolver {
                         }
                     });
                 }
-                
+
                 // Return immediately with stale data
                 return Ok(resolved.ips);
             }
@@ -95,14 +94,15 @@ impl AsyncResolver {
         debug!("DNS cache miss: resolving {}", host);
         let lookup = self.resolver.lookup_ip(host).await?;
         let ips: Vec<_> = lookup.iter().collect();
-        
+
         // Respect TTL from DNS response
         let resolve_now = Instant::now();
-        let ttl_secs = lookup.valid_until()
+        let ttl_secs = lookup
+            .valid_until()
             .duration_since(resolve_now)
             .as_secs()
             .max(60); // Minimum 1 minute TTL to avoid thundering herd
-        
+
         let resolved = ResolvedAddr {
             ips: ips.clone(),
             expires_at: resolve_now + Duration::from_secs(ttl_secs),
@@ -122,5 +122,47 @@ impl Default for AsyncResolver {
 }
 
 /// Global resolver instance
-pub static GLOBAL_RESOLVER: once_cell::sync::Lazy<Arc<AsyncResolver>> = 
+pub static GLOBAL_RESOLVER: once_cell::sync::Lazy<Arc<AsyncResolver>> =
     once_cell::sync::Lazy::new(|| Arc::new(AsyncResolver::new()));
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_dns_resolve_localhost() {
+        let resolver = AsyncResolver::new();
+        let ips = resolver
+            .resolve("localhost")
+            .await
+            .expect("Failed to resolve localhost");
+        assert!(!ips.is_empty(), "Expected at least one IP for localhost");
+    }
+
+    #[tokio::test]
+    async fn test_dns_resolve_with_ttl_cache() {
+        let resolver = AsyncResolver::new();
+        // First resolve caches it
+        let _ = resolver.resolve("localhost").await.unwrap();
+
+        let start = std::time::Instant::now();
+        // Second resolve should be from cache
+        let _ = resolver.resolve("localhost").await.unwrap();
+        let duration = start.elapsed();
+
+        // Resolving from moka cache should be extremely fast (under 5ms usually)
+        assert!(
+            duration.as_millis() < 50,
+            "Expected fast resolution from TTL cache"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_dns_resolve_failure_graceful() {
+        let resolver = AsyncResolver::new();
+        let res = resolver
+            .resolve("invalid.domain.that.does.not.exist.internal")
+            .await;
+        assert!(res.is_err(), "Expected error for invalid domain");
+    }
+}

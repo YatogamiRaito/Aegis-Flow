@@ -43,6 +43,7 @@ pub mod mime_types;
 pub mod mirror;
 pub mod pqc_server;
 pub mod proxy_cache;
+pub mod persistent_queue;
 pub mod proxy_protocol;
 pub mod quic_server;
 pub mod ranges;
@@ -61,8 +62,6 @@ pub mod stub_status;
 pub mod sub_filter;
 pub mod syslog;
 pub mod tracing_otel;
-#[cfg(feature = "xds")]
-pub mod xds;
 pub mod udp_proxy;
 pub mod upstream;
 pub mod upstream_client;
@@ -71,6 +70,8 @@ pub mod variables;
 pub mod vhost;
 pub mod waf;
 pub mod websocket;
+#[cfg(feature = "xds")]
+pub mod xds;
 pub mod xslt;
 pub mod zero_copy;
 pub use carbon_router::{CarbonRouter, CarbonRouterConfig, RegionScore};

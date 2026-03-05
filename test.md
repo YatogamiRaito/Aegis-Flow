@@ -1,0 +1,1 @@
+cargo test -p aegis-energy -p aegis-proxy 2>&1 | tail -50

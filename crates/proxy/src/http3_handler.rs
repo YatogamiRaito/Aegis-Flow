@@ -53,7 +53,8 @@ impl HttpBodyType {
 }
 
 /// HTTP/3 request representation
-#[derive(Debug)]pub struct Http3Request {
+#[derive(Debug)]
+pub struct Http3Request {
     /// HTTP method (GET, POST, etc.)
     pub method: String,
     /// Request path
@@ -88,14 +89,18 @@ impl Http3Request {
     }
 
     /// Set the request body as stream
-    pub fn with_stream_body(mut self, rx: tokio::sync::mpsc::Receiver<Result<Bytes, BoxError>>) -> Self {
+    pub fn with_stream_body(
+        mut self,
+        rx: tokio::sync::mpsc::Receiver<Result<Bytes, BoxError>>,
+    ) -> Self {
         self.body = HttpBodyType::Stream(rx);
         self
     }
 }
 
 /// HTTP/3 response representation
-#[derive(Debug)]pub struct Http3Response {
+#[derive(Debug)]
+pub struct Http3Response {
     /// HTTP status code
     pub status: u16,
     /// Response headers
@@ -154,7 +159,10 @@ impl Http3Response {
     }
 
     /// Set the response body stream
-    pub fn with_stream_body(mut self, rx: tokio::sync::mpsc::Receiver<Result<Bytes, BoxError>>) -> Self {
+    pub fn with_stream_body(
+        mut self,
+        rx: tokio::sync::mpsc::Receiver<Result<Bytes, BoxError>>,
+    ) -> Self {
         self.body = HttpBodyType::Stream(rx);
         self
     }
@@ -222,12 +230,19 @@ impl Http3Handler {
         }
 
         // 0-RTT Replay Protection
-        let is_early_data = request.headers.iter().any(|(k, v)| k.to_lowercase() == "early-data" && v == "1");
+        let is_early_data = request
+            .headers
+            .iter()
+            .any(|(k, v)| k.to_lowercase() == "early-data" && v == "1");
         if is_early_data {
             let m = request.method.as_str();
             if m != "GET" && m != "HEAD" && m != "OPTIONS" {
-                warn!("🛑 Blocked non-idempotent 0-RTT request: {} {}", m, request.path);
-                return Http3Response::new(425).with_body("Too Early: Non-idempotent early data rejected");
+                warn!(
+                    "🛑 Blocked non-idempotent 0-RTT request: {} {}",
+                    m, request.path
+                );
+                return Http3Response::new(425)
+                    .with_body("Too Early: Non-idempotent early data rejected");
             }
         }
 
@@ -276,16 +291,19 @@ impl Http3Handler {
     }
 
     /// Forward request to upstream address
-    async fn forward_to_upstream(&self, mut req: Http3Request) -> Result<Http3Response, reqwest::Error> {
-            
+    async fn forward_to_upstream(
+        &self,
+        mut req: Http3Request,
+    ) -> Result<Http3Response, reqwest::Error> {
         let mut url = self.upstream_addr.clone();
         if !url.starts_with("http") {
             url = format!("http://{}", url);
         }
-        
+
         let target_url = format!("{}{}", url.trim_end_matches('/'), req.path);
 
-        let method = reqwest::Method::from_bytes(req.method.as_bytes()).unwrap_or(reqwest::Method::GET);
+        let method =
+            reqwest::Method::from_bytes(req.method.as_bytes()).unwrap_or(reqwest::Method::GET);
         let mut upstream_req = self.client.request(method, &target_url);
 
         let hop_by_hop = [
@@ -335,7 +353,7 @@ impl Http3Handler {
 
         let resp_stream = upstream_resp.bytes_stream();
         let (tx, rx) = tokio::sync::mpsc::channel(32);
-        
+
         tokio::spawn(async move {
             use futures_util::StreamExt;
             tokio::pin!(resp_stream);
@@ -353,7 +371,7 @@ impl Http3Handler {
                 }
             }
         });
-        
+
         h3_resp.body = HttpBodyType::Stream(rx);
         Ok(h3_resp)
     }
@@ -624,7 +642,11 @@ mod tests {
         let req = Http3Request::new("GET", "/");
         let resp = handler.handle_request(req).await;
         // Connection refused → mapped to 500 Internal Server Error
-        assert_eq!(resp.status, 500, "expected 500 on unreachable upstream, got: {}", resp.status);
+        assert_eq!(
+            resp.status, 500,
+            "expected 500 on unreachable upstream, got: {}",
+            resp.status
+        );
     }
 
     #[test]
@@ -761,6 +783,10 @@ mod tests {
         let req = Http3Request::new("BREW", "/pot");
         let resp = handler.handle_request(req).await;
         // Connection refused → mapped to 500 Internal Server Error
-        assert_eq!(resp.status, 500, "expected 500 on unreachable upstream, got: {}", resp.status);
+        assert_eq!(
+            resp.status, 500,
+            "expected 500 on unreachable upstream, got: {}",
+            resp.status
+        );
     }
 }

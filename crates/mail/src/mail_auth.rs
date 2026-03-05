@@ -1,16 +1,15 @@
+use reqwest::Client;
 /// Mail Auth HTTP Protocol implementation
 /// Handles the nginx mail_auth_http protocol where the proxy sends
 /// an HTTP request to an auth service to get the backend server address.
-
 use std::collections::HashMap;
-use reqwest::Client;
 use tracing::{debug, error};
 
 /// Information about how the client is authenticating
 #[derive(Debug, Clone)]
 pub struct MailAuthRequest {
-    pub protocol: String,         // smtp, imap, pop3
-    pub method: String,            // plain, login, cram-md5
+    pub protocol: String, // smtp, imap, pop3
+    pub method: String,   // plain, login, cram-md5
     pub user: String,
     pub pass: String,
     pub client_ip: String,
@@ -22,7 +21,7 @@ pub struct MailAuthRequest {
 pub struct MailAuthResponse {
     pub server: String,
     pub port: u16,
-    pub user: Option<String>,       // optionally rewritten username
+    pub user: Option<String>, // optionally rewritten username
 }
 
 /// Failed auth response
@@ -43,10 +42,7 @@ pub enum MailAuthResult {
 
 /// Send the mail auth HTTP request to the configured auth service.
 /// This implements the nginx mail_auth_http protocol.
-pub async fn authenticate(
-    auth_url: &str,
-    req: &MailAuthRequest,
-) -> MailAuthResult {
+pub async fn authenticate(auth_url: &str, req: &MailAuthRequest) -> MailAuthResult {
     let client = Client::builder()
         .timeout(std::time::Duration::from_secs(10))
         .build()
@@ -71,35 +67,41 @@ pub async fn authenticate(
 
     match request.send().await {
         Ok(res) => {
-            let status_val = res.headers()
+            let status_val = res
+                .headers()
                 .get("Auth-Status")
                 .and_then(|v| v.to_str().ok())
                 .unwrap_or("error")
                 .to_string();
 
             if status_val == "OK" {
-                let server = res.headers()
+                let server = res
+                    .headers()
                     .get("Auth-Server")
                     .and_then(|v| v.to_str().ok())
                     .unwrap_or("127.0.0.1")
                     .to_string();
-                let port: u16 = res.headers()
+                let port: u16 = res
+                    .headers()
                     .get("Auth-Port")
                     .and_then(|v| v.to_str().ok())
                     .and_then(|s| s.parse().ok())
                     .unwrap_or(25);
-                let user = res.headers()
+                let user = res
+                    .headers()
                     .get("Auth-User")
                     .and_then(|v| v.to_str().ok())
                     .map(|s| s.to_string());
 
                 MailAuthResult::Ok(MailAuthResponse { server, port, user })
             } else {
-                let error_code = res.headers()
+                let error_code = res
+                    .headers()
                     .get("Auth-Error-Code")
                     .and_then(|v| v.to_str().ok())
                     .map(|s| s.to_string());
-                let wait_secs: u32 = res.headers()
+                let wait_secs: u32 = res
+                    .headers()
                     .get("Auth-Wait")
                     .and_then(|v| v.to_str().ok())
                     .and_then(|s| s.parse().ok())

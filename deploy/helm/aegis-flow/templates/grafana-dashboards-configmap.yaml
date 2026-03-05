@@ -1,0 +1,16 @@
+{{- if .Values.grafana.dashboards.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "aegis-flow.fullname" . }}-grafana-dashboards
+  labels:
+    {{- include "aegis-flow.labels" . | nindent 4 }}
+    grafana_dashboard: "1"
+data:
+  aegis-overview.json: |
+{{ .Files.Get "dashboards/aegis-overview.json" | indent 4 }}
+  aegis-pqc.json: |
+{{ .Files.Get "dashboards/aegis-pqc.json" | indent 4 }}
+  aegis-connections.json: |
+{{ .Files.Get "dashboards/aegis-connections.json" | indent 4 }}
+{{- end }}

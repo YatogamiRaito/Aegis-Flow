@@ -150,3 +150,15 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+  helm:
+    name: Helm Chart Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.0
+      - name: Lint Helm Chart
+        run: helm lint deploy/helm/aegis-flow
+

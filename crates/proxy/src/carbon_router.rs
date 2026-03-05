@@ -296,6 +296,14 @@ mod tests {
                 longitude: Some(longitude),
             })
         }
+
+        async fn get_carbon_forecast(
+            &self,
+            _region: &Region,
+            _hours: u32,
+        ) -> Result<Vec<aegis_energy::ForecastPoint>, EnergyApiError> {
+            Ok(vec![])
+        }
     }
 
     #[test]

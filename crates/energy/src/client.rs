@@ -1,10 +1,12 @@
 //! Energy API clients for WattTime and Electricity Maps
 
 use crate::types::{
-    CarbonIntensity, ElectricityMapsResponse, EnergyApiError, Region, WattTimeIndexResponse,
-    WattTimeRegionResponse,
+    CarbonIntensity, ElectricityMapsResponse, EnergyApiError, ForecastPoint, Region,
+    WattTimeIndexResponse, WattTimeRegionResponse,
 };
 use reqwest::Client;
+use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
+use reqwest_retry::{RetryTransientMiddleware, policies::ExponentialBackoff};
 use std::sync::Arc;
 use tracing::{debug, instrument};
 
@@ -29,12 +31,26 @@ pub trait EnergyApiClient: Send + Sync {
         latitude: f64,
         longitude: f64,
     ) -> Result<Region, EnergyApiError>;
+
+    /// Get carbon forecast for the next N hours
+    async fn get_carbon_forecast(
+        &self,
+        region: &Region,
+        hours: u32,
+    ) -> Result<Vec<ForecastPoint>, EnergyApiError>;
+}
+
+fn create_retry_client() -> ClientWithMiddleware {
+    let retry_policy = ExponentialBackoff::builder().build_with_max_retries(3);
+    ClientBuilder::new(Client::new())
+        .with(RetryTransientMiddleware::new_with_policy(retry_policy))
+        .build()
 }
 
 /// WattTime API client
 /// API Documentation: <https://docs.watttime.org/>
 pub struct WattTimeClient {
-    client: Client,
+    client: ClientWithMiddleware,
     base_url: String,
     token: Arc<tokio::sync::RwLock<Option<String>>>,
     username: String,
@@ -46,7 +62,7 @@ impl WattTimeClient {
 
     pub fn new(username: String, password: String) -> Self {
         Self {
-            client: Client::new(),
+            client: create_retry_client(),
             base_url: Self::DEFAULT_BASE_URL.to_string(),
             token: Arc::new(tokio::sync::RwLock::new(None)),
             username,
@@ -120,8 +136,8 @@ impl EnergyApiClient for WattTimeClient {
             let retry_after = response
                 .headers()
                 .get("retry-after")
-                .and_then(|v| v.to_str().ok())
-                .and_then(|v| v.parse().ok())
+                .and_then(|v: &reqwest::header::HeaderValue| v.to_str().ok())
+                .and_then(|v: &str| v.parse::<u64>().ok())
                 .unwrap_or(60);
             return Err(EnergyApiError::RateLimitExceeded {
                 retry_after_seconds: retry_after,
@@ -199,6 +215,72 @@ impl EnergyApiClient for WattTimeClient {
             latitude: Some(latitude),
             longitude: Some(longitude),
         })
+    }
+
+    #[instrument(skip(self))]
+    async fn get_carbon_forecast(
+        &self,
+        region: &Region,
+        hours: u32,
+    ) -> Result<Vec<ForecastPoint>, EnergyApiError> {
+        use crate::types::WattTimeForecastResponse;
+        
+        let token = self.ensure_token().await?;
+        let end_time = chrono::Utc::now() + chrono::Duration::hours(hours as i64);
+
+        let response = self
+            .client
+            .get(format!("{}/forecast", self.base_url))
+            .bearer_auth(&token)
+            .query(&[
+                ("region", region.id.as_str()),
+                ("end", &end_time.to_rfc3339()),
+            ])
+            .send()
+            .await?;
+
+        if response.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+            let retry_after = response
+                .headers()
+                .get("retry-after")
+                .and_then(|v: &reqwest::header::HeaderValue| v.to_str().ok())
+                .and_then(|v: &str| v.parse::<u64>().ok())
+                .unwrap_or(60);
+            return Err(EnergyApiError::RateLimitExceeded {
+                retry_after_seconds: retry_after,
+            });
+        }
+
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            return Err(EnergyApiError::RegionNotFound {
+                region_id: region.id.clone(),
+            });
+        }
+
+        let data: WattTimeForecastResponse = response.json().await?;
+
+        let mut forecast_points = Vec::new();
+        for point in data.forecast {
+            let timestamp = chrono::DateTime::parse_from_rfc3339(&point.point_time)
+                .map_err(|e| EnergyApiError::ParseError(e.to_string()))?
+                .with_timezone(&chrono::Utc);
+
+            // Filter points beyond the requested hours
+            if timestamp > end_time {
+                continue;
+            }
+
+            // Convert MOER to gCO2/kWh
+            let carbon_value = point.value * 0.453592;
+
+            forecast_points.push(ForecastPoint {
+                timestamp,
+                predicted_intensity: carbon_value,
+                confidence: None,
+            });
+        }
+
+        Ok(forecast_points)
     }
 }
 
@@ -331,6 +413,55 @@ impl EnergyApiClient for ElectricityMapsClient {
             .get_carbon_intensity_by_location(latitude, longitude)
             .await?;
         Ok(intensity.region)
+    }
+
+    #[instrument(skip(self))]
+    async fn get_carbon_forecast(
+        &self,
+        region: &Region,
+        hours: u32,
+    ) -> Result<Vec<ForecastPoint>, EnergyApiError> {
+        use crate::types::ElectricityMapsForecastResponse;
+        
+        let response = self
+            .client
+            .get(format!("{}/carbon-intensity/forecast", self.base_url))
+            .header("auth-token", &self.api_key)
+            .query(&[("zone", &region.id)])
+            .send()
+            .await?;
+
+        if response.status() == reqwest::StatusCode::UNAUTHORIZED {
+            return Err(EnergyApiError::AuthenticationError);
+        }
+
+        if response.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+            return Err(EnergyApiError::RateLimitExceeded {
+                retry_after_seconds: 60,
+            });
+        }
+
+        let data: ElectricityMapsForecastResponse = response.json().await?;
+        let end_time = chrono::Utc::now() + chrono::Duration::hours(hours as i64);
+
+        let mut forecast_points = Vec::new();
+        for point in data.forecast {
+            let timestamp = chrono::DateTime::parse_from_rfc3339(&point.datetime)
+                .map_err(|e| EnergyApiError::ParseError(e.to_string()))?
+                .with_timezone(&chrono::Utc);
+
+            if timestamp > end_time {
+                continue;
+            }
+
+            forecast_points.push(ForecastPoint {
+                timestamp,
+                predicted_intensity: point.carbon_intensity,
+                confidence: None,
+            });
+        }
+
+        Ok(forecast_points)
     }
 }
 
@@ -796,6 +927,74 @@ mod tests {
         let region = Region::new("CAISO", "California");
         let result = client.get_carbon_intensity(&region).await.unwrap();
         assert_eq!(result.rating.as_deref(), Some("high"));
+    }
+
+    #[tokio::test]
+    async fn test_watttime_forecast_24h() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/login"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "token": "token"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let later = chrono::Utc::now() + chrono::Duration::hours(2);
+        
+        Mock::given(method("GET"))
+            .and(path("/forecast"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "generated_at": "2025-12-25T14:00:00Z",
+                "forecast": [
+                    {
+                        "point_time": later.to_rfc3339(),
+                        "value": 150.0
+                    }
+                ]
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = WattTimeClient::new("user".to_string(), "pass".to_string())
+            .with_base_url(mock_server.uri());
+            
+        let region = Region::new("CAISO", "California");
+        let forecast = client.get_carbon_forecast(&region, 24).await.unwrap();
+        
+        assert_eq!(forecast.len(), 1);
+        assert!(forecast[0].predicted_intensity > 0.0);
+    }
+
+    #[tokio::test]
+    async fn test_electricitymaps_forecast() {
+        let mock_server = MockServer::start().await;
+        
+        let later = chrono::Utc::now() + chrono::Duration::hours(1);
+
+        Mock::given(method("GET"))
+            .and(path("/carbon-intensity/forecast"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "zone": "FR",
+                "forecast": [
+                    {
+                        "carbonIntensity": 45.0,
+                        "datetime": later.to_rfc3339()
+                    }
+                ]
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = ElectricityMapsClient::new("api_key".to_string())
+            .with_base_url(mock_server.uri());
+            
+        let region = Region::new("FR", "France");
+        let forecast = client.get_carbon_forecast(&region, 24).await.unwrap();
+        
+        assert_eq!(forecast.len(), 1);
+        assert_eq!(forecast[0].predicted_intensity, 45.0);
     }
 
     #[tokio::test]

@@ -243,13 +243,13 @@ mod tests {
         let dir = temp_dir().join(format!("aegis_test_corrupt_{}", std::process::id()));
         fs::create_dir_all(&dir).unwrap();
         let path = dir.join("table_corrupt.json");
-        
+
         // Write invalid JSON
         fs::write(&path, "{ invalid json ").unwrap();
-        
+
         let table = ProcessTable::with_persistence(&path);
         assert!(table.is_err()); // Should return serialization error
-        
+
         // Write empty string (should be handled gracefully)
         fs::write(&path, "   \n").unwrap();
         let table2 = ProcessTable::with_persistence(&path);

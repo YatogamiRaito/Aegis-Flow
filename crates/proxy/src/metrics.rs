@@ -55,11 +55,15 @@ pub fn init_metrics() -> PrometheusHandle {
         .set_buckets_for_metric(
             metrics_exporter_prometheus::Matcher::Full(names::HANDSHAKE_DURATION.to_string()),
             &[0.005, 0.010, 0.025, 0.050, 0.075, 0.100, 0.250, 0.500],
-        ).expect("Failed to set HANDSHAKE_DURATION buckets")
+        )
+        .expect("Failed to set HANDSHAKE_DURATION buckets")
         .set_buckets_for_metric(
             metrics_exporter_prometheus::Matcher::Full(names::REQUEST_DURATION.to_string()),
-            &[0.001, 0.005, 0.010, 0.025, 0.050, 0.100, 0.250, 0.500, 1.0, 2.5, 5.0],
-        ).expect("Failed to set REQUEST_DURATION buckets");
+            &[
+                0.001, 0.005, 0.010, 0.025, 0.050, 0.100, 0.250, 0.500, 1.0, 2.5, 5.0,
+            ],
+        )
+        .expect("Failed to set REQUEST_DURATION buckets");
 
     match builder.install_recorder() {
         Ok(handle) => {
@@ -456,5 +460,40 @@ mod tests {
     #[test]
     fn test_update_deferred_jobs_large() {
         update_deferred_jobs(10000);
+    }
+
+    #[tokio::test]
+    async fn test_metrics_endpoint_returns_prometheus_format() {
+        // Mocking the hyper request to /metrics just checks that prometheus exporter
+        // stringifies the contents correctly.
+        let handle = init_metrics();
+        let result = handle.render();
+        assert!(
+            result.contains("aegis_"),
+            "Expected prometheus text format containing aegis metric prefixes"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_metrics_endpoint_contains_all_registered_metrics() {
+        let handle = init_metrics();
+        // Ensure counters are registered and show up in render
+        record_error("test_endpoint_render");
+        let result = handle.render();
+        assert!(
+            result.contains(names::ERRORS_TOTAL),
+            "Expected registry to contain ERRORS_TOTAL"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_metrics_scrape_after_request() {
+        let handle = init_metrics();
+        record_request("GET", "/test-scrape", 200, 0.5);
+        let result = handle.render();
+        assert!(
+            result.contains(names::REQUESTS_TOTAL),
+            "Expected request metrics to be scraped"
+        );
     }
 }

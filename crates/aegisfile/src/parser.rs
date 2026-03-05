@@ -1,5 +1,5 @@
 /// Aegisfile Lexer & Parser
-/// 
+///
 /// Example format (not runnable code):
 ///
 /// ```text
@@ -39,7 +39,9 @@ pub fn tokenize(input: &str) -> Vec<Token> {
                 let mut comment = String::new();
                 chars.next(); // consume '#'
                 while let Some(&c) = chars.peek() {
-                    if c == '\n' { break; }
+                    if c == '\n' {
+                        break;
+                    }
                     comment.push(c);
                     chars.next();
                 }
@@ -128,8 +130,10 @@ impl Parser {
         let mut sites = Vec::new();
         while self.peek() != &Token::EOF {
             self.skip_newlines();
-            if self.peek() == &Token::EOF { break; }
-            
+            if self.peek() == &Token::EOF {
+                break;
+            }
+
             // Skip comments
             if let Token::Comment(_) = self.peek() {
                 self.advance();
@@ -148,13 +152,16 @@ impl Parser {
                     break;
                 }
             }
-            
+
             self.skip_newlines();
-            
+
             if self.peek() == &Token::LBrace {
                 self.advance(); // consume {
                 let directives = self.parse_directives();
-                sites.push(SiteBlock { domains, directives });
+                sites.push(SiteBlock {
+                    domains,
+                    directives,
+                });
             }
         }
         sites
@@ -185,10 +192,14 @@ impl Parser {
     }
 
     fn parse_directive(&mut self) -> Directive {
-        let name = if let Token::Identifier(s) = self.advance().clone() { s } else { String::new() };
+        let name = if let Token::Identifier(s) = self.advance().clone() {
+            s
+        } else {
+            String::new()
+        };
         let mut args = Vec::new();
         let mut block = None;
-        
+
         loop {
             match self.peek() {
                 Token::Newline | Token::EOF => {
@@ -215,7 +226,7 @@ impl Parser {
                 }
             }
         }
-        
+
         Directive { name, args, block }
     }
 }
@@ -234,32 +245,48 @@ mod tests {
     fn test_lexer_basic() {
         let input = "example.com { reverse_proxy /api localhost:3000 }";
         let tokens = tokenize(input);
-        
+
         assert!(tokens.contains(&Token::LBrace));
         assert!(tokens.contains(&Token::RBrace));
-        assert!(tokens.iter().any(|t| matches!(t, Token::Identifier(s) if s == "example.com")));
-        assert!(tokens.iter().any(|t| matches!(t, Token::Identifier(s) if s == "reverse_proxy")));
+        assert!(
+            tokens
+                .iter()
+                .any(|t| matches!(t, Token::Identifier(s) if s == "example.com"))
+        );
+        assert!(
+            tokens
+                .iter()
+                .any(|t| matches!(t, Token::Identifier(s) if s == "reverse_proxy"))
+        );
     }
 
     #[test]
     fn test_lexer_comment() {
         let input = "# this is a comment\nexample.com { }";
         let tokens = tokenize(input);
-        assert!(tokens.iter().any(|t| matches!(t, Token::Comment(s) if s.contains("this is a comment"))));
+        assert!(
+            tokens
+                .iter()
+                .any(|t| matches!(t, Token::Comment(s) if s.contains("this is a comment")))
+        );
     }
 
     #[test]
     fn test_lexer_quoted_string() {
         let input = r#"reverse_proxy "/path/to" localhost:3000"#;
         let tokens = tokenize(input);
-        assert!(tokens.iter().any(|t| matches!(t, Token::QuotedString(s) if s == "/path/to")));
+        assert!(
+            tokens
+                .iter()
+                .any(|t| matches!(t, Token::QuotedString(s) if s == "/path/to"))
+        );
     }
 
     #[test]
     fn test_parser_site_block() {
         let input = "example.com {\n    reverse_proxy /api localhost:3000\n}\n";
         let sites = parse(input);
-        
+
         assert_eq!(sites.len(), 1);
         assert_eq!(sites[0].domains, vec!["example.com"]);
         assert_eq!(sites[0].directives.len(), 1);
