@@ -157,6 +157,16 @@ pub struct LogConfig {
     /// Optional syslog destination
     #[serde(default)]
     pub syslog: Option<crate::syslog::SyslogConfig>,
+    /// Enable OpenTelemetry tracing
+    #[serde(default = "default_true")]
+    pub otel_enabled: bool,
+    /// OTLP gRPC endpoint
+    #[serde(default = "default_otlp_endpoint")]
+    pub otlp_endpoint: String,
+}
+
+fn default_otlp_endpoint() -> String {
+    "http://localhost:4317".to_string()
 }
 
 fn default_log_level() -> String {
@@ -169,6 +179,8 @@ impl Default for LogConfig {
             level: default_log_level(),
             json_format: false,
             syslog: None,
+            otel_enabled: true,
+            otlp_endpoint: default_otlp_endpoint(),
         }
     }
 }
@@ -286,6 +298,29 @@ pub struct LimitExceptConfig {
     pub deny: String, // "all"
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct XdsConfig {
+    /// Enable xDS server
+    #[serde(default)]
+    pub enabled: bool,
+    /// xDS server bind address (ip:port)
+    #[serde(default = "default_xds_addr")]
+    pub addr: String,
+}
+
+fn default_xds_addr() -> String {
+    "0.0.0.0:18000".to_string()
+}
+
+impl Default for XdsConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            addr: default_xds_addr(),
+        }
+    }
+}
+
 /// Proxy server configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProxyConfig {
@@ -301,6 +336,9 @@ pub struct ProxyConfig {
     /// Enable Post-Quantum Cryptography
     #[serde(default = "default_true")]
     pub pqc_enabled: bool,
+    /// Enable QUIC / HTTP/3 listener
+    #[serde(default)]
+    pub quic_enabled: bool,
     /// Worker thread count (0 = auto)
     #[serde(default)]
     pub worker_threads: usize,
@@ -328,6 +366,9 @@ pub struct ProxyConfig {
     /// Global location routing rules
     #[serde(rename = "location", default)]
     pub locations: Vec<crate::location::LocationBlock>,
+    /// xDS Dynamic Configuration
+    #[serde(default)]
+    pub xds: XdsConfig,
 }
 
 fn default_host() -> String {
@@ -347,6 +388,7 @@ impl Default for ProxyConfig {
             port: default_port(),
             tls_enabled: true,
             pqc_enabled: true,
+            quic_enabled: false,
             worker_threads: 0,
             upstream_addr: default_upstream(),
             tls: TlsConfig::default(),
@@ -356,6 +398,7 @@ impl Default for ProxyConfig {
             split_clients: Vec::new(),
             maps: Vec::new(),
             locations: Vec::new(),
+            xds: XdsConfig::default(),
         }
     }
 }
@@ -424,6 +467,16 @@ impl ProxyConfig {
         if let Ok(level) = std::env::var("AEGIS_LOG_LEVEL") {
             debug!("Overriding log level from AEGIS_LOG_LEVEL: {}", level);
             self.logging.level = level;
+        }
+        if let Ok(val) = std::env::var("AEGIS_XDS_ENABLED")
+            && let Ok(enabled) = val.parse()
+        {
+            debug!("Overriding xds_enabled from AEGIS_XDS_ENABLED: {}", enabled);
+            self.xds.enabled = enabled;
+        }
+        if let Ok(addr) = std::env::var("AEGIS_XDS_ADDR") {
+            debug!("Overriding xds_addr from AEGIS_XDS_ADDR: {}", addr);
+            self.xds.addr = addr;
         }
     }
 

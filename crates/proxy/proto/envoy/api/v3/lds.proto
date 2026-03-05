@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package envoy.api.v3;
+
+import "google/protobuf/any.proto";
+import "envoy/api/v3/discovery.proto";
+
+message Listener {
+    string name = 1;
+    string address = 2; // e.g., "0.0.0.0:8080"
+    // Simplified filter chain
+    repeated google.protobuf.Any filter_chains = 3;
+}
+
+service ListenerDiscoveryService {
+    rpc StreamListeners(stream DiscoveryRequest) returns (stream DiscoveryResponse);
+}

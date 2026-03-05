@@ -1,331 +1,65 @@
-//! OpenTelemetry Tracing Module
+//! OpenTelemetry Tracing Module (official SDK implementation for OTel 0.27+)
 //!
-//! Provides distributed tracing with context propagation.
+//! Provides distributed tracing with OTLP/gRPC exporter.
 
-use std::collections::HashMap;
-use tracing::{Level, Span, debug, info, span};
+use opentelemetry::{global, KeyValue};
+use opentelemetry::trace::TracerProvider as _;
+use opentelemetry_otlp::{WithExportConfig, SpanExporter};
+use opentelemetry_sdk::{runtime, trace::TracerProvider, Resource};
+use opentelemetry_sdk::trace::{self as sdktrace, Sampler};
+use opentelemetry_sdk::propagation::{TraceContextPropagator, BaggagePropagator};
+use opentelemetry::propagation::TextMapCompositePropagator;
+use tracing_subscriber::prelude::*;
+use tracing_subscriber::EnvFilter;
 
-/// Trace context for distributed tracing
-#[derive(Debug, Clone)]
-pub struct TraceContext {
-    /// Trace ID (128-bit, hex)
-    pub trace_id: String,
-    /// Span ID (64-bit, hex)
-    pub span_id: String,
-    /// Parent span ID (optional)
-    pub parent_span_id: Option<String>,
-    /// Sampling decision
-    pub sampled: bool,
-    /// Baggage items
-    pub baggage: HashMap<String, String>,
+/// Initialize OpenTelemetry tracing
+pub fn init_tracing(service_name: &str, otlp_endpoint: &str) -> anyhow::Result<()> {
+    // Determine log level from env or default to info
+    let env_filter = EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| EnvFilter::new("info"));
+
+    // Create OTel resource
+    let resource = Resource::new(vec![
+        KeyValue::new("service.name", service_name.to_string()),
+        KeyValue::new("service.version", env!("CARGO_PKG_VERSION")),
+    ]);
+
+    // Configure OTLP exporter (gRPC with tonic)
+    let exporter = SpanExporter::builder()
+        .with_tonic()
+        .with_endpoint(otlp_endpoint.to_string())
+        .build()?;
+
+    // Create Tracer Provider with ParentBased Probabilistic Sampling (10%)
+    let tracer_provider = TracerProvider::builder()
+        .with_batch_exporter(exporter, runtime::Tokio)
+        .with_sampler(Sampler::ParentBased(Box::new(Sampler::TraceIdRatioBased(0.1))))
+        .with_resource(resource)
+        .build();
+
+    global::set_tracer_provider(tracer_provider.clone());
+
+    // Configure W3C Trace Context and Baggage Propagators
+    global::set_text_map_propagator(TextMapCompositePropagator::new(vec![
+        Box::new(TraceContextPropagator::new()),
+        Box::new(BaggagePropagator::new()),
+    ]));
+
+    // Create Tracing Layer
+    let otel_layer = tracing_opentelemetry::layer().with_tracer(tracer_provider.tracer("aegis-proxy"));
+
+    // Initialize Registry with layers
+    tracing_subscriber::registry()
+        .with(env_filter)
+        .with(otel_layer)
+        .with(tracing_subscriber::fmt::layer().json())
+        .init();
+
+    tracing::info!("🔍 OpenTelemetry tracing initialized (endpoint: {})", otlp_endpoint);
+    Ok(())
 }
 
-impl TraceContext {
-    /// Create a new trace context with generated IDs
-    pub fn new() -> Self {
-        Self {
-            trace_id: generate_trace_id(),
-            span_id: generate_span_id(),
-            parent_span_id: None,
-            sampled: true,
-            baggage: HashMap::new(),
-        }
-    }
-
-    /// Create a child span context
-    pub fn child(&self) -> Self {
-        Self {
-            trace_id: self.trace_id.clone(),
-            span_id: generate_span_id(),
-            parent_span_id: Some(self.span_id.clone()),
-            sampled: self.sampled,
-            baggage: self.baggage.clone(),
-        }
-    }
-
-    /// Parse W3C Trace Context from headers
-    pub fn from_headers(headers: &HashMap<String, String>) -> Option<Self> {
-        let traceparent = headers.get("traceparent")?;
-        Self::parse_traceparent(traceparent)
-    }
-
-    /// Parse traceparent header (W3C format)
-    /// Format: version-trace_id-parent_id-flags
-    fn parse_traceparent(header: &str) -> Option<Self> {
-        let parts: Vec<&str> = header.split('-').collect();
-        if parts.len() != 4 {
-            return None;
-        }
-
-        let version = parts[0];
-        if version != "00" {
-            debug!("Unknown traceparent version: {}", version);
-        }
-
-        let trace_id = parts[1].to_string();
-        let span_id = parts[2].to_string();
-        let flags = u8::from_str_radix(parts[3], 16).ok()?;
-        let sampled = flags & 0x01 == 0x01;
-
-        Some(Self {
-            trace_id,
-            span_id: generate_span_id(),
-            parent_span_id: Some(span_id),
-            sampled,
-            baggage: HashMap::new(),
-        })
-    }
-
-    /// Convert to W3C traceparent header
-    pub fn to_traceparent(&self) -> String {
-        let flags = if self.sampled { "01" } else { "00" };
-        format!("00-{}-{}-{}", self.trace_id, self.span_id, flags)
-    }
-
-    /// Add baggage item
-    pub fn add_baggage(&mut self, key: &str, value: &str) {
-        self.baggage.insert(key.to_string(), value.to_string());
-    }
-
-    /// Get baggage item
-    pub fn get_baggage(&self, key: &str) -> Option<&String> {
-        self.baggage.get(key)
-    }
-}
-
-impl Default for TraceContext {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-/// Generate a random 128-bit trace ID (hex string)
-fn generate_trace_id() -> String {
-    use rand::Rng;
-    let bytes: [u8; 16] = rand::thread_rng().r#gen();
-    hex::encode(bytes)
-}
-
-/// Generate a random 64-bit span ID (hex string)
-fn generate_span_id() -> String {
-    use rand::Rng;
-    let bytes: [u8; 8] = rand::thread_rng().r#gen();
-    hex::encode(bytes)
-}
-
-/// Create a tracing span with context
-pub fn create_span(name: &str, ctx: &TraceContext) -> Span {
-    span!(
-        Level::INFO,
-        "request",
-        otel.name = name,
-        trace_id = %ctx.trace_id,
-        span_id = %ctx.span_id,
-        parent_span_id = ?ctx.parent_span_id
-    )
-}
-
-/// Span event types
-#[derive(Debug, Clone, Copy)]
-pub enum SpanEvent {
-    /// Request received
-    RequestReceived,
-    /// Request forwarded to upstream
-    RequestForwarded,
-    /// Response received from upstream
-    ResponseReceived,
-    /// Response sent to client
-    ResponseSent,
-    /// Error occurred
-    Error,
-}
-
-impl SpanEvent {
-    /// Get event name
-    pub fn name(&self) -> &'static str {
-        match self {
-            Self::RequestReceived => "request.received",
-            Self::RequestForwarded => "request.forwarded",
-            Self::ResponseReceived => "response.received",
-            Self::ResponseSent => "response.sent",
-            Self::Error => "error",
-        }
-    }
-}
-
-/// Record a span event
-pub fn record_event(event: SpanEvent, message: &str) {
-    match event {
-        SpanEvent::Error => {
-            tracing::error!(event = event.name(), message);
-        }
-        _ => {
-            info!(event = event.name(), message);
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_trace_context_new() {
-        let ctx = TraceContext::new();
-        assert_eq!(ctx.trace_id.len(), 32); // 16 bytes = 32 hex chars
-        assert_eq!(ctx.span_id.len(), 16); // 8 bytes = 16 hex chars
-        assert!(ctx.sampled);
-        assert!(ctx.parent_span_id.is_none());
-    }
-
-    #[test]
-    fn test_child_span() {
-        let parent = TraceContext::new();
-        let child = parent.child();
-
-        assert_eq!(parent.trace_id, child.trace_id);
-        assert_ne!(parent.span_id, child.span_id);
-        assert_eq!(child.parent_span_id, Some(parent.span_id));
-    }
-
-    #[test]
-    fn test_parse_traceparent() {
-        let header = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01";
-        let ctx = TraceContext::parse_traceparent(header).unwrap();
-
-        assert_eq!(ctx.trace_id, "0af7651916cd43dd8448eb211c80319c");
-        assert_eq!(ctx.parent_span_id, Some("b7ad6b7169203331".to_string()));
-        assert!(ctx.sampled);
-    }
-
-    #[test]
-    fn test_to_traceparent() {
-        let mut ctx = TraceContext::new();
-        ctx.trace_id = "0af7651916cd43dd8448eb211c80319c".to_string();
-        ctx.span_id = "00f067aa0ba902b7".to_string();
-        ctx.sampled = true;
-
-        let header = ctx.to_traceparent();
-        assert!(header.starts_with("00-0af7651916cd43dd8448eb211c80319c-00f067aa0ba902b7-01"));
-    }
-
-    #[test]
-    fn test_baggage() {
-        let mut ctx = TraceContext::new();
-        ctx.add_baggage("user_id", "12345");
-        ctx.add_baggage("tenant", "acme");
-
-        assert_eq!(ctx.get_baggage("user_id"), Some(&"12345".to_string()));
-        assert_eq!(ctx.get_baggage("tenant"), Some(&"acme".to_string()));
-        assert_eq!(ctx.get_baggage("missing"), None);
-    }
-
-    #[test]
-    fn test_span_event_names() {
-        assert_eq!(SpanEvent::RequestReceived.name(), "request.received");
-        assert_eq!(SpanEvent::RequestForwarded.name(), "request.forwarded");
-        assert_eq!(SpanEvent::ResponseReceived.name(), "response.received");
-        assert_eq!(SpanEvent::ResponseSent.name(), "response.sent");
-        assert_eq!(SpanEvent::Error.name(), "error");
-    }
-
-    #[test]
-    fn test_create_span() {
-        let ctx = TraceContext::new();
-        let span = create_span("test_operation", &ctx);
-        // Just verify it doesn't panic
-        drop(span);
-    }
-
-    #[test]
-    fn test_record_event() {
-        // Verify record_event doesn't panic for all variants
-        record_event(SpanEvent::RequestReceived, "test message");
-        record_event(SpanEvent::Error, "error message");
-    }
-
-    #[test]
-    fn test_from_headers() {
-        let mut headers = HashMap::new();
-        headers.insert(
-            "traceparent".to_string(),
-            "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01".to_string(),
-        );
-
-        let ctx = TraceContext::from_headers(&headers).unwrap();
-        assert_eq!(ctx.trace_id, "0af7651916cd43dd8448eb211c80319c");
-    }
-
-    #[test]
-    fn test_from_headers_missing() {
-        let headers = HashMap::new();
-        assert!(TraceContext::from_headers(&headers).is_none());
-    }
-
-    #[test]
-    fn test_default_trace_context() {
-        let ctx = TraceContext::default();
-        assert_eq!(ctx.trace_id.len(), 32);
-    }
-
-    #[test]
-    fn test_traceparent_not_sampled() {
-        let mut ctx = TraceContext::new();
-        ctx.sampled = false;
-        let header = ctx.to_traceparent();
-        assert!(header.ends_with("-00"));
-    }
-
-    #[test]
-    fn test_parse_traceparent_invalid_format() {
-        // Too few parts
-        assert!(TraceContext::parse_traceparent("00-abc-def").is_none());
-        // Too many parts
-        assert!(TraceContext::parse_traceparent("00-a-b-c-d-e").is_none());
-    }
-
-    #[test]
-    fn test_parse_traceparent_unknown_version() {
-        // Version 01 instead of 00 - should still parse but log debug
-        let header = "01-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01";
-        let ctx = TraceContext::parse_traceparent(header).unwrap();
-        assert_eq!(ctx.trace_id, "0af7651916cd43dd8448eb211c80319c");
-    }
-    #[test]
-    fn test_parse_traceparent_invalid_hex() {
-        // Invalid flags (not hex)
-        let header = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-ZZ";
-        assert!(TraceContext::parse_traceparent(header).is_none());
-    }
-
-    #[test]
-    fn test_trace_context_clone() {
-        let ctx = TraceContext::new();
-        let cloned = ctx.clone();
-        assert_eq!(ctx.trace_id, cloned.trace_id);
-        assert_eq!(ctx.span_id, cloned.span_id);
-    }
-
-    #[test]
-    fn test_span_context_none() {
-        let span = Span::none();
-        let debug_str = format!("{:?}", span);
-        assert!(debug_str.contains("Span"));
-    }
-
-    #[test]
-    fn test_trace_context_debug() {
-        let ctx = TraceContext::new();
-        let debug_str = format!("{:?}", ctx);
-        assert!(debug_str.contains("trace_id"));
-        assert!(debug_str.contains("span_id"));
-    }
-
-    #[test]
-    fn test_trace_context_identity() {
-        let ctx = TraceContext::new();
-        let cloned = ctx.clone();
-        assert_eq!(ctx.trace_id, cloned.trace_id);
-        assert_eq!(ctx.span_id, cloned.span_id);
-    }
+/// Helper to gracefully shutdown the tracer provider
+pub fn shutdown_tracing() {
+    global::shutdown_tracer_provider();
 }

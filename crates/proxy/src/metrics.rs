@@ -51,7 +51,15 @@ pub fn init_metrics() -> PrometheusHandle {
         return handle.clone();
     }
 
-    let builder = PrometheusBuilder::new();
+    let builder = PrometheusBuilder::new()
+        .set_buckets_for_metric(
+            metrics_exporter_prometheus::Matcher::Full(names::HANDSHAKE_DURATION.to_string()),
+            &[0.005, 0.010, 0.025, 0.050, 0.075, 0.100, 0.250, 0.500],
+        ).expect("Failed to set HANDSHAKE_DURATION buckets")
+        .set_buckets_for_metric(
+            metrics_exporter_prometheus::Matcher::Full(names::REQUEST_DURATION.to_string()),
+            &[0.001, 0.005, 0.010, 0.025, 0.050, 0.100, 0.250, 0.500, 1.0, 2.5, 5.0],
+        ).expect("Failed to set REQUEST_DURATION buckets");
 
     match builder.install_recorder() {
         Ok(handle) => {

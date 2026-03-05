@@ -87,6 +87,22 @@ x509-cert = "0.2"
 murmur3 = "0.5.2"
 hostname = "0.4"
 
+# gRPC & Protobuf
+tonic.workspace = true
+prost.workspace = true
+prost-types.workspace = true
+tokio-stream.workspace = true
+opentelemetry.workspace = true
+opentelemetry_sdk.workspace = true
+opentelemetry-otlp.workspace = true
+tracing-opentelemetry.workspace = true
+hickory-resolver.workspace = true
+
+[features]
+default = []
+xds = []
+otel = []
+
 [dev-dependencies]
 criterion.workspace = true
 async-trait = "0.1"
@@ -96,6 +112,9 @@ tempfile = "3.15"
 rcgen.workspace = true
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
 tokio-test = "0.4"
+
+[build-dependencies]
+tonic-build = "0.12"
 
 [[bin]]
 name = "aegis-proxy"

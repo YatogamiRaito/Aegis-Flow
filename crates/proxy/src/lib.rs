@@ -18,10 +18,12 @@ pub mod compression;
 pub mod config;
 pub mod conn_limit;
 pub mod discovery;
+pub mod dns;
 pub mod dual_stack_server;
 pub mod fastcgi;
 pub mod geoip;
 pub mod green_wait;
+pub mod h3_adapter;
 pub mod headers;
 pub mod health_check;
 pub mod health_server;
@@ -59,6 +61,8 @@ pub mod stub_status;
 pub mod sub_filter;
 pub mod syslog;
 pub mod tracing_otel;
+#[cfg(feature = "xds")]
+pub mod xds;
 pub mod udp_proxy;
 pub mod upstream;
 pub mod upstream_client;
@@ -85,4 +89,3 @@ pub use lifecycle::{
 };
 pub use pqc_server::PqcProxyServer;
 pub use quic_server::{QuicConfig, QuicServer, QuicStats};
-pub use tracing_otel::TraceContext;

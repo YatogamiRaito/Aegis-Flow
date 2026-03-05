@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package envoy.api.v3;
+
+import "envoy/api/v3/discovery.proto";
+
+message RouteConfiguration {
+    string name = 1;
+    repeated VirtualHost virtual_hosts = 2;
+}
+
+message VirtualHost {
+    string name = 1;
+    repeated string domains = 2;
+    repeated Route routes = 3;
+}
+
+message Route {
+    string match_prefix = 1;
+    string cluster = 2;
+}
+
+service RouteDiscoveryService {
+    rpc StreamRoutes(stream DiscoveryRequest) returns (stream DiscoveryResponse);
+}

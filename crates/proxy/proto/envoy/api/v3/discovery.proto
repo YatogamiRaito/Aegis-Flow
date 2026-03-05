@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package envoy.api.v3;
+
+import "google/protobuf/any.proto";
+
+message ErrorDetail {
+    int32 code = 1;
+    string message = 2;
+}
+
+message DiscoveryRequest {
+    string version_info = 1;
+    string node_id = 2; // Simplified
+    repeated string resource_names = 3;
+    string type_url = 4;
+    ErrorDetail error_detail = 5;
+    string response_nonce = 6;
+}
+
+message DiscoveryResponse {
+    string version_info = 1;
+    repeated google.protobuf.Any resources = 2;
+    string type_url = 3;
+    string nonce = 4;
+}
+
+service AggregatedDiscoveryService {
+    rpc StreamAggregatedResources(stream DiscoveryRequest) returns (stream DiscoveryResponse);
+}

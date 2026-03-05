@@ -3,6 +3,7 @@
 use crate::config::ProxyConfig;
 use aegis_crypto::stream::EncryptedStream;
 use aegis_crypto::tls::{PqcHandshake, PqcTlsConfig};
+use aegis_crypto::signing::{MlDsa65Signer, SigningKeyPair};
 use anyhow::Result;
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -13,6 +14,7 @@ use tracing::{debug, error, info, instrument, warn};
 pub struct PqcProxyServer {
     config: ProxyConfig,
     handshake: Arc<PqcHandshake>,
+    identity_key: Arc<MlDsa65Signer>,
 }
 
 impl PqcProxyServer {
@@ -20,8 +22,10 @@ impl PqcProxyServer {
     pub fn new(config: ProxyConfig) -> Self {
         let tls_config = PqcTlsConfig::default();
         let handshake = Arc::new(PqcHandshake::new(tls_config));
+        // For now, generate a temporary identity key. In production, this should be loaded from config/secret.
+        let identity_key = Arc::new(MlDsa65Signer::generate().expect("Failed to generate identity key"));
 
-        Self { config, handshake }
+        Self { config, handshake, identity_key }
     }
 
     /// Run the PQC proxy server
@@ -53,6 +57,7 @@ impl PqcProxyServer {
                         Ok((mut socket, peer_addr)) => {
                             info!("📥 New connection from: {}", peer_addr);
                             let handshake = Arc::clone(&self.handshake);
+                            let identity_key = Arc::clone(&self.identity_key);
                             let config = self.config.clone();
 
                             tokio::spawn(async move {
@@ -60,7 +65,7 @@ impl PqcProxyServer {
                                 debug!("🤝 Initiating PQC handshake with {}", peer_addr);
 
                                 // Generate server keypair
-                                let (server_pk, server_state) = match handshake.server_init() {
+                                let (server_pk, _signature, server_state) = match handshake.server_init(identity_key.as_ref()) {
                                     Ok(result) => result,
                                     Err(e) => {
                                         error!("❌ Failed to initialize handshake: {}", e);
@@ -68,17 +73,42 @@ impl PqcProxyServer {
                                     }
                                 };
 
-                                // Send public key to client
+                                // Send public key and signature to client
                                 let pk_bytes = server_pk.to_bytes();
                                 let pk_len = pk_bytes.len() as u32;
 
+                                let sig_bytes = _signature.as_bytes();
+                                let sig_len = sig_bytes.len() as u32;
+
+                                // Send PK
                                 if let Err(e) = socket.write_all(&pk_len.to_be_bytes()).await {
                                     error!("❌ Failed to send public key length: {}", e);
                                     return;
                                 }
-
                                 if let Err(e) = socket.write_all(&pk_bytes).await {
                                     error!("❌ Failed to send public key: {}", e);
+                                    return;
+                                }
+
+                                // Send Signature
+                                if let Err(e) = socket.write_all(&sig_len.to_be_bytes()).await {
+                                    error!("❌ Failed to send signature length: {}", e);
+                                    return;
+                                }
+                                if let Err(e) = socket.write_all(sig_bytes).await {
+                                    error!("❌ Failed to send signature: {}", e);
+                                    return;
+                                }
+
+                                // Send Server Identity PK (so client can verify)
+                                let id_pk = identity_key.public_key();
+                                let id_pk_len = id_pk.len() as u32;
+                                if let Err(e) = socket.write_all(&id_pk_len.to_be_bytes()).await {
+                                    error!("❌ Failed to send identity pk length: {}", e);
+                                    return;
+                                }
+                                if let Err(e) = socket.write_all(id_pk).await {
+                                    error!("❌ Failed to send identity pk: {}", e);
                                     return;
                                 }
 
@@ -127,7 +157,7 @@ impl PqcProxyServer {
                                 );
 
                                 // Secure echo server (Encrypted Data Plane)
-                                let key = secure_channel.encryption_key().as_bytes();
+                                let key = secure_channel.send_key().as_bytes();
                                 let encrypted_socket = EncryptedStream::new(socket, key);
                                 let io = get_tokio_io(encrypted_socket);
                                 let upstream = config.upstream_addr.clone();
@@ -144,6 +174,7 @@ impl PqcProxyServer {
                                             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
                                             None,
                                             std::sync::Arc::new(Vec::new()),
+                                            false, // quic_enabled: pqc_server always uses its own TLS stack
                                         ).await
                                     }
                                 });
@@ -273,8 +304,23 @@ mod tests {
         let mut pk_bytes = vec![0u8; pk_len];
         client.read_exact(&mut pk_bytes).await.unwrap();
 
+        // Receive server signature
+        let mut sig_len_bytes = [0u8; 4];
+        client.read_exact(&mut sig_len_bytes).await.unwrap();
+        let sig_len = u32::from_be_bytes(sig_len_bytes) as usize;
+        let mut sig_bytes = vec![0u8; sig_len];
+        client.read_exact(&mut sig_bytes).await.unwrap();
+        let signature = aegis_crypto::signing::MlDsaSignature::new(sig_bytes, aegis_crypto::signing::MlDsaAlgorithm::MlDsa65);
+
+        // Receive server identity PK
+        let mut id_pk_len_bytes = [0u8; 4];
+        client.read_exact(&mut id_pk_len_bytes).await.unwrap();
+        let id_pk_len = u32::from_be_bytes(id_pk_len_bytes) as usize;
+        let mut id_pk_bytes = vec![0u8; id_pk_len];
+        client.read_exact(&mut id_pk_bytes).await.unwrap();
+
         let server_pk = aegis_crypto::HybridPublicKey::from_bytes(&pk_bytes).unwrap();
-        let (ciphertext, client_channel) = client_handshake.client_complete(&server_pk).unwrap();
+        let (ciphertext, client_channel) = client_handshake.client_complete(&server_pk, &id_pk_bytes, &signature).unwrap();
 
         let ct_bytes = ciphertext.to_bytes();
         client
@@ -284,7 +330,7 @@ mod tests {
         client.write_all(&ct_bytes).await.unwrap();
 
         // 🔒 Data Plane
-        let key = client_channel.encryption_key().as_bytes();
+        let key = client_channel.send_key().as_bytes();
         let encrypted_client = EncryptedStream::new(client, key);
 
         // Wrap in TokioIo
@@ -840,16 +886,30 @@ mod tests {
         let mut client = TcpStream::connect(addr).await.unwrap();
         let client_handshake = PqcHandshake::new(PqcTlsConfig::default());
 
-        // Complete handshake
+        // Send handshake from server to client
         let mut pk_len_bytes = [0u8; 4];
         client.read_exact(&mut pk_len_bytes).await.unwrap();
         let pk_len = u32::from_be_bytes(pk_len_bytes) as usize;
-
         let mut pk_bytes = vec![0u8; pk_len];
         client.read_exact(&mut pk_bytes).await.unwrap();
 
+        // Receive server signature
+        let mut sig_len_bytes = [0u8; 4];
+        client.read_exact(&mut sig_len_bytes).await.unwrap();
+        let sig_len = u32::from_be_bytes(sig_len_bytes) as usize;
+        let mut sig_bytes = vec![0u8; sig_len];
+        client.read_exact(&mut sig_bytes).await.unwrap();
+        let signature = aegis_crypto::signing::MlDsaSignature::new(sig_bytes, aegis_crypto::signing::MlDsaAlgorithm::MlDsa65);
+
+        // Receive server identity PK
+        let mut id_pk_len_bytes = [0u8; 4];
+        client.read_exact(&mut id_pk_len_bytes).await.unwrap();
+        let id_pk_len = u32::from_be_bytes(id_pk_len_bytes) as usize;
+        let mut id_pk_bytes = vec![0u8; id_pk_len];
+        client.read_exact(&mut id_pk_bytes).await.unwrap();
+
         let server_pk = aegis_crypto::HybridPublicKey::from_bytes(&pk_bytes).unwrap();
-        let (ciphertext, client_channel) = client_handshake.client_complete(&server_pk).unwrap();
+        let (ciphertext, client_channel) = client_handshake.client_complete(&server_pk, &id_pk_bytes, &signature).unwrap();
 
         let ct_bytes = ciphertext.to_bytes();
         client
@@ -859,7 +919,7 @@ mod tests {
         client.write_all(&ct_bytes).await.unwrap();
 
         // Setup encrypted stream
-        let key = client_channel.encryption_key().as_bytes();
+        let key = client_channel.send_key().as_bytes();
         let encrypted_client = EncryptedStream::new(client, key);
         let io = get_tokio_io(encrypted_client);
 
@@ -926,16 +986,30 @@ mod tests {
         let mut client = TcpStream::connect(addr).await.unwrap();
         let client_handshake = PqcHandshake::new(PqcTlsConfig::default());
 
-        // Complete handshake
+        // Send handshake from server to client
         let mut pk_len_bytes = [0u8; 4];
         client.read_exact(&mut pk_len_bytes).await.unwrap();
         let pk_len = u32::from_be_bytes(pk_len_bytes) as usize;
-
         let mut pk_bytes = vec![0u8; pk_len];
         client.read_exact(&mut pk_bytes).await.unwrap();
 
+        // Receive server signature
+        let mut sig_len_bytes = [0u8; 4];
+        client.read_exact(&mut sig_len_bytes).await.unwrap();
+        let sig_len = u32::from_be_bytes(sig_len_bytes) as usize;
+        let mut sig_bytes = vec![0u8; sig_len];
+        client.read_exact(&mut sig_bytes).await.unwrap();
+        let signature = aegis_crypto::signing::MlDsaSignature::new(sig_bytes, aegis_crypto::signing::MlDsaAlgorithm::MlDsa65);
+
+        // Receive server identity PK
+        let mut id_pk_len_bytes = [0u8; 4];
+        client.read_exact(&mut id_pk_len_bytes).await.unwrap();
+        let id_pk_len = u32::from_be_bytes(id_pk_len_bytes) as usize;
+        let mut id_pk_bytes = vec![0u8; id_pk_len];
+        client.read_exact(&mut id_pk_bytes).await.unwrap();
+
         let server_pk = aegis_crypto::HybridPublicKey::from_bytes(&pk_bytes).unwrap();
-        let (ciphertext, client_channel) = client_handshake.client_complete(&server_pk).unwrap();
+        let (ciphertext, client_channel) = client_handshake.client_complete(&server_pk, &id_pk_bytes, &signature).unwrap();
 
         let ct_bytes = ciphertext.to_bytes();
         client
@@ -945,7 +1019,7 @@ mod tests {
         client.write_all(&ct_bytes).await.unwrap();
 
         // Setup encrypted stream
-        let key = client_channel.encryption_key().as_bytes();
+        let key = client_channel.send_key().as_bytes();
         let encrypted_client = EncryptedStream::new(client, key);
         let io = get_tokio_io(encrypted_client);
 
@@ -1088,16 +1162,30 @@ mod tests {
         let mut client = TcpStream::connect(addr).await.unwrap();
         let client_handshake = PqcHandshake::new(PqcTlsConfig::default());
 
-        // Complete handshake
+        // Send handshake from server to client
         let mut pk_len_bytes = [0u8; 4];
         client.read_exact(&mut pk_len_bytes).await.unwrap();
         let pk_len = u32::from_be_bytes(pk_len_bytes) as usize;
-
         let mut pk_bytes = vec![0u8; pk_len];
         client.read_exact(&mut pk_bytes).await.unwrap();
 
+        // Receive server signature
+        let mut sig_len_bytes = [0u8; 4];
+        client.read_exact(&mut sig_len_bytes).await.unwrap();
+        let sig_len = u32::from_be_bytes(sig_len_bytes) as usize;
+        let mut sig_bytes = vec![0u8; sig_len];
+        client.read_exact(&mut sig_bytes).await.unwrap();
+        let signature = aegis_crypto::signing::MlDsaSignature::new(sig_bytes, aegis_crypto::signing::MlDsaAlgorithm::MlDsa65);
+
+        // Receive server identity PK
+        let mut id_pk_len_bytes = [0u8; 4];
+        client.read_exact(&mut id_pk_len_bytes).await.unwrap();
+        let id_pk_len = u32::from_be_bytes(id_pk_len_bytes) as usize;
+        let mut id_pk_bytes = vec![0u8; id_pk_len];
+        client.read_exact(&mut id_pk_bytes).await.unwrap();
+
         let server_pk = aegis_crypto::HybridPublicKey::from_bytes(&pk_bytes).unwrap();
-        let (ciphertext, client_channel) = client_handshake.client_complete(&server_pk).unwrap();
+        let (ciphertext, client_channel) = client_handshake.client_complete(&server_pk, &id_pk_bytes, &signature).unwrap();
 
         let ct_bytes = ciphertext.to_bytes();
         client
@@ -1107,7 +1195,7 @@ mod tests {
         client.write_all(&ct_bytes).await.unwrap();
 
         // Setup encrypted stream
-        let key = client_channel.encryption_key().as_bytes();
+        let key = client_channel.send_key().as_bytes();
         let mut encrypted_client = EncryptedStream::new(client, key);
 
         // Send INVALID HTTP/2 connection preface (random garbage)

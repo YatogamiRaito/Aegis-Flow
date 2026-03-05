@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package envoy.api.v3;
+
+import "envoy/api/v3/discovery.proto";
+
+message Cluster {
+    string name = 1;
+    string type = 2; // e.g., "STRICT_DNS"
+    repeated string endpoints = 3;
+}
+
+service ClusterDiscoveryService {
+    rpc StreamClusters(stream DiscoveryRequest) returns (stream DiscoveryResponse);
+}

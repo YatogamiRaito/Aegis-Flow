@@ -1,11 +1,12 @@
 use crate::upstream::{LoadBalanceStrategy, UpstreamServer};
 use std::hash::{DefaultHasher, Hash, Hasher};
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 
 #[derive(Debug)]
 pub struct RuntimeServer {
     pub config: UpstreamServer,
     pub active_connections: AtomicU64,
+    pub is_healthy: AtomicBool,
 }
 
 impl RuntimeServer {
@@ -13,7 +14,12 @@ impl RuntimeServer {
         Self {
             config,
             active_connections: AtomicU64::new(0),
+            is_healthy: AtomicBool::new(true),
         }
+    }
+
+    pub fn set_healthy(&self, healthy: bool) {
+        self.is_healthy.store(healthy, Ordering::Relaxed);
     }
 }
 
@@ -38,7 +44,7 @@ impl LoadBalancer {
         let mut backups = Vec::new();
 
         for s in &self.servers {
-            if s.config.down {
+            if s.config.down || !s.is_healthy.load(Ordering::Relaxed) {
                 continue;
             }
             if s.config.backup {

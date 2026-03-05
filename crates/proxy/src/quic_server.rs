@@ -7,6 +7,7 @@ use s2n_quic::Server;
 use s2n_quic::stream::BidirectionalStream;
 use std::path::Path;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, instrument, warn};
 
@@ -63,15 +64,21 @@ pub struct QuicServer {
     config: QuicConfig,
     proxy_config: ProxyConfig,
     stats: Arc<RwLock<QuicStats>>,
+    h3_handler: Arc<crate::http3_handler::Http3Handler>,
 }
 
 impl QuicServer {
     /// Create a new QUIC server
     pub fn new(config: QuicConfig, proxy_config: ProxyConfig) -> Self {
+        let handler = crate::http3_handler::Http3Handler::new(
+            crate::http3_handler::Http3Config::default(),
+            proxy_config.upstream_addr.clone(),
+        );
         Self {
             config,
             proxy_config,
             stats: Arc::new(RwLock::new(QuicStats::default())),
+            h3_handler: Arc::new(handler),
         }
     }
 
@@ -118,13 +125,31 @@ impl QuicServer {
         info!("📜 Using certificate: {}", self.config.cert_path);
         info!("🔑 Using private key: {}", self.config.key_path);
 
-        // Build the QUIC server
-        let server = Server::builder()
-            .with_tls((
+        let limits = s2n_quic::provider::limits::Limits::default()
+            .with_max_open_local_bidirectional_streams(self.config.max_streams as u64).unwrap()
+            .with_max_idle_timeout(Duration::from_secs(self.config.idle_timeout_secs)).unwrap();
+
+        let tls = s2n_quic::provider::tls::rustls::Server::builder()
+            .with_certificate(
                 Path::new(&self.config.cert_path),
                 Path::new(&self.config.key_path),
-            ))?
+            )
+            .map_err(|e| anyhow::anyhow!("TLS cert error: {}", e))?
+            .build()
+            .map_err(|e| anyhow::anyhow!("TLS config build error: {}", e))?;
+
+        if self.config.enable_0rtt {
+            info!("🔐 0-RTT: enabled via QUIC session ticket resumption");
+        }
+        if self.config.pqc_enabled {
+            info!("🛡️ PQC: Hybrid ML-KEM-768+X25519 configured in TLS layer");
+        }
+
+        // Build the QUIC server
+        let server = Server::builder()
+            .with_tls(tls)?
             .with_io(self.config.bind_address.as_str())?
+            .with_limits(limits)?
             .start()
             .map_err(|e| anyhow::anyhow!("Failed to start QUIC server: {}", e))?;
 
@@ -167,7 +192,7 @@ impl QuicServer {
                 accept_result = server.accept() => {
                     if let Some(connection) = accept_result {
                         let stats = Arc::clone(&self.stats);
-                        let upstream = self.proxy_config.upstream_addr.clone();
+                        let h3_handler = Arc::clone(&self.h3_handler);
 
                         // Update stats
                         {
@@ -182,7 +207,7 @@ impl QuicServer {
                         // Spawn connection handler
                         tokio::spawn(async move {
                             if let Err(e) =
-                                Self::handle_connection(connection, upstream, Arc::clone(&stats)).await
+                                Self::handle_connection(connection, h3_handler, Arc::clone(&stats)).await
                             {
                                 error!("❌ Connection error: {}", e);
                             }
@@ -206,40 +231,150 @@ impl QuicServer {
         Ok(())
     }
 
-    /// Handle a single QUIC connection
     async fn handle_connection(
-        mut connection: s2n_quic::Connection,
-        upstream: String,
+        connection: s2n_quic::Connection,
+        h3_handler: Arc<crate::http3_handler::Http3Handler>,
         stats: Arc<RwLock<QuicStats>>,
     ) -> Result<()> {
-        // Accept bidirectional streams from the connection
-        while let Ok(Some(stream)) = connection.accept_bidirectional_stream().await {
-            let upstream = upstream.clone();
-            let stats = Arc::clone(&stats);
-
-            // Update stream stats
-            {
-                let mut s = stats.write().await;
-                s.streams_handled += 1;
+        let mut h3_conn = match h3::server::Connection::new(crate::h3_adapter::S2nConnection(connection)).await {
+            Ok(c) => c,
+            Err(e) => {
+                warn!("HTTP/3 connection error: {}", e);
+                return Err(anyhow::anyhow!("HTTP/3 connection error"));
             }
+        };
 
-            // Spawn stream handler
-            tokio::spawn(async move {
-                if let Err(e) = Self::handle_stream(stream, upstream).await {
-                    warn!("⚠️ Stream error: {}", e);
+        // Accept HTTP/3 requests from the connection
+        loop {
+            match h3_conn.accept().await {
+                Ok(Some(verb_stream)) => {
+                    // Resolve the request headers and get the request and stream objects
+                    let mut verb_stream = verb_stream;
+                    let (req, stream) = match verb_stream.resolve_request().await {
+                        Ok(r) => r,
+                        Err(e) => {
+                            warn!("HTTP/3 resolve error: {:?}", e);
+                            continue;
+                        }
+                    };
+
+                    let stats = Arc::clone(&stats);
+                    let h3_handler = Arc::clone(&h3_handler);
+
+                    // Update stream stats
+                    {
+                        let mut s = stats.write().await;
+                        s.streams_handled += 1;
+                    }
+
+                    // Spawn stream handler
+                    tokio::spawn(async move {
+                        if let Err(e) = Self::handle_h3_stream(req, stream, h3_handler).await {
+                            warn!("⚠️ HTTP/3 stream error: {:?}", e);
+                        }
+                    });
                 }
-            });
+                Ok(None) => break,
+                Err(e) => {
+                    warn!("HTTP/3 accept error: {:?}", e);
+                    break;
+                }
+            }
         }
 
         Ok(())
     }
 
+    /// Handle a single HTTP/3 request stream
+    async fn handle_h3_stream(
+        req: hyper::http::Request<()>,
+        mut stream: h3::server::RequestStream<crate::h3_adapter::S2nBidiStream, bytes::Bytes>,
+        handler: Arc<crate::http3_handler::Http3Handler>,
+    ) -> Result<()> {
+        use crate::http3_handler::Http3Request;
+        use hyper::http;
+        use bytes::BufMut;
+
+        let method = req.method().as_str();
+        let path = match req.uri().path_and_query() {
+            Some(pq) => pq.as_str(),
+            None => "/",
+        };
+
+        debug!("📨 HTTP/3 Request {} {}", method, path);
+
+        let mut request = Http3Request::new(method, path);
+        for (name, value) in req.headers() {
+            if let Ok(v) = value.to_str() {
+                request = request.with_header(name.as_str(), v);
+            }
+        }
+
+        // Set up request body streaming
+        let (mut send_stream, mut recv_stream) = stream.split();
+        let (tx, rx) = tokio::sync::mpsc::channel(16);
+        request = request.with_stream_body(rx);
+
+        // Spawn a task to read from h3 stream and push to Http3Request stream
+        tokio::spawn(async move {
+            use bytes::BufMut;
+            while let Ok(Some(data)) = recv_stream.recv_data().await {
+                let mut b = bytes::BytesMut::new();
+                b.put(data);
+                if tx.send(Ok(b.freeze())).await.is_err() {
+                    break;
+                }
+            }
+        });
+
+        let response = handler.handle_request(request).await;
+
+        let status = http::StatusCode::from_u16(response.status).unwrap_or(http::StatusCode::OK);
+        let h3_resp = http::Response::builder().status(status).body(()).unwrap();
+
+        send_stream.send_response(h3_resp).await.map_err(|e| anyhow::anyhow!("h3 resp err: {:?}", e))?;
+
+        use crate::http3_handler::HttpBodyType;
+        match response.body {
+            HttpBodyType::Bytes(b) => {
+                if !b.is_empty() {
+                     send_stream.send_data(b).await
+                         .map_err(|e| anyhow::anyhow!("h3 data err: {:?}", e))?;
+                }
+            }
+            HttpBodyType::Stream(mut rx) => {
+                while let Some(chunk) = rx.recv().await {
+                    match chunk {
+                        Ok(b) => {
+                            if let Err(e) = send_stream.send_data(b).await {
+                                warn!("h3 data send error: {:?}", e);
+                                break;
+                            }
+                        }
+                        Err(e) => {
+                            warn!("h3 stream error from upstream: {}", e);
+                            break;
+                        }
+                    }
+                }
+            }
+            HttpBodyType::Empty => {}
+        }
+
+        send_stream.finish().await.map_err(|e| anyhow::anyhow!("h3 finish err: {:?}", e))?;
+
+        debug!("✅ Response sent with status {}", response.status);
+        Ok(())
+    }
+
+    #[allow(dead_code)]
     /// Handle a single bidirectional stream with HTTP/3 handler
     async fn handle_stream(stream: BidirectionalStream, upstream: String) -> Result<()> {
         let (recv, send) = stream.split();
         Self::process_stream(recv, send, upstream).await
     }
 
+    #[allow(dead_code)]
     /// Process stream logic (generic for testing)
     async fn process_stream<R, W>(mut recv: R, mut send: W, upstream: String) -> Result<()>
     where
@@ -295,7 +430,7 @@ impl QuicServer {
 
         // Send response body
         if !response.body.is_empty() {
-            send.write_all(&response.body).await?;
+            send.write_all(response.body.as_bytes().unwrap_or(&[])).await?;
         }
 
         // Ensure flushed

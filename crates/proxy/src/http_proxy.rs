@@ -14,8 +14,27 @@ use std::net::SocketAddr;
 use std::time::Instant;
 use tokio::net::{TcpListener, TcpStream};
 use tracing::{debug, error, info, instrument, warn};
+use opentelemetry::propagation::{Extractor, Injector};
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 use crate::metrics;
+
+struct HeaderExtractor<'a>(&'a hyper::HeaderMap);
+impl<'a> Extractor for HeaderExtractor<'a> {
+    fn get(&self, key: &str) -> Option<&str> {
+        self.0.get(key).and_then(|v| v.to_str().ok())
+    }
+    fn keys(&self) -> Vec<&str> {
+        self.0.keys().map(|k| k.as_str()).collect()
+    }
+}
+
+struct MapInjector<'a>(&'a mut std::collections::HashMap<String, String>);
+impl<'a> Injector for MapInjector<'a> {
+    fn set(&mut self, key: &str, value: String) {
+        self.0.insert(key.to_string(), value);
+    }
+}
 
 /// HTTP/2 Proxy Configuration
 #[derive(Debug, Clone)]
@@ -46,6 +65,8 @@ pub struct HttpProxyConfig {
     pub tls_server_config: Option<std::sync::Arc<rustls::ServerConfig>>,
     /// Global locations passed from ProxyConfig
     pub locations: Vec<crate::location::LocationBlock>,
+    /// Whether QUIC/HTTP3 listener is active (controls Alt-Svc injection)
+    pub quic_enabled: bool,
 }
 
 impl Default for HttpProxyConfig {
@@ -64,6 +85,7 @@ impl Default for HttpProxyConfig {
             acme_manager: None,
             tls_server_config: None,
             locations: Vec::new(),
+            quic_enabled: false,
         }
     }
 }
@@ -164,6 +186,7 @@ impl HttpProxy {
                             let acme_manager = self.config.acme_manager.clone();
                             let tls_cfg = self.config.tls_server_config.clone();
                             let locations = self.locations.clone();
+                            let quic_enabled = self.config.quic_enabled;
 
                             tokio::spawn(async move {
                                 debug!("📥 HTTP/2 connection from {}", peer_addr);
@@ -178,7 +201,7 @@ impl HttpProxy {
                                     let bypass_check = bypass_check.clone();
                                     let acme_manager_req = acme_manager_svc.clone();
                                     let locations_req = locations_svc.clone();
-                                    async move { handle_request(req, &upstream, static_server, memory_cache, ttl_config, bypass_check, acme_manager_req, locations_req).await }
+                                    async move { handle_request(req, &upstream, static_server, memory_cache, ttl_config, bypass_check, acme_manager_req, locations_req, quic_enabled).await }
                                 });
 
                                 if let Some(config) = tls_cfg {
@@ -264,6 +287,7 @@ pub(crate) async fn handle_request<B>(
     bypass_check: std::sync::Arc<crate::proxy_cache::BypassCheck>,
     acme_manager: Option<std::sync::Arc<crate::acme::AcmeManager>>,
     locations: std::sync::Arc<Vec<crate::location::ParsedLocationBlock>>,
+    quic_enabled: bool,
 ) -> Result<Response<BoxBody<Bytes, BoxError>>, hyper::Error>
 where
     B: hyper::body::Body + Send + 'static,
@@ -274,6 +298,14 @@ where
     let method = req.method().clone();
     let uri = req.uri().clone();
     let headers = req.headers().clone();
+
+    // Extract OpenTelemetry context (Trace Context + Baggage)
+    let parent_cx = opentelemetry::global::get_text_map_propagator(|propagator| {
+        propagator.extract(&HeaderExtractor(&headers))
+    });
+    let span = tracing::info_span!("http_request", method = %method, path = %uri.path());
+    span.set_parent(parent_cx);
+    let _enter = span.enter();
 
     // Stub Status request tracking
     crate::stub_status::get_metrics()
@@ -572,6 +604,18 @@ where
 
     metrics::record_energy_impact(energy_j, carbon_g, "unknown");
 
+    // Inject Alt-Svc header only when the QUIC listener is active
+    if quic_enabled {
+        let h3_port = std::env::var("QUIC_PORT").unwrap_or_else(|_| "443".to_string());
+        let alt_svc_value = format!("h3=\":{}\"; ma=86400", h3_port);
+        let (mut parts, body) = response.into_parts();
+        if let Ok(hv) = hyper::header::HeaderValue::from_str(&alt_svc_value) {
+            parts.headers.insert("alt-svc", hv);
+        }
+        let response = Response::from_parts(parts, body);
+        return Ok(response);
+    }
+
     Ok(response)
 }
 
@@ -705,6 +749,18 @@ async fn forward_to_upstream(
     // Add body if present
     if !body.is_empty() {
         upstream_req = upstream_req.body(body.to_vec());
+    }
+
+    // Inject OpenTelemetry context (Trace Context + Baggage) into upstream request
+    let mut cx_map = std::collections::HashMap::new();
+    opentelemetry::global::get_text_map_propagator(|propagator| {
+        propagator.inject_context(
+            &tracing::Span::current().context(),
+            &mut MapInjector(&mut cx_map),
+        )
+    });
+    for (name, value) in cx_map {
+        upstream_req = upstream_req.header(name, value);
     }
 
     // Send request and get response
@@ -945,6 +1001,7 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
             std::sync::Arc::new(vec![]),
+            false,
         )
         .await
         .unwrap();
@@ -971,6 +1028,7 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
             std::sync::Arc::new(vec![]),
+            false,
         )
         .await
         .unwrap();
@@ -1004,6 +1062,7 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
             std::sync::Arc::new(vec![]),
+            false,
         )
         .await
         .unwrap();
@@ -1059,6 +1118,7 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
             std::sync::Arc::new(vec![]),
+            false,
         )
         .await
         .unwrap();
@@ -1083,6 +1143,7 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
             std::sync::Arc::new(vec![]),
+            false,
         )
         .await
         .unwrap();
@@ -1114,6 +1175,7 @@ mod tests {
                 std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
                 None,
                 std::sync::Arc::new(vec![]),
+                false,
             )
             .await
             .unwrap();
@@ -1146,6 +1208,7 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
             std::sync::Arc::new(vec![]),
+            false,
         )
         .await
         .unwrap();
@@ -1171,6 +1234,7 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
             std::sync::Arc::new(vec![]),
+            false,
         )
         .await
         .unwrap();
@@ -1196,6 +1260,7 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
             std::sync::Arc::new(vec![]),
+            false,
         )
         .await
         .unwrap();
@@ -1228,6 +1293,7 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
             std::sync::Arc::new(vec![]),
+            false,
         )
         .await
         .unwrap();
@@ -1285,6 +1351,7 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
             std::sync::Arc::new(vec![]),
+            false,
         )
         .await
         .unwrap();
@@ -1313,6 +1380,7 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
             std::sync::Arc::new(vec![]),
+            false,
         )
         .await
         .unwrap();
@@ -1334,6 +1402,7 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
             std::sync::Arc::new(vec![]),
+            false,
         )
         .await
         .unwrap();
@@ -1355,6 +1424,7 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
             std::sync::Arc::new(vec![]),
+            false,
         )
         .await
         .unwrap();
@@ -1375,6 +1445,7 @@ mod tests {
             std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
             None,
             std::sync::Arc::new(vec![]),
+            false,
         )
         .await
         .unwrap();
@@ -1416,6 +1487,7 @@ mod tests {
                 std::sync::Arc::new(crate::proxy_cache::BypassCheck::default()),
                 None,
                 std::sync::Arc::new(vec![]),
+                false,
             )
             .await
             .unwrap();

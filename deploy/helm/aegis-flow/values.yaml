@@ -4,7 +4,7 @@
 # Image configuration
 image:
   repository: ghcr.io/aegis-flow/aegis-flow
-  tag: "0.2.0"
+  tag: "0.31.0"
   pullPolicy: IfNotPresent
 
 # Number of replicas
@@ -14,7 +14,7 @@ replicaCount: 2
 service:
   type: ClusterIP
   port: 8443
-  metricsPort: 8080
+  metricsPort: 8081
 
 # Resource limits
 resources:
@@ -32,11 +32,19 @@ autoscaling:
   maxReplicas: 10
   targetCPUUtilizationPercentage: 80
   targetMemoryUtilizationPercentage: 80
+  # customMetrics:
+  #   - type: Pods
+  #     pods:
+  #       metric:
+  #         name: aegis_pqc_handshakes_total
+  #       target:
+  #         type: AverageValue
+  #         averageValue: 50
 
 # Pod configuration
 podAnnotations:
   prometheus.io/scrape: "true"
-  prometheus.io/port: "9090"
+  prometheus.io/port: "8081"
   prometheus.io/path: "/metrics"
 
 podSecurityContext:

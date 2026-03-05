@@ -42,12 +42,19 @@ where
     F: std::future::Future<Output = ()> + Send + 'static,
 {
     // Initialize tracing
-    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
-
-    let _ = tracing_subscriber::registry()
-        .with(fmt::layer())
-        .with(filter)
-        .try_init();
+    if config.logging.otel_enabled {
+        if let Err(e) = crate::tracing_otel::init_tracing("aegis-proxy", &config.logging.otlp_endpoint) {
+            eprintln!("Failed to initialize OpenTelemetry: {}", e);
+            // Fallback to simple fmt if OTel fails
+            let _ = tracing_subscriber::fmt()
+                .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
+                .try_init();
+        }
+    } else {
+        let _ = tracing_subscriber::fmt()
+            .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
+            .try_init();
+    }
 
     info!("🚀 Aegis-Flow Proxy starting...");
     info!("📦 Version: {}", env!("CARGO_PKG_VERSION"));
@@ -71,6 +78,17 @@ where
             tracing::error!("Health server failed: {}", e);
         }
     });
+
+    // Spawn xDS Server if enabled
+    if config.xds.enabled {
+        let xds_addr = config.xds.addr.clone();
+        let xds_snapshot = std::sync::Arc::new(crate::xds::Snapshot::default());
+        tokio::spawn(async move {
+            if let Err(e) = crate::xds::run_xds_server(&xds_addr, xds_snapshot).await {
+                tracing::error!("xDS Server failed: {}", e);
+            }
+        });
+    }
 
     info!("🌐 Listening on {}:{}", config.host, config.port);
     info!("🔐 Post-Quantum Cryptography: Enabled (ML-KEM-768 + X25519)");
@@ -273,6 +291,8 @@ mod tests {
 
         let result = handle.await.unwrap();
         assert!(result.is_ok(), "Bootstrap failed: {:?}", result.err());
+        
+        crate::tracing_otel::shutdown_tracing();
     }
 
     #[tokio::test]
@@ -291,6 +311,8 @@ mod tests {
 
         // Assert it returns (Ok or Err)
         assert!(result.is_ok() || result.is_err());
+        
+        crate::tracing_otel::shutdown_tracing();
     }
 
     #[tokio::test]
@@ -319,6 +341,7 @@ mod tests {
         tx.send(()).unwrap();
 
         let _ = handle.await;
+        crate::tracing_otel::shutdown_tracing();
     }
 
     #[tokio::test]
@@ -347,6 +370,7 @@ mod tests {
         tx.send(()).unwrap();
 
         let _ = handle.await;
+        crate::tracing_otel::shutdown_tracing();
     }
 
     #[tokio::test]
@@ -363,5 +387,7 @@ mod tests {
         // Either timeout (Err) or early return (Ok with result) is acceptable
         // The key is that bootstrap() was called and lines 12-13 were executed
         let _ = result; // Just verify it ran without panic
+        
+        crate::tracing_otel::shutdown_tracing();
     }
 }

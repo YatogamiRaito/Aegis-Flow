@@ -14,7 +14,7 @@ members = ["crates/aegisfile","crates/certman",
 ]
 
 [workspace.package]
-version = "0.30.0"
+version = "0.31.0"
 edition = "2024"
 authors = ["Aegis-Flow Contributors"]
 license = "Apache-2.0"
@@ -34,7 +34,7 @@ tower = { version = "0.5", features = ["full"] }
 bytes = "1.11"
 
 # HTTP/3 & QUIC
-s2n-quic = "1.71"
+s2n-quic = { version = "1.71", features = ["provider-tls-rustls"] }
 
 # TLS
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
@@ -52,6 +52,12 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 metrics = "0.24"
 metrics-exporter-prometheus = "0.16"
+
+# OpenTelemetry
+opentelemetry = { version = "0.27", features = ["metrics", "trace"] }
+opentelemetry_sdk = { version = "0.27", features = ["rt-tokio"] }
+opentelemetry-otlp = { version = "0.27", features = ["grpc-tonic", "trace"] }
+tracing-opentelemetry = "0.28"
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
@@ -92,6 +98,13 @@ time = { version = "0.3", features = ["formatting", "parsing"] }
 
 # Faster sync primitives
 parking_lot = "0.12"
+hickory-resolver = { version = "0.24", features = ["tokio-runtime", "dns-over-rustls"] }
+
+# gRPC & Protobuf (for xDS)
+tonic = "0.12"
+prost = "0.13"
+prost-types = "0.13"
+tokio-stream = "0.1"
 
 [profile.release]
 opt-level = 3
